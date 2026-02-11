@@ -7,6 +7,7 @@ export type RfsnCapability = string;
 export type RfsnProvenance = {
   modelProvider?: string;
   modelId?: string;
+  policySha256?: string;
   promptHash?: string;
   contextRefs?: string[];
 };

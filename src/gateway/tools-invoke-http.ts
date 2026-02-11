@@ -22,7 +22,7 @@ import { redactSensitiveText } from "../logging/redact.js";
 import { isTestDefaultMemorySlotDisabled } from "../plugins/config-state.js";
 import { getPluginToolMeta } from "../plugins/tools.js";
 import { rfsnDispatch } from "../rfsn/dispatch.js";
-import { createDefaultRfsnPolicy } from "../rfsn/policy.js";
+import { createAndBootstrapDefaultPolicy } from "../rfsn/policy-bootstrap.js";
 import { resolveRfsnRuntimeCapabilities } from "../rfsn/runtime-caps.js";
 import { isSubagentSessionKey } from "../routing/session-key.js";
 import { normalizeMessageChannel } from "../utils/message-channel.js";
@@ -328,15 +328,18 @@ export async function handleToolsInvokeHttpRequest(
           accountId,
         }) ?? [])
       : undefined;
-    const rfsnPolicy = createDefaultRfsnPolicy({
-      mode: "allowlist",
-      allowTools: [tool.name],
-      grantedCapabilities: resolveRfsnRuntimeCapabilities({
-        sandboxed: false,
-        channelCapabilities: runtimeCapabilities,
-        messageToolEnabled: true,
-      }),
+    const policyBoot = createAndBootstrapDefaultPolicy({
+      basePolicyOptions: {
+        mode: "allowlist",
+        allowTools: [tool.name],
+        grantedCapabilities: resolveRfsnRuntimeCapabilities({
+          sandboxed: false,
+          channelCapabilities: runtimeCapabilities,
+          messageToolEnabled: true,
+        }),
+      },
     });
+    const rfsnPolicy = policyBoot.policy;
     const result = await rfsnDispatch({
       tool,
       toolCallId: `http-${Date.now()}`,
@@ -347,6 +350,7 @@ export async function handleToolsInvokeHttpRequest(
         actor: "gateway-tools-invoke-http",
         sessionKey,
         agentId,
+        provenance: { policySha256: policyBoot.policySha256 },
       },
       runtime: { sandboxed: false },
     });

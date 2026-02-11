@@ -438,18 +438,18 @@ A new authentication proxy for the browser debug stack:
 
 A comprehensive 10-finding security audit covering:
 
-| ID | Severity | Finding |
-|---|---|---|
-| SEC-001 | Critical | Archive extraction path traversal |
-| SEC-002 | Critical | Embeddings SSRF + auth header override |
-| SEC-003 | High | Browser debug stack exposed without auth |
-| SEC-004 | High | WebView bridge trust boundary too broad |
-| SEC-005 | High | RFSN not mediating all side-effect primitives |
-| SEC-006 | Medium | Extension services bind `0.0.0.0` by default |
-| SEC-007 | Medium | Nextcloud Talk webhook no body size cap |
-| SEC-008 | Medium | Webhook endpoints missing auth |
-| SEC-009 | Medium | Secrets in query strings and logs |
-| SEC-010 | Medium | Embeddings client allows header override |
+| ID      | Severity | Finding                                       |
+| ------- | -------- | --------------------------------------------- |
+| SEC-001 | Critical | Archive extraction path traversal             |
+| SEC-002 | Critical | Embeddings SSRF + auth header override        |
+| SEC-003 | High     | Browser debug stack exposed without auth      |
+| SEC-004 | High     | WebView bridge trust boundary too broad       |
+| SEC-005 | High     | RFSN not mediating all side-effect primitives |
+| SEC-006 | Medium   | Extension services bind `0.0.0.0` by default  |
+| SEC-007 | Medium   | Nextcloud Talk webhook no body size cap       |
+| SEC-008 | Medium   | Webhook endpoints missing auth                |
+| SEC-009 | Medium   | Secrets in query strings and logs             |
+| SEC-010 | Medium   | Embeddings client allows header override      |
 
 ### Test Coverage
 

@@ -136,11 +136,18 @@ const RFSN_RUNTIME_CAPABILITY_RULES = [
       "resolveRfsnRuntimeCapabilities",
       "channelCapabilities: runtimeCapabilities",
       "messageToolEnabled: !params.disableMessageTool",
+      "createAndBootstrapDefaultPolicy",
+      "createGatedTools",
     ],
   },
   {
     file: "src/agents/pi-embedded-runner/compact.ts",
-    markers: ["resolveRfsnRuntimeCapabilities", "channelCapabilities: runtimeCapabilities"],
+    markers: [
+      "resolveRfsnRuntimeCapabilities",
+      "channelCapabilities: runtimeCapabilities",
+      "createAndBootstrapDefaultPolicy",
+      "createGatedTools",
+    ],
   },
   {
     file: "src/auto-reply/reply/get-reply-inline-actions.ts",
@@ -148,11 +155,12 @@ const RFSN_RUNTIME_CAPABILITY_RULES = [
       "resolveRfsnRuntimeCapabilities",
       "resolveChannelCapabilities",
       "channelCapabilities: runtimeCapabilities",
+      "createAndBootstrapDefaultPolicy",
     ],
   },
   {
     file: "src/auto-reply/reply/bash-command.ts",
-    markers: ["resolveRfsnRuntimeCapabilities"],
+    markers: ["resolveRfsnRuntimeCapabilities", "createAndBootstrapDefaultPolicy"],
   },
   {
     file: "src/gateway/tools-invoke-http.ts",
@@ -160,7 +168,15 @@ const RFSN_RUNTIME_CAPABILITY_RULES = [
       "resolveRfsnRuntimeCapabilities",
       "resolveChannelCapabilities",
       "channelCapabilities: runtimeCapabilities",
+      "createAndBootstrapDefaultPolicy",
     ],
+  },
+] as const;
+
+const RFSN_GATED_FACTORY_RULES = [
+  {
+    file: "src/agents/tools/index.gated.ts",
+    markers: ["wrapToolsWithRfsnGate", "createGatedTools"],
   },
 ] as const;
 
@@ -238,6 +254,16 @@ describe("RFSN final authority", () => {
         if (/\bfetch\(/.test(content)) {
           violations.push(`${relPath}: chokepoint calls raw fetch() directly`);
         }
+      }
+
+      if (
+        relPath.startsWith("src/agents/") &&
+        relPath !== "src/agents/tools/index.gated.ts" &&
+        /wrapToolsWithRfsnGate\(/.test(content)
+      ) {
+        violations.push(
+          `${relPath}: runtime should use createGatedTools instead of calling wrapToolsWithRfsnGate directly`,
+        );
       }
 
       if (relPath.startsWith(RFSN_AGENT_TOOL_ROOT)) {
@@ -352,6 +378,16 @@ describe("RFSN final authority", () => {
       for (const marker of entry.markers) {
         if (!content.includes(marker)) {
           violations.push(`${entry.file}: missing RFSN runtime capability marker "${marker}"`);
+        }
+      }
+    }
+
+    for (const entry of RFSN_GATED_FACTORY_RULES) {
+      const absPath = path.resolve(process.cwd(), entry.file);
+      const content = await fs.readFile(absPath, "utf8");
+      for (const marker of entry.markers) {
+        if (!content.includes(marker)) {
+          violations.push(`${entry.file}: missing RFSN gated factory marker "${marker}"`);
         }
       }
     }

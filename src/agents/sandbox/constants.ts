@@ -7,6 +7,14 @@ export const DEFAULT_SANDBOX_WORKSPACE_ROOT = path.join(STATE_DIR, "sandboxes");
 export const DEFAULT_SANDBOX_IMAGE = "openclaw-sandbox:bookworm-slim";
 export const DEFAULT_SANDBOX_CONTAINER_PREFIX = "openclaw-sbx-";
 export const DEFAULT_SANDBOX_WORKDIR = "/workspace";
+export const DEFAULT_SANDBOX_TMPFS = [
+  "/tmp:rw,nosuid,nodev,noexec,size=64m",
+  "/var/tmp:rw,nosuid,nodev,noexec,size=64m",
+  "/run:rw,nosuid,nodev,noexec,size=16m",
+] as const;
+export const DEFAULT_SANDBOX_PIDS_LIMIT = 128;
+export const DEFAULT_SANDBOX_MEMORY = "512m";
+export const DEFAULT_SANDBOX_CPUS = 1;
 export const DEFAULT_SANDBOX_IDLE_HOURS = 24;
 export const DEFAULT_SANDBOX_MAX_AGE_DAYS = 7;
 

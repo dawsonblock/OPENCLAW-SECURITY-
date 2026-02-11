@@ -9,7 +9,7 @@ import { killProcessTree } from "../../agents/shell-utils.js";
 import { formatCliCommand } from "../../cli/command-format.js";
 import { logVerbose } from "../../globals.js";
 import { rfsnDispatch } from "../../rfsn/dispatch.js";
-import { createDefaultRfsnPolicy } from "../../rfsn/policy.js";
+import { createAndBootstrapDefaultPolicy } from "../../rfsn/policy-bootstrap.js";
 import { resolveRfsnRuntimeCapabilities } from "../../rfsn/runtime-caps.js";
 import { clampInt } from "../../utils.js";
 import { stripMentions, stripStructuralPrefixes } from "./mentions.js";
@@ -375,16 +375,19 @@ export async function handleBashChatCommand(params: {
         defaultLevel: "on",
       },
     });
-    const rfsnPolicy = createDefaultRfsnPolicy({
-      mode: "allowlist",
-      allowTools: [execTool.name],
-      grantedCapabilities: resolveRfsnRuntimeCapabilities({
-        sandboxed: runtimeSandboxed,
-      }),
-      toolRules: {
-        [execTool.name]: { risk: "high" },
+    const policyBoot = createAndBootstrapDefaultPolicy({
+      basePolicyOptions: {
+        mode: "allowlist",
+        allowTools: [execTool.name],
+        grantedCapabilities: resolveRfsnRuntimeCapabilities({
+          sandboxed: runtimeSandboxed,
+        }),
+        toolRules: {
+          [execTool.name]: { risk: "high" },
+        },
       },
     });
+    const rfsnPolicy = policyBoot.policy;
     const result = (await rfsnDispatch({
       tool: execTool,
       toolCallId: "chat-bash",
@@ -400,6 +403,7 @@ export async function handleBashChatCommand(params: {
         actor: "chat-bash-command",
         sessionKey: params.sessionKey,
         agentId,
+        provenance: { policySha256: policyBoot.policySha256 },
       },
       runtime: { sandboxed: runtimeSandboxed },
     })) as Awaited<ReturnType<typeof execTool.execute>>;

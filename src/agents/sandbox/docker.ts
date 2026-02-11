@@ -116,6 +116,28 @@ function normalizeDockerLimit(value?: string | number) {
   return trimmed ? trimmed : undefined;
 }
 
+function normalizeSecurityProfile(
+  profile: string | undefined,
+  params: { allowUnconfinedEnvKey: string; profileName: string },
+): string | null {
+  if (typeof profile !== "string") {
+    return null;
+  }
+  const normalized = profile.trim();
+  if (!normalized) {
+    return null;
+  }
+  if (
+    normalized.toLowerCase() === "unconfined" &&
+    process.env[params.allowUnconfinedEnvKey] !== "1"
+  ) {
+    throw new Error(
+      `${params.profileName} cannot be set to "unconfined" unless ${params.allowUnconfinedEnvKey}=1`,
+    );
+  }
+  return normalized;
+}
+
 function formatUlimitValue(
   name: string,
   value: string | number | { soft?: number; hard?: number },
@@ -177,12 +199,20 @@ export function buildSandboxCreateArgs(params: {
   for (const cap of params.cfg.capDrop) {
     args.push("--cap-drop", cap);
   }
-  args.push("--security-opt", "no-new-privileges");
-  if (params.cfg.seccompProfile) {
-    args.push("--security-opt", `seccomp=${params.cfg.seccompProfile}`);
+  args.push("--security-opt", "no-new-privileges:true");
+  const seccompProfile = normalizeSecurityProfile(params.cfg.seccompProfile, {
+    allowUnconfinedEnvKey: "OPENCLAW_SANDBOX_ALLOW_UNCONFINED_SECCOMP",
+    profileName: "seccomp profile",
+  });
+  if (seccompProfile) {
+    args.push("--security-opt", `seccomp=${seccompProfile}`);
   }
-  if (params.cfg.apparmorProfile) {
-    args.push("--security-opt", `apparmor=${params.cfg.apparmorProfile}`);
+  const apparmorProfile = normalizeSecurityProfile(params.cfg.apparmorProfile, {
+    allowUnconfinedEnvKey: "OPENCLAW_SANDBOX_ALLOW_UNCONFINED_APPARMOR",
+    profileName: "apparmor profile",
+  });
+  if (apparmorProfile) {
+    args.push("--security-opt", `apparmor=${apparmorProfile}`);
   }
   for (const entry of params.cfg.dns ?? []) {
     if (entry.trim()) {

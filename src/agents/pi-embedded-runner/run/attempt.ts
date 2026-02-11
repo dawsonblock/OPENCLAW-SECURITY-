@@ -10,9 +10,8 @@ import { resolveChannelCapabilities } from "../../../config/channel-capabilities
 import { getMachineDisplayName } from "../../../infra/machine-name.js";
 import { MAX_IMAGE_BYTES } from "../../../media/constants.js";
 import { getGlobalHookRunner } from "../../../plugins/hook-runner-global.js";
-import { createDefaultRfsnPolicy } from "../../../rfsn/policy.js";
+import { createAndBootstrapDefaultPolicy } from "../../../rfsn/policy-bootstrap.js";
 import { resolveRfsnRuntimeCapabilities } from "../../../rfsn/runtime-caps.js";
-import { wrapToolsWithRfsnGate } from "../../../rfsn/wrap-tools.js";
 import { isSubagentSessionKey, normalizeAgentId } from "../../../routing/session-key.js";
 import { resolveSignalReactionLevel } from "../../../signal/reaction-level.js";
 import { resolveTelegramInlineButtonsScope } from "../../../telegram/inline-buttons.js";
@@ -61,6 +60,7 @@ import {
 } from "../../skills.js";
 import { buildSystemPromptParams } from "../../system-prompt-params.js";
 import { buildSystemPromptReport } from "../../system-prompt-report.js";
+import { createGatedTools } from "../../tools/index.gated.js";
 import { resolveTranscriptPolicy } from "../../transcript-policy.js";
 import { DEFAULT_BOOTSTRAP_FILENAME } from "../../workspace.js";
 import { isRunnerAbortError } from "../abort.js";
@@ -276,16 +276,19 @@ export async function runEmbeddedAttempt(
     if (allowAllTools) {
       log.warn("RFSN: OPENCLAW_RFSN_AUTOWHITELIST_ALL_TOOLS=1 weakens gate policy.");
     }
-    const rfsnPolicy = createDefaultRfsnPolicy({
-      ...(allowAllTools ? { allowTools: toolsRaw.map((tool) => tool.name) } : {}),
-      grantedCapabilities: resolveRfsnRuntimeCapabilities({
-        sandboxed: runtimeSandboxed,
-        channelCapabilities: runtimeCapabilities,
-        messageToolEnabled: !params.disableMessageTool,
-      }),
+    const policyBoot = createAndBootstrapDefaultPolicy({
+      basePolicyOptions: {
+        ...(allowAllTools ? { allowTools: toolsRaw.map((tool) => tool.name) } : {}),
+        grantedCapabilities: resolveRfsnRuntimeCapabilities({
+          sandboxed: runtimeSandboxed,
+          channelCapabilities: runtimeCapabilities,
+          messageToolEnabled: !params.disableMessageTool,
+        }),
+      },
     });
-    const gatedToolsRaw = wrapToolsWithRfsnGate({
-      tools: toolsRaw,
+    const rfsnPolicy = policyBoot.policy;
+    const gatedToolsRaw = createGatedTools({
+      toolsRaw,
       workspaceDir: effectiveWorkspace,
       policy: rfsnPolicy,
       meta: {
@@ -296,6 +299,7 @@ export async function runEmbeddedAttempt(
         provenance: {
           modelProvider: params.provider,
           modelId: params.modelId,
+          policySha256: policyBoot.policySha256,
         },
       },
       runtime: { sandboxed: runtimeSandboxed },

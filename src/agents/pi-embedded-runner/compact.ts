@@ -14,9 +14,8 @@ import { resolveHeartbeatPrompt } from "../../auto-reply/heartbeat.js";
 import { resolveChannelCapabilities } from "../../config/channel-capabilities.js";
 import { getMachineDisplayName } from "../../infra/machine-name.js";
 import { type enqueueCommand, enqueueCommandInLane } from "../../process/command-queue.js";
-import { createDefaultRfsnPolicy } from "../../rfsn/policy.js";
+import { createAndBootstrapDefaultPolicy } from "../../rfsn/policy-bootstrap.js";
 import { resolveRfsnRuntimeCapabilities } from "../../rfsn/runtime-caps.js";
-import { wrapToolsWithRfsnGate } from "../../rfsn/wrap-tools.js";
 import { isSubagentSessionKey } from "../../routing/session-key.js";
 import { resolveSignalReactionLevel } from "../../signal/reaction-level.js";
 import { resolveTelegramInlineButtonsScope } from "../../telegram/inline-buttons.js";
@@ -56,6 +55,7 @@ import {
   resolveSkillsPromptForRun,
   type SkillSnapshot,
 } from "../skills.js";
+import { createGatedTools } from "../tools/index.gated.js";
 import { resolveTranscriptPolicy } from "../transcript-policy.js";
 import { buildEmbeddedExtensionPaths } from "./extensions.js";
 import {
@@ -271,15 +271,18 @@ export async function compactEmbeddedPiSessionDirect(
     if (allowAllTools) {
       log.warn("RFSN: OPENCLAW_RFSN_AUTOWHITELIST_ALL_TOOLS=1 weakens gate policy.");
     }
-    const rfsnPolicy = createDefaultRfsnPolicy({
-      ...(allowAllTools ? { allowTools: toolsRaw.map((tool) => tool.name) } : {}),
-      grantedCapabilities: resolveRfsnRuntimeCapabilities({
-        sandboxed: runtimeSandboxed,
-        channelCapabilities: runtimeCapabilities,
-      }),
+    const policyBoot = createAndBootstrapDefaultPolicy({
+      basePolicyOptions: {
+        ...(allowAllTools ? { allowTools: toolsRaw.map((tool) => tool.name) } : {}),
+        grantedCapabilities: resolveRfsnRuntimeCapabilities({
+          sandboxed: runtimeSandboxed,
+          channelCapabilities: runtimeCapabilities,
+        }),
+      },
     });
-    const gatedToolsRaw = wrapToolsWithRfsnGate({
-      tools: toolsRaw,
+    const rfsnPolicy = policyBoot.policy;
+    const gatedToolsRaw = createGatedTools({
+      toolsRaw,
       workspaceDir: effectiveWorkspace,
       policy: rfsnPolicy,
       meta: {
@@ -289,6 +292,7 @@ export async function compactEmbeddedPiSessionDirect(
         provenance: {
           modelProvider: provider,
           modelId,
+          policySha256: policyBoot.policySha256,
         },
       },
       runtime: { sandboxed: runtimeSandboxed },

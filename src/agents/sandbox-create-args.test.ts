@@ -59,7 +59,7 @@ describe("buildSandboxCreateArgs", () => {
         "--cap-drop",
         "ALL",
         "--security-opt",
-        "no-new-privileges",
+        "no-new-privileges:true",
         "--security-opt",
         "seccomp=/tmp/seccomp.json",
         "--security-opt",
@@ -91,6 +91,58 @@ describe("buildSandboxCreateArgs", () => {
     expect(ulimitValues).toEqual(
       expect.arrayContaining(["nofile=1024:2048", "nproc=128", "core=0"]),
     );
+  });
+
+  it("rejects unconfined security profiles unless explicitly allowed", () => {
+    const prevSeccomp = process.env.OPENCLAW_SANDBOX_ALLOW_UNCONFINED_SECCOMP;
+    const prevAppArmor = process.env.OPENCLAW_SANDBOX_ALLOW_UNCONFINED_APPARMOR;
+    delete process.env.OPENCLAW_SANDBOX_ALLOW_UNCONFINED_SECCOMP;
+    delete process.env.OPENCLAW_SANDBOX_ALLOW_UNCONFINED_APPARMOR;
+    try {
+      const cfg: SandboxDockerConfig = {
+        image: "openclaw-sandbox:bookworm-slim",
+        containerPrefix: "openclaw-sbx-",
+        workdir: "/workspace",
+        readOnlyRoot: true,
+        tmpfs: [],
+        network: "none",
+        capDrop: ["ALL"],
+        seccompProfile: "unconfined",
+      };
+      expect(() =>
+        buildSandboxCreateArgs({
+          name: "openclaw-sbx-unconfined-seccomp",
+          cfg,
+          scopeKey: "main",
+          createdAtMs: 1700000000000,
+        }),
+      ).toThrow(/OPENCLAW_SANDBOX_ALLOW_UNCONFINED_SECCOMP/);
+
+      const cfgAppArmor: SandboxDockerConfig = {
+        ...cfg,
+        seccompProfile: undefined,
+        apparmorProfile: "unconfined",
+      };
+      expect(() =>
+        buildSandboxCreateArgs({
+          name: "openclaw-sbx-unconfined-apparmor",
+          cfg: cfgAppArmor,
+          scopeKey: "main",
+          createdAtMs: 1700000000000,
+        }),
+      ).toThrow(/OPENCLAW_SANDBOX_ALLOW_UNCONFINED_APPARMOR/);
+    } finally {
+      if (prevSeccomp === undefined) {
+        delete process.env.OPENCLAW_SANDBOX_ALLOW_UNCONFINED_SECCOMP;
+      } else {
+        process.env.OPENCLAW_SANDBOX_ALLOW_UNCONFINED_SECCOMP = prevSeccomp;
+      }
+      if (prevAppArmor === undefined) {
+        delete process.env.OPENCLAW_SANDBOX_ALLOW_UNCONFINED_APPARMOR;
+      } else {
+        process.env.OPENCLAW_SANDBOX_ALLOW_UNCONFINED_APPARMOR = prevAppArmor;
+      }
+    }
   });
 
   it("emits -v flags for custom binds", () => {

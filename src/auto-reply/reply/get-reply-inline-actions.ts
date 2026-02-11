@@ -13,7 +13,7 @@ import { getChannelDock } from "../../channels/dock.js";
 import { resolveChannelCapabilities } from "../../config/channel-capabilities.js";
 import { logVerbose } from "../../globals.js";
 import { rfsnDispatch } from "../../rfsn/dispatch.js";
-import { createDefaultRfsnPolicy } from "../../rfsn/policy.js";
+import { createAndBootstrapDefaultPolicy } from "../../rfsn/policy-bootstrap.js";
 import { resolveRfsnRuntimeCapabilities } from "../../rfsn/runtime-caps.js";
 import { resolveGatewayMessageChannel } from "../../utils/message-channel.js";
 import { listSkillCommandsForWorkspace, resolveSkillCommandInvocation } from "../skill-commands.js";
@@ -203,15 +203,18 @@ export async function handleInlineActions(params: {
       const toolCallId = `cmd_${Date.now()}_${Math.random().toString(16).slice(2)}`;
       try {
         const runtimeSandboxed = resolveSandboxRuntimeStatus({ cfg, sessionKey }).sandboxed;
-        const rfsnPolicy = createDefaultRfsnPolicy({
-          mode: "allowlist",
-          allowTools: [tool.name],
-          grantedCapabilities: resolveRfsnRuntimeCapabilities({
-            sandboxed: runtimeSandboxed,
-            channelCapabilities: runtimeCapabilities,
-            messageToolEnabled: true,
-          }),
+        const policyBoot = createAndBootstrapDefaultPolicy({
+          basePolicyOptions: {
+            mode: "allowlist",
+            allowTools: [tool.name],
+            grantedCapabilities: resolveRfsnRuntimeCapabilities({
+              sandboxed: runtimeSandboxed,
+              channelCapabilities: runtimeCapabilities,
+              messageToolEnabled: true,
+            }),
+          },
         });
+        const rfsnPolicy = policyBoot.policy;
         const result = await rfsnDispatch({
           tool,
           toolCallId,
@@ -226,7 +229,11 @@ export async function handleInlineActions(params: {
             actor: "inline-skill-command",
             sessionKey,
             agentId,
-            provenance: { modelProvider: provider, modelId: model },
+            provenance: {
+              modelProvider: provider,
+              modelId: model,
+              policySha256: policyBoot.policySha256,
+            },
           },
           runtime: { sandboxed: runtimeSandboxed },
         });

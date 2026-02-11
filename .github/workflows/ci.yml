@@ -290,6 +290,9 @@ jobs:
             exit 1
           fi
 
+      - name: Scan for hardcoded secret patterns
+        run: node scripts/ci-secret-scan.js
+
   checks-windows:
     needs: [docs-scope, changed-scope, build-artifacts, code-analysis, check]
     if: needs.docs-scope.outputs.docs_only != 'true' && (github.event_name == 'push' || needs.changed-scope.outputs.run_node == 'true')
