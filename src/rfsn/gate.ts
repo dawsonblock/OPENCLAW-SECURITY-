@@ -203,6 +203,42 @@ function resolveNetworkCapabilities(params: { policy: RfsnPolicy; proposal: Rfsn
   return { requiredCapabilities, reasons };
 }
 
+function resolveBrowserUnsafeEvalCapabilities(params: { proposal: RfsnActionProposal }): {
+  requiredCapabilities: string[];
+  reasons: string[];
+} {
+  if (params.proposal.toolName !== "browser") {
+    return { requiredCapabilities: [], reasons: [] };
+  }
+
+  const args = toRecord(params.proposal.args);
+  const action = typeof args?.action === "string" ? args.action.trim().toLowerCase() : "";
+  if (action !== "act") {
+    return { requiredCapabilities: [], reasons: [] };
+  }
+
+  const request = toRecord(args?.request);
+  const kind = typeof request?.kind === "string" ? request.kind.trim().toLowerCase() : "";
+  const fn = typeof request?.fn === "string" ? request.fn.trim() : "";
+  const unsafeEvalRequested = kind === "evaluate" || (kind === "wait" && fn.length > 0);
+  if (!unsafeEvalRequested) {
+    return { requiredCapabilities: [], reasons: [] };
+  }
+
+  const profile = typeof args?.profile === "string" ? args.profile.trim().toLowerCase() : "";
+  if (profile === "chrome") {
+    return {
+      requiredCapabilities: [],
+      reasons: ["policy:browser_unsafe_eval_chrome_forbidden"],
+    };
+  }
+
+  return {
+    requiredCapabilities: ["browser:unsafe_eval"],
+    reasons: [],
+  };
+}
+
 function resolveExecCapabilities(params: { policy: RfsnPolicy; proposal: RfsnActionProposal }): {
   requiredCapabilities: string[];
   reasons: string[];
@@ -343,12 +379,23 @@ export function evaluateGate(params: {
       risk,
     };
   }
+  const dynamicBrowserUnsafeEval = resolveBrowserUnsafeEvalCapabilities({
+    proposal,
+  });
+  if (dynamicBrowserUnsafeEval.reasons.length > 0) {
+    return {
+      verdict: "deny",
+      reasons: dynamicBrowserUnsafeEval.reasons,
+      risk,
+    };
+  }
 
   const requiredCapabilities = [
     ...(proposal.capabilitiesRequired ?? []),
     ...(rule?.capabilitiesRequired ?? []),
     ...dynamicNetwork.requiredCapabilities,
     ...dynamicExec.requiredCapabilities,
+    ...dynamicBrowserUnsafeEval.requiredCapabilities,
   ];
   const dedupedCapabilities = [...new Set(requiredCapabilities.map((cap) => cap.trim()))].filter(
     Boolean,

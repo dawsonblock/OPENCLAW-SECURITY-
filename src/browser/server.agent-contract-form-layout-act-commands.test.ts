@@ -9,6 +9,7 @@ let cfgAttachOnly = false;
 let cfgEvaluateEnabled = true;
 let createTargetId: string | null = null;
 let prevGatewayPort: string | undefined;
+let prevUnsafeBrowserEval: string | undefined;
 
 const cdpMocks = vi.hoisted(() => ({
   createTargetViaCdp: vi.fn(async () => {
@@ -210,7 +211,9 @@ describe("browser control server", () => {
     testPort = await getFreePort();
     cdpBaseUrl = `http://127.0.0.1:${testPort + 1}`;
     prevGatewayPort = process.env.OPENCLAW_GATEWAY_PORT;
+    prevUnsafeBrowserEval = process.env.OPENCLAW_BROWSER_ALLOW_UNSAFE_EVAL;
     process.env.OPENCLAW_GATEWAY_PORT = String(testPort - 2);
+    process.env.OPENCLAW_BROWSER_ALLOW_UNSAFE_EVAL = "1";
 
     // Minimal CDP JSON endpoints used by the server.
     let putNewCalls = 0;
@@ -272,6 +275,11 @@ describe("browser control server", () => {
       delete process.env.OPENCLAW_GATEWAY_PORT;
     } else {
       process.env.OPENCLAW_GATEWAY_PORT = prevGatewayPort;
+    }
+    if (prevUnsafeBrowserEval === undefined) {
+      delete process.env.OPENCLAW_BROWSER_ALLOW_UNSAFE_EVAL;
+    } else {
+      process.env.OPENCLAW_BROWSER_ALLOW_UNSAFE_EVAL = prevUnsafeBrowserEval;
     }
     const { stopBrowserControlServer } = await import("./server.js");
     await stopBrowserControlServer();
@@ -362,6 +370,7 @@ describe("browser control server", () => {
         targetId: "abcd1234",
         fn: "() => 1",
         ref: undefined,
+        allowUnsafeEval: true,
       });
     },
     slowTimeoutMs,

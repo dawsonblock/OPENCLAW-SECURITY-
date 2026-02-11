@@ -212,13 +212,17 @@ export function createAndBootstrapDefaultPolicy(params?: {
   verify?: boolean;
   publicKeyPem?: string;
 }): PolicyBootstrap {
-  const basePolicy = createDefaultRfsnPolicy(params?.basePolicyOptions);
   const verify =
     typeof params?.verify === "boolean"
       ? params.verify
       : process.env.OPENCLAW_VERIFY_POLICY === "1";
   const policyPath = params?.policyPath ?? process.env.OPENCLAW_POLICY_PATH;
   const publicKeyPem = params?.publicKeyPem ?? process.env.OPENCLAW_POLICY_PUBKEY;
+  const basePolicy = createDefaultRfsnPolicy({
+    ...params?.basePolicyOptions,
+    // File-backed policy bootstraps should not be widened by ambient OPENCLAW_RFSN_* env.
+    useEnvOverrides: !policyPath,
+  });
   return bootstrapRfsnPolicy({
     basePolicy,
     policyPath,

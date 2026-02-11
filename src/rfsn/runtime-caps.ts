@@ -12,6 +12,13 @@ function hasToken(tokens: Set<string>, value: string): boolean {
   return tokens.has(value.toLowerCase());
 }
 
+function envFlagEnabled(name: string): boolean {
+  const normalized = String(process.env[name] ?? "")
+    .trim()
+    .toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
+}
+
 export function resolveRfsnRuntimeCapabilities(params: {
   sandboxed: boolean;
   channelCapabilities?: string[];
@@ -43,6 +50,9 @@ export function resolveRfsnRuntimeCapabilities(params: {
   }
   if (hasToken(channelTokens, "search") || hasToken(channelTokens, "websearch")) {
     caps.add("net:search");
+  }
+  if (envFlagEnabled("OPENCLAW_BROWSER_ALLOW_UNSAFE_EVAL")) {
+    caps.add("browser:unsafe_eval");
   }
 
   return toUniqueCapabilities(caps);

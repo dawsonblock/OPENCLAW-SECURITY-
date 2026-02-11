@@ -214,4 +214,69 @@ describe("evaluateGate", () => {
     });
     expect(decision.verdict).toBe("allow");
   });
+
+  test("requires explicit browser:unsafe_eval capability for act:evaluate", () => {
+    const deniedPolicy = createDefaultRfsnPolicy({
+      mode: "allowlist",
+      allowTools: ["browser"],
+      grantedCapabilities: ["net:browser"],
+    });
+    const denied = evaluateGate({
+      policy: deniedPolicy,
+      proposal: buildProposal({
+        toolName: "browser",
+        args: {
+          action: "act",
+          profile: "openclaw",
+          request: { kind: "evaluate", fn: "() => document.title" },
+        },
+      }),
+      sandboxed: true,
+    });
+    expect(denied.verdict).toBe("deny");
+    expect(denied.reasons).toContain("capability_missing:browser:unsafe_eval");
+
+    const allowedPolicy = createDefaultRfsnPolicy({
+      mode: "allowlist",
+      allowTools: ["browser"],
+      grantedCapabilities: ["net:browser", "browser:unsafe_eval"],
+    });
+    const allowed = evaluateGate({
+      policy: allowedPolicy,
+      proposal: buildProposal({
+        toolName: "browser",
+        args: {
+          action: "act",
+          profile: "openclaw",
+          request: { kind: "evaluate", fn: "() => document.title" },
+        },
+      }),
+      sandboxed: true,
+    });
+    expect(allowed.verdict).toBe("allow");
+  });
+
+  test("blocks browser unsafe eval for chrome profile", () => {
+    const policy = createDefaultRfsnPolicy({
+      mode: "allowlist",
+      allowTools: ["browser"],
+      grantedCapabilities: ["net:browser", "browser:unsafe_eval"],
+    });
+
+    const decision = evaluateGate({
+      policy,
+      proposal: buildProposal({
+        toolName: "browser",
+        args: {
+          action: "act",
+          profile: "chrome",
+          request: { kind: "wait", fn: "() => window.ready === true" },
+        },
+      }),
+      sandboxed: true,
+    });
+
+    expect(decision.verdict).toBe("deny");
+    expect(decision.reasons).toContain("policy:browser_unsafe_eval_chrome_forbidden");
+  });
 });

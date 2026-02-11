@@ -189,4 +189,66 @@ describe("createAndBootstrapDefaultPolicy", () => {
       }
     }
   });
+
+  test("disables OPENCLAW_RFSN_* env widening when a policy file is present", async () => {
+    const dir = await createTmpDir();
+    const { policyPath, publicKeyPem } = await writeSignedPolicyFile({
+      dir,
+      fileName: "policy.no-env-widening.json",
+      payload: {
+        allowTools: ["read"],
+      },
+    });
+
+    const prevPolicyPath = process.env.OPENCLAW_POLICY_PATH;
+    const prevVerify = process.env.OPENCLAW_VERIFY_POLICY;
+    const prevPubKey = process.env.OPENCLAW_POLICY_PUBKEY;
+    const prevAllow = process.env.OPENCLAW_RFSN_ALLOW_TOOLS;
+    const prevMode = process.env.OPENCLAW_RFSN_MODE;
+    try {
+      process.env.OPENCLAW_POLICY_PATH = policyPath;
+      process.env.OPENCLAW_VERIFY_POLICY = "1";
+      process.env.OPENCLAW_POLICY_PUBKEY = publicKeyPem;
+      process.env.OPENCLAW_RFSN_ALLOW_TOOLS = "exec,web_fetch";
+      process.env.OPENCLAW_RFSN_MODE = "allow_all";
+
+      const boot = createAndBootstrapDefaultPolicy({
+        basePolicyOptions: {
+          mode: "allowlist",
+          allowTools: ["read"],
+        },
+      });
+
+      expect(boot.policy.mode).toBe("allowlist");
+      expect(boot.policy.allowTools.has("read")).toBe(true);
+      expect(boot.policy.allowTools.has("exec")).toBe(false);
+      expect(boot.policy.allowTools.has("web_fetch")).toBe(false);
+    } finally {
+      if (prevPolicyPath === undefined) {
+        delete process.env.OPENCLAW_POLICY_PATH;
+      } else {
+        process.env.OPENCLAW_POLICY_PATH = prevPolicyPath;
+      }
+      if (prevVerify === undefined) {
+        delete process.env.OPENCLAW_VERIFY_POLICY;
+      } else {
+        process.env.OPENCLAW_VERIFY_POLICY = prevVerify;
+      }
+      if (prevPubKey === undefined) {
+        delete process.env.OPENCLAW_POLICY_PUBKEY;
+      } else {
+        process.env.OPENCLAW_POLICY_PUBKEY = prevPubKey;
+      }
+      if (prevAllow === undefined) {
+        delete process.env.OPENCLAW_RFSN_ALLOW_TOOLS;
+      } else {
+        process.env.OPENCLAW_RFSN_ALLOW_TOOLS = prevAllow;
+      }
+      if (prevMode === undefined) {
+        delete process.env.OPENCLAW_RFSN_MODE;
+      } else {
+        process.env.OPENCLAW_RFSN_MODE = prevMode;
+      }
+    }
+  });
 });

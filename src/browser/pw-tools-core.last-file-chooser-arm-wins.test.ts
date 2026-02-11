@@ -152,6 +152,7 @@ describe("pw-tools-core", () => {
       url: "**/dash",
       loadState: "networkidle",
       fn: "window.ready===true",
+      allowUnsafeEval: true,
       timeoutMs: 1234,
       timeMs: 50,
     });

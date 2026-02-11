@@ -23,6 +23,7 @@ import { isTestDefaultMemorySlotDisabled } from "../plugins/config-state.js";
 import { getPluginToolMeta } from "../plugins/tools.js";
 import { rfsnDispatch } from "../rfsn/dispatch.js";
 import { createAndBootstrapDefaultPolicy } from "../rfsn/policy-bootstrap.js";
+import { createDefaultRfsnPolicy } from "../rfsn/policy.js";
 import { resolveRfsnRuntimeCapabilities } from "../rfsn/runtime-caps.js";
 import { isSubagentSessionKey } from "../routing/session-key.js";
 import { normalizeMessageChannel } from "../utils/message-channel.js";
@@ -38,6 +39,11 @@ import { getBearerToken, getHeader } from "./http-utils.js";
 
 const DEFAULT_BODY_BYTES = 2 * 1024 * 1024;
 const MEMORY_TOOL_NAMES = new Set(["memory_search", "memory_get"]);
+const DEFAULT_RFSN_TOOL_RULES = createDefaultRfsnPolicy({
+  useEnvOverrides: false,
+  includeDefaultGrantedCapabilities: false,
+  includeDefaultExecSafeBins: false,
+}).toolRules;
 
 type ToolsInvokeBody = {
   tool?: unknown;
@@ -52,6 +58,16 @@ function resolveSessionKeyFromBody(body: ToolsInvokeBody): string | undefined {
     return body.sessionKey.trim();
   }
   return undefined;
+}
+
+function parseCsvEnv(value: string | undefined): string[] {
+  if (!value) {
+    return [];
+  }
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 }
 
 function resolveMemoryToolDisableReasons(cfg: ReturnType<typeof loadConfig>): string[] {
@@ -328,15 +344,32 @@ export async function handleToolsInvokeHttpRequest(
           accountId,
         }) ?? [])
       : undefined;
+    const toolRuleCapabilities = DEFAULT_RFSN_TOOL_RULES[tool.name]?.capabilitiesRequired ?? [];
+    const grantedCapabilities = [
+      ...resolveRfsnRuntimeCapabilities({
+        sandboxed: false,
+        channelCapabilities: runtimeCapabilities,
+        messageToolEnabled: true,
+      }),
+      ...toolRuleCapabilities,
+    ];
+    const invokeFetchAllowedDomains = parseCsvEnv(
+      process.env.OPENCLAW_GATEWAY_TOOLS_INVOKE_FETCH_ALLOW_DOMAINS,
+    );
+    const invokeExecSafeBins = parseCsvEnv(
+      process.env.OPENCLAW_GATEWAY_TOOLS_INVOKE_EXEC_SAFE_BINS,
+    );
     const policyBoot = createAndBootstrapDefaultPolicy({
       basePolicyOptions: {
         mode: "allowlist",
         allowTools: [tool.name],
-        grantedCapabilities: resolveRfsnRuntimeCapabilities({
-          sandboxed: false,
-          channelCapabilities: runtimeCapabilities,
-          messageToolEnabled: true,
-        }),
+        // /tools/invoke should be capability-minimal unless explicitly configured.
+        useEnvOverrides: false,
+        includeDefaultGrantedCapabilities: false,
+        includeDefaultExecSafeBins: false,
+        grantedCapabilities,
+        execSafeBins: invokeExecSafeBins,
+        fetchAllowedDomains: invokeFetchAllowedDomains,
       },
     });
     const rfsnPolicy = policyBoot.policy;

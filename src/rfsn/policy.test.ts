@@ -4,6 +4,7 @@ import { createDefaultRfsnPolicy } from "./policy.js";
 const ENV_KEYS = [
   "OPENCLAW_RFSN_ALLOW_TOOLS",
   "OPENCLAW_RFSN_DENY_TOOLS",
+  "OPENCLAW_RFSN_MODE",
   "OPENCLAW_RFSN_GRANTED_CAPABILITIES",
   "OPENCLAW_RFSN_EXEC_SAFE_BINS",
   "OPENCLAW_RFSN_FETCH_ALLOW_DOMAINS",
@@ -60,5 +61,47 @@ describe("createDefaultRfsnPolicy", () => {
     expect(policy.fetchAllowSubdomains).toBe(false);
     expect(policy.enforceFetchDomainAllowlist).toBe(false);
     expect(policy.blockExecCommandSubstitution).toBe(false);
+  });
+
+  test("can disable env overrides explicitly", () => {
+    process.env.OPENCLAW_RFSN_ALLOW_TOOLS = "web_fetch";
+    process.env.OPENCLAW_RFSN_DENY_TOOLS = "read";
+    process.env.OPENCLAW_RFSN_GRANTED_CAPABILITIES = "net:gateway";
+    process.env.OPENCLAW_RFSN_EXEC_SAFE_BINS = "curl";
+    process.env.OPENCLAW_RFSN_FETCH_ALLOW_DOMAINS = "example.com";
+    process.env.OPENCLAW_RFSN_MODE = "allow_all";
+
+    const policy = createDefaultRfsnPolicy({
+      useEnvOverrides: false,
+      mode: "allowlist",
+      allowTools: ["read"],
+      denyTools: [],
+      grantedCapabilities: ["fs:read:workspace"],
+      execSafeBins: ["rg"],
+      fetchAllowedDomains: ["docs.openclaw.ai"],
+    });
+
+    expect(policy.mode).toBe("allowlist");
+    expect(policy.allowTools.has("read")).toBe(true);
+    expect(policy.allowTools.has("web_fetch")).toBe(false);
+    expect(policy.denyTools.has("read")).toBe(false);
+    expect(policy.grantedCapabilities.has("net:gateway")).toBe(false);
+    expect(policy.execSafeBins.has("curl")).toBe(false);
+    expect(policy.fetchAllowedDomains.has("example.com")).toBe(false);
+    expect(policy.fetchAllowedDomains.has("docs.openclaw.ai")).toBe(true);
+  });
+
+  test("can create minimal policies without default granted caps/bins", () => {
+    const policy = createDefaultRfsnPolicy({
+      includeDefaultGrantedCapabilities: false,
+      includeDefaultExecSafeBins: false,
+      grantedCapabilities: ["net:browser"],
+      execSafeBins: [],
+    });
+
+    expect(policy.grantedCapabilities.has("fs:read:workspace")).toBe(false);
+    expect(policy.grantedCapabilities.has("fs:write:workspace")).toBe(false);
+    expect(policy.execSafeBins.size).toBe(0);
+    expect(policy.grantedCapabilities.has("net:browser")).toBe(true);
   });
 });

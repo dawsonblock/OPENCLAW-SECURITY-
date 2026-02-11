@@ -12,6 +12,8 @@ beforeEach(() => {
   // Ensure these tests are not affected by host env vars.
   delete process.env.OPENCLAW_GATEWAY_TOKEN;
   delete process.env.OPENCLAW_GATEWAY_PASSWORD;
+  delete process.env.OPENCLAW_GATEWAY_TOOLS_INVOKE_FETCH_ALLOW_DOMAINS;
+  delete process.env.OPENCLAW_GATEWAY_TOOLS_INVOKE_EXEC_SAFE_BINS;
 });
 
 const resolveGatewayToken = (): string => {
@@ -338,6 +340,41 @@ describe("POST /tools/invoke", () => {
       body: JSON.stringify({ ...payload, sessionKey: "main" }),
     });
     expect(resMain.status).toBe(200);
+
+    await server.close();
+  });
+
+  it("defaults /tools/invoke to minimal capabilities and blocks web_fetch without explicit domains", async () => {
+    testState.agentsConfig = {
+      list: [
+        {
+          id: "main",
+          tools: {
+            allow: ["web_fetch"],
+          },
+        },
+      ],
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } as any;
+
+    const port = await getFreePort();
+    const server = await startGatewayServer(port, { bind: "loopback" });
+    const token = resolveGatewayToken();
+
+    const res = await fetch(`http://127.0.0.1:${port}/tools/invoke`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        tool: "web_fetch",
+        args: { url: "https://docs.openclaw.ai/configuration" },
+        sessionKey: "main",
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.ok).toBe(false);
+    expect(String(body.error?.message ?? "")).toContain("policy:net_domain_allowlist_empty");
 
     await server.close();
   });

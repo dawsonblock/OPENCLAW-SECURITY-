@@ -19,8 +19,12 @@ import {
   browserStop,
   browserTabs,
 } from "../../browser/client.js";
-import { resolveBrowserConfig } from "../../browser/config.js";
+import { resolveBrowserConfig, resolveProfile } from "../../browser/config.js";
 import { DEFAULT_AI_SNAPSHOT_MAX_CHARS } from "../../browser/constants.js";
+import {
+  resolveUnsafeBrowserEvalDecision,
+  requestUsesUnsafeBrowserEval,
+} from "../../browser/unsafe-eval.js";
 import { loadConfig } from "../../config/config.js";
 import { saveMediaBuffer } from "../../media/store.js";
 import { BrowserToolSchema } from "./browser-tool.schema.js";
@@ -677,6 +681,20 @@ export function createBrowserTool(opts?: {
           const request = params.request as Record<string, unknown> | undefined;
           if (!request || typeof request !== "object") {
             throw new Error("request required");
+          }
+          if (requestUsesUnsafeBrowserEval(request)) {
+            const cfg = loadConfig();
+            const resolved = resolveBrowserConfig(cfg.browser, cfg);
+            const resolvedProfileName = profile?.trim() || resolved.defaultProfile;
+            const resolvedProfile = resolveProfile(resolved, resolvedProfileName);
+            const unsafeEvalDecision = resolveUnsafeBrowserEvalDecision({
+              configEvaluateEnabled: resolved.evaluateEnabled,
+              profile: resolvedProfileName,
+              driver: resolvedProfile?.driver,
+            });
+            if (!unsafeEvalDecision.allowed) {
+              throw new Error(unsafeEvalDecision.reason);
+            }
           }
           try {
             const result = proxyRequest

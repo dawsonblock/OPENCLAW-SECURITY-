@@ -221,10 +221,16 @@ export async function evaluateViaPlaywright(opts: {
   targetId?: string;
   fn: string;
   ref?: string;
+  allowUnsafeEval?: boolean;
 }): Promise<unknown> {
   const fnText = String(opts.fn ?? "").trim();
   if (!fnText) {
     throw new Error("function is required");
+  }
+  if (opts.allowUnsafeEval !== true) {
+    throw new Error(
+      "Unsafe browser evaluation is disabled. Set OPENCLAW_BROWSER_ALLOW_UNSAFE_EVAL=1 and use a non-Chrome-extension profile.",
+    );
   }
   const page = await getPageForTargetId(opts);
   ensurePageState(page);
@@ -298,6 +304,7 @@ export async function waitForViaPlaywright(opts: {
   loadState?: "load" | "domcontentloaded" | "networkidle";
   fn?: string;
   timeoutMs?: number;
+  allowUnsafeEval?: boolean;
 }): Promise<void> {
   const page = await getPageForTargetId(opts);
   ensurePageState(page);
@@ -336,6 +343,11 @@ export async function waitForViaPlaywright(opts: {
   if (opts.fn) {
     const fn = String(opts.fn).trim();
     if (fn) {
+      if (opts.allowUnsafeEval !== true) {
+        throw new Error(
+          "wait.fn is disabled unless OPENCLAW_BROWSER_ALLOW_UNSAFE_EVAL=1 is explicitly enabled.",
+        );
+      }
       await page.waitForFunction(fn, { timeout });
     }
   }

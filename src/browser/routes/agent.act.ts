@@ -1,6 +1,7 @@
 import type { BrowserFormField } from "../client-actions-core.js";
 import type { BrowserRouteContext } from "../server-context.js";
 import type { BrowserRouteRegistrar } from "./types.js";
+import { resolveUnsafeBrowserEvalDecision } from "../unsafe-eval.js";
 import {
   type ActKind,
   isActKind,
@@ -43,7 +44,11 @@ export function registerBrowserAgentActRoutes(
       if (!pw) {
         return;
       }
-      const evaluateEnabled = ctx.state().resolved.evaluateEnabled;
+      const unsafeEvalDecision = resolveUnsafeBrowserEvalDecision({
+        configEvaluateEnabled: ctx.state().resolved.evaluateEnabled,
+        profile: profileCtx.profile.name,
+        driver: profileCtx.profile.driver,
+      });
 
       switch (kind) {
         case "click": {
@@ -251,12 +256,12 @@ export function registerBrowserAgentActRoutes(
               : undefined;
           const fn = toStringOrEmpty(body.fn) || undefined;
           const timeoutMs = toNumber(body.timeoutMs) ?? undefined;
-          if (fn && !evaluateEnabled) {
+          if (fn && !unsafeEvalDecision.allowed) {
             return jsonError(
               res,
               403,
               [
-                "wait --fn is disabled by config (browser.evaluateEnabled=false).",
+                `wait --fn is disabled: ${unsafeEvalDecision.reason}`,
                 "Docs: /gateway/configuration#browser-openclaw-managed-browser",
               ].join("\n"),
             );
@@ -276,7 +281,7 @@ export function registerBrowserAgentActRoutes(
               "wait requires at least one of: timeMs, text, textGone, selector, url, loadState, fn",
             );
           }
-          await pw.waitForViaPlaywright({
+          const waitRequest: Parameters<typeof pw.waitForViaPlaywright>[0] = {
             cdpUrl,
             targetId: tab.targetId,
             timeMs,
@@ -287,16 +292,20 @@ export function registerBrowserAgentActRoutes(
             loadState,
             fn,
             timeoutMs,
-          });
+          };
+          if (fn) {
+            waitRequest.allowUnsafeEval = unsafeEvalDecision.allowed;
+          }
+          await pw.waitForViaPlaywright(waitRequest);
           return res.json({ ok: true, targetId: tab.targetId });
         }
         case "evaluate": {
-          if (!evaluateEnabled) {
+          if (!unsafeEvalDecision.allowed) {
             return jsonError(
               res,
               403,
               [
-                "act:evaluate is disabled by config (browser.evaluateEnabled=false).",
+                `act:evaluate is disabled: ${unsafeEvalDecision.reason}`,
                 "Docs: /gateway/configuration#browser-openclaw-managed-browser",
               ].join("\n"),
             );
@@ -311,6 +320,7 @@ export function registerBrowserAgentActRoutes(
             targetId: tab.targetId,
             fn,
             ref,
+            allowUnsafeEval: true,
           });
           return res.json({
             ok: true,

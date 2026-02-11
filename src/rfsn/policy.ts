@@ -153,36 +153,63 @@ export function createDefaultRfsnPolicy(params?: {
   fetchAllowSubdomains?: boolean;
   enforceFetchDomainAllowlist?: boolean;
   blockExecCommandSubstitution?: boolean;
+  useEnvOverrides?: boolean;
+  includeDefaultGrantedCapabilities?: boolean;
+  includeDefaultExecSafeBins?: boolean;
 }): RfsnPolicy {
+  const useEnvOverrides = params?.useEnvOverrides !== false;
+  const includeDefaultGrantedCapabilities = params?.includeDefaultGrantedCapabilities !== false;
+  const includeDefaultExecSafeBins = params?.includeDefaultExecSafeBins !== false;
   const seededAllowTools = toSet(
     params?.allowTools ?? (DEFAULT_ALLOWED_TOOLS as readonly string[]),
   );
   const seededCapabilities = toSet([
-    ...(DEFAULT_GRANTED_CAPABILITIES as readonly string[]),
+    ...(includeDefaultGrantedCapabilities
+      ? (DEFAULT_GRANTED_CAPABILITIES as readonly string[])
+      : []),
     ...(params?.grantedCapabilities ?? []),
   ]);
   const seededExecSafeBins = toSet(
-    params?.execSafeBins ?? (DEFAULT_EXEC_SAFE_BINS as readonly string[]),
+    params?.execSafeBins ??
+      (includeDefaultExecSafeBins ? (DEFAULT_EXEC_SAFE_BINS as readonly string[]) : []),
   );
   const seededFetchAllowedDomains = toSet(params?.fetchAllowedDomains ?? []);
-  const envAllowTools = toSet(parseCsv(process.env.OPENCLAW_RFSN_ALLOW_TOOLS));
-  const envDenyTools = toSet(parseCsv(process.env.OPENCLAW_RFSN_DENY_TOOLS));
-  const envGrantedCapabilities = toSet(parseCsv(process.env.OPENCLAW_RFSN_GRANTED_CAPABILITIES));
-  const envExecSafeBins = toSet(parseCsv(process.env.OPENCLAW_RFSN_EXEC_SAFE_BINS));
-  const envFetchAllowedDomains = toSet(parseCsv(process.env.OPENCLAW_RFSN_FETCH_ALLOW_DOMAINS));
+  const envAllowTools = useEnvOverrides
+    ? toSet(parseCsv(process.env.OPENCLAW_RFSN_ALLOW_TOOLS))
+    : new Set<string>();
+  const envDenyTools = useEnvOverrides
+    ? toSet(parseCsv(process.env.OPENCLAW_RFSN_DENY_TOOLS))
+    : new Set<string>();
+  const envGrantedCapabilities = useEnvOverrides
+    ? toSet(parseCsv(process.env.OPENCLAW_RFSN_GRANTED_CAPABILITIES))
+    : new Set<string>();
+  const envExecSafeBins = useEnvOverrides
+    ? toSet(parseCsv(process.env.OPENCLAW_RFSN_EXEC_SAFE_BINS))
+    : new Set<string>();
+  const envFetchAllowedDomains = useEnvOverrides
+    ? toSet(parseCsv(process.env.OPENCLAW_RFSN_FETCH_ALLOW_DOMAINS))
+    : new Set<string>();
 
-  const mode = params?.mode ?? resolveMode(process.env.OPENCLAW_RFSN_MODE, "allowlist");
+  const mode =
+    params?.mode ??
+    (useEnvOverrides ? resolveMode(process.env.OPENCLAW_RFSN_MODE, "allowlist") : "allowlist");
   const execSafeBins = toSet([...seededExecSafeBins, ...envExecSafeBins]);
   const fetchAllowedDomains = toSet([...seededFetchAllowedDomains, ...envFetchAllowedDomains]);
   const fetchAllowSubdomains =
     params?.fetchAllowSubdomains ??
-    parseBooleanEnv(process.env.OPENCLAW_RFSN_FETCH_ALLOW_SUBDOMAINS, true);
+    (useEnvOverrides
+      ? parseBooleanEnv(process.env.OPENCLAW_RFSN_FETCH_ALLOW_SUBDOMAINS, true)
+      : true);
   const enforceFetchDomainAllowlist =
     params?.enforceFetchDomainAllowlist ??
-    parseBooleanEnv(process.env.OPENCLAW_RFSN_ENFORCE_FETCH_DOMAIN_ALLOWLIST, true);
+    (useEnvOverrides
+      ? parseBooleanEnv(process.env.OPENCLAW_RFSN_ENFORCE_FETCH_DOMAIN_ALLOWLIST, true)
+      : true);
   const blockExecCommandSubstitution =
     params?.blockExecCommandSubstitution ??
-    parseBooleanEnv(process.env.OPENCLAW_RFSN_BLOCK_EXEC_COMMAND_SUBSTITUTION, true);
+    (useEnvOverrides
+      ? parseBooleanEnv(process.env.OPENCLAW_RFSN_BLOCK_EXEC_COMMAND_SUBSTITUTION, true)
+      : true);
 
   const grantedCapabilities = toSet([...seededCapabilities, ...envGrantedCapabilities]);
   for (const bin of execSafeBins) {
