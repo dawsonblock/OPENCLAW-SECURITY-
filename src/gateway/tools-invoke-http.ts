@@ -14,6 +14,7 @@ import {
   resolveToolProfilePolicy,
   stripPluginOnlyAllowlist,
 } from "../agents/tool-policy.js";
+import { resolveChannelCapabilities } from "../config/channel-capabilities.js";
 import { loadConfig } from "../config/config.js";
 import { resolveMainSessionKey } from "../config/sessions.js";
 import { logWarn } from "../logger.js";
@@ -22,6 +23,7 @@ import { isTestDefaultMemorySlotDisabled } from "../plugins/config-state.js";
 import { getPluginToolMeta } from "../plugins/tools.js";
 import { rfsnDispatch } from "../rfsn/dispatch.js";
 import { createDefaultRfsnPolicy } from "../rfsn/policy.js";
+import { resolveRfsnRuntimeCapabilities } from "../rfsn/runtime-caps.js";
 import { isSubagentSessionKey } from "../routing/session-key.js";
 import { normalizeMessageChannel } from "../utils/message-channel.js";
 import { authorizeGatewayConnect, type ResolvedGatewayAuth } from "./auth.js";
@@ -319,9 +321,21 @@ export async function handleToolsInvokeHttpRequest(
       action,
       args,
     });
+    const runtimeCapabilities = messageChannel
+      ? (resolveChannelCapabilities({
+          cfg,
+          channel: messageChannel,
+          accountId,
+        }) ?? [])
+      : undefined;
     const rfsnPolicy = createDefaultRfsnPolicy({
       mode: "allowlist",
       allowTools: [tool.name],
+      grantedCapabilities: resolveRfsnRuntimeCapabilities({
+        sandboxed: false,
+        channelCapabilities: runtimeCapabilities,
+        messageToolEnabled: true,
+      }),
     });
     const result = await rfsnDispatch({
       tool,
@@ -334,6 +348,7 @@ export async function handleToolsInvokeHttpRequest(
         sessionKey,
         agentId,
       },
+      runtime: { sandboxed: false },
     });
     sendJson(res, 200, { ok: true, result });
   } catch (err) {

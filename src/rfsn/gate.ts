@@ -211,6 +211,22 @@ function resolveExecCapabilities(params: { policy: RfsnPolicy; proposal: RfsnAct
     return { requiredCapabilities: [], reasons: [] };
   }
   const args = toRecord(params.proposal.args);
+  if (
+    args &&
+    ("host" in args ||
+      "node" in args ||
+      "elevated" in args ||
+      "security" in args ||
+      "ask" in args ||
+      "env" in args)
+  ) {
+    const host = typeof args.host === "string" ? args.host.trim().toLowerCase() : "sandbox";
+    const elevated = args.elevated === true;
+    // Normalized exec args are sandbox-only unless an explicit capability is granted.
+    if (host !== "sandbox" || elevated) {
+      return { requiredCapabilities: [], reasons: ["policy:exec_args_not_normalized"] };
+    }
+  }
   const command = typeof args?.command === "string" ? args.command.trim() : "";
   if (!command) {
     return { requiredCapabilities: [], reasons: ["policy:exec_command_required"] };
@@ -255,7 +271,10 @@ export function evaluateGate(params: {
   proposal: RfsnActionProposal;
   sandboxed?: boolean;
 }): RfsnGateDecision {
-  const validated = validateAndNormalizeActionProposal(params.proposal);
+  const validated = validateAndNormalizeActionProposal(params.proposal, {
+    policy: params.policy,
+    sandboxed: params.sandboxed,
+  });
   if (!validated.ok) {
     return {
       verdict: "deny",

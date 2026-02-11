@@ -15,6 +15,7 @@ import { resolveChannelCapabilities } from "../../config/channel-capabilities.js
 import { getMachineDisplayName } from "../../infra/machine-name.js";
 import { type enqueueCommand, enqueueCommandInLane } from "../../process/command-queue.js";
 import { createDefaultRfsnPolicy } from "../../rfsn/policy.js";
+import { resolveRfsnRuntimeCapabilities } from "../../rfsn/runtime-caps.js";
 import { wrapToolsWithRfsnGate } from "../../rfsn/wrap-tools.js";
 import { isSubagentSessionKey } from "../../routing/session-key.js";
 import { resolveSignalReactionLevel } from "../../signal/reaction-level.js";
@@ -241,33 +242,6 @@ export async function compactEmbeddedPiSessionDirect(
       modelId,
       modelAuthMode: resolveModelAuthMode(model.provider, params.config),
     });
-    const allowAllTools = process.env.OPENCLAW_RFSN_AUTOWHITELIST_ALL_TOOLS?.trim() === "1";
-    const runtimeSandboxed = Boolean(sandbox?.enabled);
-    if (allowAllTools) {
-      log.warn("RFSN: OPENCLAW_RFSN_AUTOWHITELIST_ALL_TOOLS=1 weakens gate policy.");
-    }
-    const rfsnPolicy = createDefaultRfsnPolicy({
-      ...(allowAllTools ? { allowTools: toolsRaw.map((tool) => tool.name) } : {}),
-      grantedCapabilities: runtimeSandboxed ? ["proc:manage"] : [],
-    });
-    const gatedToolsRaw = wrapToolsWithRfsnGate({
-      tools: toolsRaw,
-      workspaceDir: effectiveWorkspace,
-      policy: rfsnPolicy,
-      meta: {
-        actor: "embedded-compaction",
-        sessionId: params.sessionId,
-        sessionKey: params.sessionKey,
-        provenance: {
-          modelProvider: provider,
-          modelId,
-        },
-      },
-      runtime: { sandboxed: runtimeSandboxed },
-    });
-    const tools = sanitizeToolsForGoogle({ tools: gatedToolsRaw, provider });
-    logToolSchemasForGoogle({ tools, provider });
-    const machineName = await getMachineDisplayName();
     const runtimeChannel = normalizeMessageChannel(params.messageChannel ?? params.messageProvider);
     let runtimeCapabilities = runtimeChannel
       ? (resolveChannelCapabilities({
@@ -292,6 +266,36 @@ export async function compactEmbeddedPiSessionDirect(
         }
       }
     }
+    const allowAllTools = process.env.OPENCLAW_RFSN_AUTOWHITELIST_ALL_TOOLS?.trim() === "1";
+    const runtimeSandboxed = Boolean(sandbox?.enabled);
+    if (allowAllTools) {
+      log.warn("RFSN: OPENCLAW_RFSN_AUTOWHITELIST_ALL_TOOLS=1 weakens gate policy.");
+    }
+    const rfsnPolicy = createDefaultRfsnPolicy({
+      ...(allowAllTools ? { allowTools: toolsRaw.map((tool) => tool.name) } : {}),
+      grantedCapabilities: resolveRfsnRuntimeCapabilities({
+        sandboxed: runtimeSandboxed,
+        channelCapabilities: runtimeCapabilities,
+      }),
+    });
+    const gatedToolsRaw = wrapToolsWithRfsnGate({
+      tools: toolsRaw,
+      workspaceDir: effectiveWorkspace,
+      policy: rfsnPolicy,
+      meta: {
+        actor: "embedded-compaction",
+        sessionId: params.sessionId,
+        sessionKey: params.sessionKey,
+        provenance: {
+          modelProvider: provider,
+          modelId,
+        },
+      },
+      runtime: { sandboxed: runtimeSandboxed },
+    });
+    const tools = sanitizeToolsForGoogle({ tools: gatedToolsRaw, provider });
+    logToolSchemasForGoogle({ tools, provider });
+    const machineName = await getMachineDisplayName();
     const reactionGuidance =
       runtimeChannel && params.config
         ? (() => {

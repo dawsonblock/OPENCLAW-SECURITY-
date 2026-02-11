@@ -4,6 +4,9 @@ import path from "node:path";
 import type { RfsnLedgerEntry, RfsnLedgerEnvelope } from "./types.js";
 import { redactForLedger } from "./redact.js";
 
+const GENESIS_HASH = "GENESIS";
+const LAST_HASH_FILE_SUFFIX = ".last_hash";
+
 function sha256Hex(value: string): string {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
@@ -50,19 +53,63 @@ export function resolveLedgerFilePath(params: {
   return path.join(params.workspaceDir, ".openclaw", "ledger", fileName);
 }
 
-async function readPreviousHash(ledgerPath: string): Promise<string> {
+export function resolveLedgerLastHashPath(ledgerPath: string): string {
+  return `${ledgerPath}${LAST_HASH_FILE_SUFFIX}`;
+}
+
+async function readLastHashFromSidecar(sidecarPath: string): Promise<string | null> {
   try {
-    const raw = await fs.readFile(ledgerPath, "utf8");
-    const lines = raw.trim().split("\n").filter(Boolean);
-    if (lines.length === 0) {
-      return "GENESIS";
-    }
-    const parsed = JSON.parse(lines.at(-1) ?? "{}") as { hash?: unknown };
-    return typeof parsed.hash === "string" && parsed.hash.trim() ? parsed.hash : "GENESIS";
+    const raw = await fs.readFile(sidecarPath, "utf8");
+    const hash = raw.trim();
+    return hash ? hash : null;
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
     if (err?.code === "ENOENT") {
-      return "GENESIS";
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function writeLastHashSidecar(sidecarPath: string, hash: string): Promise<void> {
+  await fs.writeFile(sidecarPath, `${hash}\n`, "utf8");
+}
+
+function readLastHashFromLedgerRaw(raw: string): string {
+  const lines = raw.split("\n");
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i]?.trim();
+    if (!line) {
+      continue;
+    }
+    try {
+      const parsed = JSON.parse(line) as { hash?: unknown };
+      if (typeof parsed.hash === "string" && parsed.hash.trim()) {
+        return parsed.hash.trim();
+      }
+    } catch {
+      // Skip malformed tail lines and keep scanning backwards.
+    }
+  }
+  return GENESIS_HASH;
+}
+
+async function readPreviousHash(ledgerPath: string): Promise<string> {
+  const sidecarPath = resolveLedgerLastHashPath(ledgerPath);
+  const sidecarHash = await readLastHashFromSidecar(sidecarPath);
+  if (sidecarHash) {
+    return sidecarHash;
+  }
+
+  try {
+    const raw = await fs.readFile(ledgerPath, "utf8");
+    const hash = readLastHashFromLedgerRaw(raw);
+    await writeLastHashSidecar(sidecarPath, hash);
+    return hash;
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    if (err?.code === "ENOENT") {
+      return GENESIS_HASH;
     }
     throw error;
   }
@@ -76,6 +123,7 @@ export async function appendLedgerEntry(params: {
 }): Promise<void> {
   const ledgerPath = resolveLedgerFilePath(params);
   await fs.mkdir(path.dirname(ledgerPath), { recursive: true });
+  const sidecarPath = resolveLedgerLastHashPath(ledgerPath);
 
   const prevHash = await readPreviousHash(ledgerPath);
   const payload = redactForLedger(params.entry) as RfsnLedgerEntry;
@@ -83,6 +131,7 @@ export async function appendLedgerEntry(params: {
 
   const line = JSON.stringify({ prevHash, hash, payload });
   await fs.appendFile(ledgerPath, `${line}\n`, "utf8");
+  await writeLastHashSidecar(sidecarPath, hash);
 }
 
 export async function readLedgerEntries(ledgerPath: string): Promise<RfsnLedgerEnvelope[]> {

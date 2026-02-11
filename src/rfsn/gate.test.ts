@@ -40,7 +40,7 @@ describe("evaluateGate", () => {
 
     const decision = evaluateGate({
       policy,
-      proposal: buildProposal({ toolName: "exec" }),
+      proposal: buildProposal({ toolName: "unknown_tool", args: {} }),
       sandboxed: true,
     });
 
@@ -82,7 +82,7 @@ describe("evaluateGate", () => {
 
     const decision = evaluateGate({
       policy,
-      proposal: buildProposal({ toolName: "exec" }),
+      proposal: buildProposal({ toolName: "exec", args: { command: "ls" } }),
       sandboxed: false,
     });
 
@@ -134,6 +134,31 @@ describe("evaluateGate", () => {
       sandboxed: false,
     });
     expect(processDecision.verdict).toBe("require_sandbox_only");
+  });
+
+  test("denies exec attempts to override host/elevation fields", () => {
+    const policy = createDefaultRfsnPolicy({
+      mode: "allowlist",
+      allowTools: ["exec"],
+      grantedCapabilities: ["proc:manage"],
+    });
+
+    const decision = evaluateGate({
+      policy,
+      proposal: buildProposal({
+        toolName: "exec",
+        args: {
+          command: "ls",
+          host: "gateway",
+          elevated: true,
+        },
+      }),
+      sandboxed: true,
+    });
+
+    expect(decision.verdict).toBe("deny");
+    expect(decision.reasons).toContain("policy:exec_host_forbidden:gateway");
+    expect(decision.reasons).toContain("policy:exec_elevated_forbidden");
   });
 
   test("enforces fetch domain allowlist and dynamic net capability", () => {

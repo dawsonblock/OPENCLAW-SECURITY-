@@ -10,9 +10,11 @@ import type { TypingController } from "./typing.js";
 import { createOpenClawTools } from "../../agents/openclaw-tools.js";
 import { resolveSandboxRuntimeStatus } from "../../agents/sandbox.js";
 import { getChannelDock } from "../../channels/dock.js";
+import { resolveChannelCapabilities } from "../../config/channel-capabilities.js";
 import { logVerbose } from "../../globals.js";
 import { rfsnDispatch } from "../../rfsn/dispatch.js";
 import { createDefaultRfsnPolicy } from "../../rfsn/policy.js";
+import { resolveRfsnRuntimeCapabilities } from "../../rfsn/runtime-caps.js";
 import { resolveGatewayMessageChannel } from "../../utils/message-channel.js";
 import { listSkillCommandsForWorkspace, resolveSkillCommandInvocation } from "../skill-commands.js";
 import { getAbortMemory } from "./abort.js";
@@ -173,6 +175,13 @@ export async function handleInlineActions(params: {
         resolveGatewayMessageChannel(ctx.Surface) ??
         resolveGatewayMessageChannel(ctx.Provider) ??
         undefined;
+      const runtimeCapabilities = channel
+        ? (resolveChannelCapabilities({
+            cfg,
+            channel,
+            accountId: (ctx as { AccountId?: string }).AccountId,
+          }) ?? [])
+        : undefined;
 
       const tools = createOpenClawTools({
         agentSessionKey: sessionKey,
@@ -197,7 +206,11 @@ export async function handleInlineActions(params: {
         const rfsnPolicy = createDefaultRfsnPolicy({
           mode: "allowlist",
           allowTools: [tool.name],
-          grantedCapabilities: runtimeSandboxed ? ["proc:manage"] : [],
+          grantedCapabilities: resolveRfsnRuntimeCapabilities({
+            sandboxed: runtimeSandboxed,
+            channelCapabilities: runtimeCapabilities,
+            messageToolEnabled: true,
+          }),
         });
         const result = await rfsnDispatch({
           tool,

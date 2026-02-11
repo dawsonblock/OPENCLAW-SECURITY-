@@ -129,6 +129,40 @@ const QUERY_SECRET_HARDENING_RULES = [
     markers: ["OPENCLAW_GMAIL_PUSH_ENDPOINT_QUERY_TOKEN"],
   },
 ] as const;
+const RFSN_RUNTIME_CAPABILITY_RULES = [
+  {
+    file: "src/agents/pi-embedded-runner/run/attempt.ts",
+    markers: [
+      "resolveRfsnRuntimeCapabilities",
+      "channelCapabilities: runtimeCapabilities",
+      "messageToolEnabled: !params.disableMessageTool",
+    ],
+  },
+  {
+    file: "src/agents/pi-embedded-runner/compact.ts",
+    markers: ["resolveRfsnRuntimeCapabilities", "channelCapabilities: runtimeCapabilities"],
+  },
+  {
+    file: "src/auto-reply/reply/get-reply-inline-actions.ts",
+    markers: [
+      "resolveRfsnRuntimeCapabilities",
+      "resolveChannelCapabilities",
+      "channelCapabilities: runtimeCapabilities",
+    ],
+  },
+  {
+    file: "src/auto-reply/reply/bash-command.ts",
+    markers: ["resolveRfsnRuntimeCapabilities"],
+  },
+  {
+    file: "src/gateway/tools-invoke-http.ts",
+    markers: [
+      "resolveRfsnRuntimeCapabilities",
+      "resolveChannelCapabilities",
+      "channelCapabilities: runtimeCapabilities",
+    ],
+  },
+] as const;
 
 const RUNTIME_TS_FILE_RE = /\.ts$/;
 const TEST_FILE_RE = /\.(test|spec)\.ts$|\.e2e\.test\.ts$/;
@@ -308,6 +342,16 @@ describe("RFSN final authority", () => {
       for (const marker of entry.markers) {
         if (!content.includes(marker)) {
           violations.push(`${entry.file}: missing query secret hardening marker "${marker}"`);
+        }
+      }
+    }
+
+    for (const entry of RFSN_RUNTIME_CAPABILITY_RULES) {
+      const absPath = path.resolve(process.cwd(), entry.file);
+      const content = await fs.readFile(absPath, "utf8");
+      for (const marker of entry.markers) {
+        if (!content.includes(marker)) {
+          violations.push(`${entry.file}: missing RFSN runtime capability marker "${marker}"`);
         }
       }
     }

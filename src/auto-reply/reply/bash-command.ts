@@ -10,6 +10,7 @@ import { formatCliCommand } from "../../cli/command-format.js";
 import { logVerbose } from "../../globals.js";
 import { rfsnDispatch } from "../../rfsn/dispatch.js";
 import { createDefaultRfsnPolicy } from "../../rfsn/policy.js";
+import { resolveRfsnRuntimeCapabilities } from "../../rfsn/runtime-caps.js";
 import { clampInt } from "../../utils.js";
 import { stripMentions, stripStructuralPrefixes } from "./mentions.js";
 
@@ -377,7 +378,9 @@ export async function handleBashChatCommand(params: {
     const rfsnPolicy = createDefaultRfsnPolicy({
       mode: "allowlist",
       allowTools: [execTool.name],
-      grantedCapabilities: runtimeSandboxed ? ["proc:manage"] : [],
+      grantedCapabilities: resolveRfsnRuntimeCapabilities({
+        sandboxed: runtimeSandboxed,
+      }),
       toolRules: {
         [execTool.name]: { risk: "high" },
       },
@@ -390,7 +393,6 @@ export async function handleBashChatCommand(params: {
         background: shouldBackgroundImmediately,
         yieldMs: shouldBackgroundImmediately ? undefined : foregroundMs,
         timeout: timeoutSec,
-        elevated: true,
       },
       workspaceDir: process.cwd(),
       policy: rfsnPolicy,

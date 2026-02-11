@@ -1,4 +1,6 @@
+import type { RfsnPolicy } from "./policy.js";
 import type { RfsnActionProposal } from "./types.js";
+import { normalizeToolArgs } from "./tool-args.js";
 
 function normalizeOptionalString(value: string | undefined): string | undefined {
   if (typeof value !== "string") {
@@ -22,6 +24,7 @@ function isFiniteTimestamp(value: number): boolean {
 
 export function validateAndNormalizeActionProposal(
   proposal: RfsnActionProposal,
+  params: { policy: RfsnPolicy; sandboxed?: boolean },
 ): { ok: true; proposal: RfsnActionProposal } | { ok: false; reasons: string[] } {
   const reasons: string[] = [];
   const id = normalizeOptionalString(proposal.id);
@@ -48,6 +51,16 @@ export function validateAndNormalizeActionProposal(
     return { ok: false, reasons };
   }
 
+  const normalizedToolArgs = normalizeToolArgs({
+    toolName: toolName as string,
+    args: proposal.args,
+    policy: params.policy,
+    sandboxed: params.sandboxed,
+  });
+  if (!normalizedToolArgs.ok) {
+    return { ok: false, reasons: normalizedToolArgs.reasons };
+  }
+
   return {
     ok: true,
     proposal: {
@@ -58,6 +71,7 @@ export function validateAndNormalizeActionProposal(
       sessionId,
       sessionKey,
       agentId,
+      args: normalizedToolArgs.value,
       capabilitiesRequired: normalizeCapabilities(proposal.capabilitiesRequired),
     },
   };
