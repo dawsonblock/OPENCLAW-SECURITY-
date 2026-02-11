@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { type CommandOptions, runCommandWithTimeout } from "../process/exec.js";
+import { buildScrubbedEnv } from "../security/subprocess.js";
 import {
   resolveControlUiDistIndexHealth,
   resolveControlUiDistIndexPathForRoot,
@@ -290,6 +291,15 @@ type RunStepOptions = {
   totalSteps: number;
 };
 
+function isNpmInstallCommand(argv: string[]): boolean {
+  const command = path.basename(argv[0] ?? "").toLowerCase();
+  const action = (argv[1] ?? "").toLowerCase();
+  return (
+    (command === "npm" || command === "npm.cmd" || command === "npm.exe") &&
+    (action === "install" || action === "i" || action === "ci")
+  );
+}
+
 async function runStep(opts: RunStepOptions): Promise<UpdateStepResult> {
   const { runCommand, name, argv, cwd, timeoutMs, env, progress, stepIndex, totalSteps } = opts;
   const command = argv.join(" ");
@@ -303,8 +313,28 @@ async function runStep(opts: RunStepOptions): Promise<UpdateStepResult> {
 
   progress?.onStepStart?.(stepInfo);
 
+  const scrubNpmInstall = isNpmInstallCommand(argv);
   const started = Date.now();
-  const result = await runCommand(argv, { cwd, timeoutMs, env });
+  const result = await runCommand(argv, {
+    cwd,
+    timeoutMs,
+    env: scrubNpmInstall
+      ? buildScrubbedEnv({
+          envOverrides: {
+            ...env,
+            COREPACK_ENABLE_STRICT: "0",
+            COREPACK_ENABLE_DOWNLOAD_PROMPT: "0",
+            ...(process.env.OPENCLAW_ALLOW_NPM_SCRIPTS === "1"
+              ? {}
+              : {
+                  npm_config_ignore_scripts: "true",
+                  NPM_CONFIG_IGNORE_SCRIPTS: "true",
+                }),
+          },
+        })
+      : env,
+    inheritProcessEnv: scrubNpmInstall ? false : undefined,
+  });
   const durationMs = Date.now() - started;
 
   const stderrTail = trimLogTail(result.stderr, MAX_LOG_CHARS);
@@ -347,7 +377,11 @@ function managerInstallArgs(manager: "pnpm" | "bun" | "npm") {
   if (manager === "bun") {
     return ["bun", "install"];
   }
-  return ["npm", "install"];
+  const args = ["npm", "install"];
+  if (process.env.OPENCLAW_ALLOW_NPM_SCRIPTS !== "1") {
+    args.push("--ignore-scripts");
+  }
+  return args;
 }
 
 function normalizeTag(tag?: string) {

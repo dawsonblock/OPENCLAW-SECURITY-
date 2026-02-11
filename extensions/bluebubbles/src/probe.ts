@@ -50,7 +50,11 @@ export async function fetchBlueBubblesServerInfo(params: {
 
   const url = buildBlueBubblesApiUrl({ baseUrl, path: "/api/v1/server/info", password });
   try {
-    const res = await blueBubblesFetchWithTimeout(url, { method: "GET" }, params.timeoutMs ?? 5000);
+    const res = await blueBubblesFetchWithTimeout(
+      url,
+      { method: "GET", blueBubblesPassword: password },
+      params.timeoutMs ?? 5000,
+    );
     if (!res.ok) {
       return null;
     }
@@ -129,7 +133,11 @@ export async function probeBlueBubbles(params: {
   }
   const url = buildBlueBubblesApiUrl({ baseUrl, path: "/api/v1/ping", password });
   try {
-    const res = await blueBubblesFetchWithTimeout(url, { method: "GET" }, params.timeoutMs);
+    const res = await blueBubblesFetchWithTimeout(
+      url,
+      { method: "GET", blueBubblesPassword: password },
+      params.timeoutMs,
+    );
     if (!res.ok) {
       return { ok: false, status: res.status, error: `HTTP ${res.status}` };
     }

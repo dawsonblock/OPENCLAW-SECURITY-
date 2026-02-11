@@ -41,7 +41,7 @@ Status: bundled plugin that talks to the BlueBubbles macOS server over HTTP. **R
    }
    ```
 
-4. Point BlueBubbles webhooks to your gateway (example: `https://your-gateway-host:3000/bluebubbles-webhook?password=<password>`).
+4. Point BlueBubbles webhooks to your gateway (example: `https://your-gateway-host:3000/bluebubbles-webhook`) and configure BlueBubbles to send `Authorization: Bearer <password>` (or `X-Webhook-Token`) on webhook requests.
 5. Start the gateway; it will register the webhook handler and start pairing.
 
 ## Keeping Messages.app alive (VM / headless setups)
@@ -322,9 +322,9 @@ Prefer `chat_guid` for stable routing:
 
 ## Security
 
-- Webhook requests are authenticated by comparing `guid`/`password` query params or headers against `channels.bluebubbles.password`. Requests from `localhost` are also accepted.
+- Webhook requests must authenticate with `Authorization: Bearer <password>` or `X-Webhook-Token` matching `channels.bluebubbles.password`. Query-string secrets are rejected.
 - Keep the API password and webhook endpoint secret (treat them like credentials).
-- Localhost trust means a same-host reverse proxy can unintentionally bypass the password. If you proxy the gateway, require auth at the proxy and configure `gateway.trustedProxies`. See [Gateway security](/gateway/security#reverse-proxy-configuration).
+- If you proxy the gateway, require auth at the proxy and configure `gateway.trustedProxies`. See [Gateway security](/gateway/security#reverse-proxy-configuration).
 - Enable HTTPS + firewall rules on the BlueBubbles server if exposing it outside your LAN.
 
 ## Troubleshooting

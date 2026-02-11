@@ -16,6 +16,11 @@ vi.mock("./accounts.js", () => ({
 
 const mockFetch = vi.fn();
 
+function headersFromCall(callIndex = 0): Headers {
+  const init = mockFetch.mock.calls[callIndex]?.[1] as RequestInit | undefined;
+  return new Headers(init?.headers);
+}
+
 describe("downloadBlueBubblesAttachment", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", mockFetch);
@@ -84,7 +89,7 @@ describe("downloadBlueBubblesAttachment", () => {
     );
   });
 
-  it("includes password in URL query", async () => {
+  it("sends password via auth headers and omits query secrets", async () => {
     const mockBuffer = new Uint8Array([1, 2, 3, 4]);
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -99,7 +104,10 @@ describe("downloadBlueBubblesAttachment", () => {
     });
 
     const calledUrl = mockFetch.mock.calls[0][0] as string;
-    expect(calledUrl).toContain("password=my-secret-password");
+    expect(calledUrl).not.toContain("password=");
+    const headers = headersFromCall(0);
+    expect(headers.get("x-bluebubbles-password")).toBe("my-secret-password");
+    expect(headers.get("authorization")).toBe("Bearer my-secret-password");
   });
 
   it("encodes guid in URL", async () => {
@@ -233,7 +241,9 @@ describe("downloadBlueBubblesAttachment", () => {
 
     const calledUrl = mockFetch.mock.calls[0][0] as string;
     expect(calledUrl).toContain("config-server:5678");
-    expect(calledUrl).toContain("password=config-password");
+    expect(calledUrl).not.toContain("password=");
+    const headers = headersFromCall(0);
+    expect(headers.get("x-bluebubbles-password")).toBe("config-password");
     expect(result.buffer).toEqual(new Uint8Array([1]));
   });
 });

@@ -208,6 +208,7 @@ async function queryChats(params: {
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      blueBubblesPassword: params.password,
       body: JSON.stringify({
         limit: params.limit,
         offset: params.offset,
@@ -340,6 +341,7 @@ async function createNewChatWithMessage(params: {
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      blueBubblesPassword: params.password,
       body: JSON.stringify(payload),
     },
     params.timeoutMs,
@@ -453,6 +455,7 @@ export async function sendMessageBlueBubbles(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      blueBubblesPassword: password,
       body: JSON.stringify(payload),
     },
     opts.timeoutMs,

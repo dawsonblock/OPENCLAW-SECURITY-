@@ -15,6 +15,7 @@ import {
   resolveNextcloudTalkRequireMention,
   resolveNextcloudTalkRoomMatch,
 } from "./policy.js";
+import { redactRoomToken } from "./redact.js";
 import { resolveNextcloudTalkRoomKind } from "./room-info.js";
 import { getNextcloudTalkRuntime } from "./runtime.js";
 import { sendMessageNextcloudTalk } from "./send.js";
@@ -103,11 +104,11 @@ export async function handleNextcloudTalkInbound(params: {
   });
   const roomConfig = roomMatch.roomConfig;
   if (isGroup && !roomMatch.allowed) {
-    runtime.log?.(`nextcloud-talk: drop room ${roomToken} (not allowlisted)`);
+    runtime.log?.(`nextcloud-talk: drop room ${redactRoomToken(roomToken)} (not allowlisted)`);
     return;
   }
   if (roomConfig?.enabled === false) {
-    runtime.log?.(`nextcloud-talk: drop room ${roomToken} (disabled)`);
+    runtime.log?.(`nextcloud-talk: drop room ${redactRoomToken(roomToken)} (disabled)`);
     return;
   }
 
@@ -224,7 +225,7 @@ export async function handleNextcloudTalkInbound(params: {
     commandAuthorized,
   });
   if (isGroup && mentionGate.shouldSkip) {
-    runtime.log?.(`nextcloud-talk: drop room ${roomToken} (no mention)`);
+    runtime.log?.(`nextcloud-talk: drop room ${redactRoomToken(roomToken)} (no mention)`);
     return;
   }
 

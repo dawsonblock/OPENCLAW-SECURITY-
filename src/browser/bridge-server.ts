@@ -1,6 +1,7 @@
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import express from "express";
+import { timingSafeEqual } from "node:crypto";
 import type { ResolvedBrowserConfig } from "./config.js";
 import type { BrowserRouteRegistrar } from "./routes/types.js";
 import { registerBrowserRoutes } from "./routes/index.js";
@@ -16,6 +17,15 @@ export type BrowserBridge = {
   baseUrl: string;
   state: BrowserServerState;
 };
+
+function safeEqualToken(expected: string, provided: string): boolean {
+  const left = Buffer.from(expected);
+  const right = Buffer.from(provided);
+  if (left.length !== right.length) {
+    return false;
+  }
+  return timingSafeEqual(left, right);
+}
 
 export async function startBrowserBridgeServer(params: {
   resolved: ResolvedBrowserConfig;
@@ -34,7 +44,7 @@ export async function startBrowserBridgeServer(params: {
   if (authToken) {
     app.use((req, res, next) => {
       const auth = String(req.headers.authorization ?? "").trim();
-      if (auth === `Bearer ${authToken}`) {
+      if (safeEqualToken(`Bearer ${authToken}`, auth)) {
         return next();
       }
       res.status(401).send("Unauthorized");

@@ -166,6 +166,10 @@ export function resolveEnableState(
   origin: PluginRecord["origin"],
   config: NormalizedPluginsConfig,
 ): { enabled: boolean; reason?: string } {
+  const allowExternalWithoutAllowlist =
+    process.env.OPENCLAW_ALLOW_EXTERNAL_PLUGINS_WITHOUT_ALLOWLIST === "1";
+  const requireAllowlistForExternal =
+    process.env.OPENCLAW_REQUIRE_PLUGIN_ALLOWLIST === "1" || !allowExternalWithoutAllowlist;
   if (!config.enabled) {
     return { enabled: false, reason: "plugins disabled" };
   }
@@ -190,6 +194,12 @@ export function resolveEnableState(
   }
   if (origin === "bundled") {
     return { enabled: false, reason: "bundled (disabled by default)" };
+  }
+  if (config.allow.length === 0 && requireAllowlistForExternal) {
+    return {
+      enabled: false,
+      reason: "allowlist required for non-bundled plugins (set plugins.allow or explicit override)",
+    };
   }
   return { enabled: true };
 }

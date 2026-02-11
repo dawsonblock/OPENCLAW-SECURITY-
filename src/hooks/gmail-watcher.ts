@@ -7,6 +7,7 @@
 
 import type { OpenClawConfig } from "../config/config.js";
 import { hasBinary } from "../agents/skills.js";
+import { redactSensitiveText } from "../logging/redact.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { runCommandWithTimeout } from "../process/exec.js";
 import { spawnAllowed } from "../security/subprocess.js";
@@ -21,6 +22,7 @@ import {
 const log = createSubsystemLogger("gmail-watcher");
 
 const ADDRESS_IN_USE_RE = /address already in use|EADDRINUSE/i;
+const REDACT_TOOLS_MODE = { mode: "tools" as const };
 
 export function isAddressInUseError(line: string): boolean {
   return ADDRESS_IN_USE_RE.test(line);
@@ -51,7 +53,7 @@ async function startGmailWatch(
     const result = await runCommandWithTimeout(args, { timeoutMs: 120_000 });
     if (result.code !== 0) {
       const message = result.stderr || result.stdout || "gog watch start failed";
-      log.error(`watch start failed: ${message}`);
+      log.error(`watch start failed: ${redactSensitiveText(message, REDACT_TOOLS_MODE)}`);
       return false;
     }
     log.info(`watch started for ${cfg.account}`);
@@ -67,7 +69,7 @@ async function startGmailWatch(
  */
 function spawnGogServe(cfg: GmailHookRuntimeConfig): GogWatchProcess {
   const args = buildGogWatchServeArgs(cfg);
-  log.info(`starting gog ${args.join(" ")}`);
+  log.info(redactSensitiveText(`starting gog ${args.join(" ")}`, REDACT_TOOLS_MODE));
   let addressInUse = false;
 
   const child = spawnAllowed({
@@ -81,7 +83,7 @@ function spawnGogServe(cfg: GmailHookRuntimeConfig): GogWatchProcess {
   child.stdout?.on("data", (data: Buffer) => {
     const line = data.toString().trim();
     if (line) {
-      log.info(`[gog] ${line}`);
+      log.info(`[gog] ${redactSensitiveText(line, REDACT_TOOLS_MODE)}`);
     }
   });
 
@@ -93,7 +95,7 @@ function spawnGogServe(cfg: GmailHookRuntimeConfig): GogWatchProcess {
     if (isAddressInUseError(line)) {
       addressInUse = true;
     }
-    log.warn(`[gog] ${line}`);
+    log.warn(`[gog] ${redactSensitiveText(line, REDACT_TOOLS_MODE)}`);
   });
 
   child.on("error", (err) => {

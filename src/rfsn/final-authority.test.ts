@@ -58,6 +58,77 @@ const WEBHOOK_BODY_LIMIT_FILES = [
     marker: "DEFAULT_FEISHU_WEBHOOK_MAX_BODY_BYTES",
   },
 ] as const;
+const SECURE_INSTALLER_RULES = [
+  {
+    file: "src/plugins/install.ts",
+    markers: [
+      "--ignore-scripts",
+      "inheritProcessEnv: false",
+      "OPENCLAW_ALLOW_UNSAFE_PLUGIN_INSTALL",
+      "buildScrubbedEnv",
+    ],
+  },
+  {
+    file: "src/hooks/install.ts",
+    markers: [
+      "--ignore-scripts",
+      "inheritProcessEnv: false",
+      "OPENCLAW_ALLOW_UNSAFE_PLUGIN_INSTALL",
+      "buildScrubbedEnv",
+    ],
+  },
+  {
+    file: "src/infra/update-runner.ts",
+    markers: [
+      "buildScrubbedEnv",
+      "inheritProcessEnv: scrubNpmInstall ? false",
+      "npm_config_ignore_scripts",
+    ],
+  },
+  {
+    file: "src/cli/update-cli.ts",
+    markers: [
+      "buildScrubbedEnv",
+      "inheritProcessEnv: scrubNpmInstall ? false",
+      "npm_config_ignore_scripts",
+    ],
+  },
+] as const;
+const SECURE_EXTENSION_INSTALLER_RULES = [
+  {
+    file: "extensions/matrix/src/matrix/deps.ts",
+    markers: [
+      "--ignore-scripts",
+      "inheritProcessEnv: scrubEnv ? false",
+      "npm_config_ignore_scripts",
+    ],
+  },
+] as const;
+const BROWSER_EXPOSURE_RULES = {
+  file: "scripts/sandbox-browser-entrypoint.sh",
+  requiredMarkers: [
+    "OPENCLAW_BROWSER_CDP_TOKEN",
+    "OPENCLAW_BROWSER_NOVNC_TOKEN",
+    "OPENCLAW_BROWSER_ALLOW_INSECURE_CDP_LAN",
+    "OPENCLAW_BROWSER_ALLOW_INSECURE_NOVNC_LAN",
+    "browser-auth-proxy.mjs",
+  ],
+  bannedMarkers: ["token is advisory here"],
+} as const;
+const QUERY_SECRET_HARDENING_RULES = [
+  {
+    file: "extensions/bluebubbles/src/types.ts",
+    markers: [
+      "OPENCLAW_BLUEBUBBLES_LEGACY_QUERY_AUTH",
+      'searchParams.delete("password")',
+      "X-BlueBubbles-Password",
+    ],
+  },
+  {
+    file: "src/hooks/gmail-setup-utils.ts",
+    markers: ["OPENCLAW_GMAIL_PUSH_ENDPOINT_QUERY_TOKEN"],
+  },
+] as const;
 
 const RUNTIME_TS_FILE_RE = /\.ts$/;
 const TEST_FILE_RE = /\.(test|spec)\.ts$|\.e2e\.test\.ts$/;
@@ -191,6 +262,53 @@ describe("RFSN final authority", () => {
       const content = await fs.readFile(absPath, "utf8");
       if (!content.includes(entry.marker)) {
         violations.push(`${entry.file}: missing webhook request body size limit marker`);
+      }
+    }
+
+    for (const entry of SECURE_INSTALLER_RULES) {
+      const absPath = path.resolve(process.cwd(), entry.file);
+      const content = await fs.readFile(absPath, "utf8");
+      for (const marker of entry.markers) {
+        if (!content.includes(marker)) {
+          violations.push(`${entry.file}: missing hardened installer marker "${marker}"`);
+        }
+      }
+    }
+
+    for (const entry of SECURE_EXTENSION_INSTALLER_RULES) {
+      const absPath = path.resolve(process.cwd(), entry.file);
+      const content = await fs.readFile(absPath, "utf8");
+      for (const marker of entry.markers) {
+        if (!content.includes(marker)) {
+          violations.push(`${entry.file}: missing hardened installer marker "${marker}"`);
+        }
+      }
+    }
+
+    const browserScriptPath = path.resolve(process.cwd(), BROWSER_EXPOSURE_RULES.file);
+    const browserScript = await fs.readFile(browserScriptPath, "utf8");
+    for (const marker of BROWSER_EXPOSURE_RULES.requiredMarkers) {
+      if (!browserScript.includes(marker)) {
+        violations.push(
+          `${BROWSER_EXPOSURE_RULES.file}: missing browser exposure hardening marker "${marker}"`,
+        );
+      }
+    }
+    for (const marker of BROWSER_EXPOSURE_RULES.bannedMarkers) {
+      if (browserScript.includes(marker)) {
+        violations.push(
+          `${BROWSER_EXPOSURE_RULES.file}: found insecure browser exposure marker "${marker}"`,
+        );
+      }
+    }
+
+    for (const entry of QUERY_SECRET_HARDENING_RULES) {
+      const absPath = path.resolve(process.cwd(), entry.file);
+      const content = await fs.readFile(absPath, "utf8");
+      for (const marker of entry.markers) {
+        if (!content.includes(marker)) {
+          violations.push(`${entry.file}: missing query secret hardening marker "${marker}"`);
+        }
       }
     }
 

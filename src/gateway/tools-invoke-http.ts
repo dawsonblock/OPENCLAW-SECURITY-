@@ -1,5 +1,4 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { AnyAgentTool } from "../agents/pi-tools.types.js";
 import { createOpenClawTools } from "../agents/openclaw-tools.js";
 import {
   filterToolsByPolicy,
@@ -18,6 +17,7 @@ import {
 import { loadConfig } from "../config/config.js";
 import { resolveMainSessionKey } from "../config/sessions.js";
 import { logWarn } from "../logger.js";
+import { redactSensitiveText } from "../logging/redact.js";
 import { isTestDefaultMemorySlotDisabled } from "../plugins/config-state.js";
 import { getPluginToolMeta } from "../plugins/tools.js";
 import { rfsnDispatch } from "../rfsn/dispatch.js";
@@ -324,7 +324,7 @@ export async function handleToolsInvokeHttpRequest(
       allowTools: [tool.name],
     });
     const result = await rfsnDispatch({
-      tool: tool as AnyAgentTool,
+      tool,
       toolCallId: `http-${Date.now()}`,
       args: toolArgs,
       workspaceDir: process.cwd(),
@@ -337,9 +337,10 @@ export async function handleToolsInvokeHttpRequest(
     });
     sendJson(res, 200, { ok: true, result });
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     sendJson(res, 400, {
       ok: false,
-      error: { type: "tool_error", message: err instanceof Error ? err.message : String(err) },
+      error: { type: "tool_error", message: redactSensitiveText(message) },
     });
   }
 

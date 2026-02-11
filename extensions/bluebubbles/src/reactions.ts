@@ -177,6 +177,7 @@ export async function sendBlueBubblesReaction(params: {
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      blueBubblesPassword: password,
       body: JSON.stringify(payload),
     },
     params.opts?.timeoutMs,

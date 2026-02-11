@@ -15,6 +15,11 @@ vi.mock("./accounts.js", () => ({
 
 const mockFetch = vi.fn();
 
+function headersFromCall(callIndex = 0): Headers {
+  const init = mockFetch.mock.calls[callIndex]?.[1] as RequestInit | undefined;
+  return new Headers(init?.headers);
+}
+
 describe("reactions", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", mockFetch);
@@ -183,9 +188,11 @@ describe("reactions", () => {
         expect.stringContaining("/api/v1/message/react"),
         expect.objectContaining({
           method: "POST",
-          headers: { "Content-Type": "application/json" },
         }),
       );
+      const headers = headersFromCall(0);
+      expect(headers.get("content-type")).toBe("application/json");
+      expect(headers.get("x-bluebubbles-password")).toBe("test-password");
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
       expect(body.chatGuid).toBe("iMessage;-;+15551234567");
@@ -194,7 +201,7 @@ describe("reactions", () => {
       expect(body.partIndex).toBe(0);
     });
 
-    it("includes password in URL query", async () => {
+    it("sends password via auth headers and omits query secrets", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         text: () => Promise.resolve(""),
@@ -211,7 +218,10 @@ describe("reactions", () => {
       });
 
       const calledUrl = mockFetch.mock.calls[0][0] as string;
-      expect(calledUrl).toContain("password=my-react-password");
+      expect(calledUrl).not.toContain("password=");
+      const headers = headersFromCall(0);
+      expect(headers.get("x-bluebubbles-password")).toBe("my-react-password");
+      expect(headers.get("authorization")).toBe("Bearer my-react-password");
     });
 
     it("sends reaction removal with dash prefix", async () => {
@@ -321,7 +331,9 @@ describe("reactions", () => {
 
       const calledUrl = mockFetch.mock.calls[0][0] as string;
       expect(calledUrl).toContain("react-server:7777");
-      expect(calledUrl).toContain("password=react-pass");
+      expect(calledUrl).not.toContain("password=");
+      const headers = headersFromCall(0);
+      expect(headers.get("x-bluebubbles-password")).toBe("react-pass");
     });
 
     it("trims chatGuid and messageGuid", async () => {

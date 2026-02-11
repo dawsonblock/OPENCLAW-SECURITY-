@@ -1,12 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import { hasBinary } from "../agents/skills.js";
+import { redactSensitiveText } from "../logging/redact.js";
 import { runCommandWithTimeout, type SpawnResult } from "../process/exec.js";
 import { resolveUserPath } from "../utils.js";
 import { normalizeServePath } from "./gmail.js";
 
 let cachedPythonPath: string | null | undefined;
 const MAX_OUTPUT_CHARS = 800;
+const REDACT_TOOLS_MODE = { mode: "tools" as const };
 
 function trimOutput(value: string): string {
   const trimmed = value.trim();
@@ -14,9 +16,9 @@ function trimOutput(value: string): string {
     return "";
   }
   if (trimmed.length <= MAX_OUTPUT_CHARS) {
-    return trimmed;
+    return redactSensitiveText(trimmed, REDACT_TOOLS_MODE);
   }
-  return `${trimmed.slice(0, MAX_OUTPUT_CHARS)}…`;
+  return redactSensitiveText(`${trimmed.slice(0, MAX_OUTPUT_CHARS)}…`, REDACT_TOOLS_MODE);
 }
 
 function formatCommandFailure(command: string, result: SpawnResult): string {
@@ -57,7 +59,7 @@ function formatJsonParseFailure(command: string, result: SpawnResult, err: unkno
 }
 
 function formatCommand(command: string, args: string[]): string {
-  return [command, ...args].join(" ");
+  return redactSensitiveText([command, ...args].join(" "), REDACT_TOOLS_MODE);
 }
 
 function findExecutablesOnPath(bins: string[]): string[] {
@@ -312,7 +314,16 @@ export async function ensureTailscaleEndpoint(params: {
 
   const baseUrl = `https://${dnsName}${pathArg}`;
   // Funnel/serve strips pathArg before proxying; keep it only in the public URL.
-  return params.token ? `${baseUrl}?token=${params.token}` : baseUrl;
+  if (!params.token) {
+    return baseUrl;
+  }
+  const includeTokenQuery = process.env.OPENCLAW_GMAIL_PUSH_ENDPOINT_QUERY_TOKEN === "1";
+  if (!includeTokenQuery) {
+    return baseUrl;
+  }
+  const endpoint = new URL(baseUrl);
+  endpoint.searchParams.set("token", params.token);
+  return endpoint.toString();
 }
 
 export async function resolveProjectIdFromGogCredentials(): Promise<string | null> {

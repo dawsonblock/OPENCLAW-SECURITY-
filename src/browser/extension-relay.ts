@@ -1,7 +1,7 @@
 import type { IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { Duplex } from "node:stream";
-import { randomBytes } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 import WebSocket, { WebSocketServer } from "ws";
 import { isLoopbackAddress, isLoopbackHost } from "../gateway/net.js";
@@ -91,6 +91,15 @@ function headerValue(value: string | string[] | undefined): string | undefined {
 
 function getHeader(req: IncomingMessage, name: string): string | undefined {
   return headerValue(req.headers[name.toLowerCase()]);
+}
+
+function safeEqual(a: string, b: string): boolean {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  if (left.length !== right.length) {
+    return false;
+  }
+  return timingSafeEqual(left, right);
 }
 
 export type ChromeExtensionRelayServer = {
@@ -334,7 +343,7 @@ export async function ensureChromeExtensionRelayServer(opts: {
 
     if (path.startsWith("/json")) {
       const token = getHeader(req, RELAY_AUTH_HEADER);
-      if (!token || token !== relayAuthToken) {
+      if (!token || !safeEqual(token, relayAuthToken)) {
         res.writeHead(401);
         res.end("Unauthorized");
         return;
@@ -480,7 +489,7 @@ export async function ensureChromeExtensionRelayServer(opts: {
 
     if (pathname === "/cdp") {
       const token = getHeader(req, RELAY_AUTH_HEADER);
-      if (!token || token !== relayAuthToken) {
+      if (!token || !safeEqual(token, relayAuthToken)) {
         rejectUpgrade(socket, 401, "Unauthorized");
         return;
       }

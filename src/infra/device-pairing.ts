@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { resolveStateDir } from "../config/paths.js";
@@ -220,6 +220,15 @@ function normalizeScopes(scopes: string[] | undefined): string[] {
   return [...out].toSorted();
 }
 
+function safeEqual(a: string, b: string): boolean {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  if (left.length !== right.length) {
+    return false;
+  }
+  return timingSafeEqual(left, right);
+}
+
 function scopesAllow(requested: string[], allowed: string[]): boolean {
   if (requested.length === 0) {
     return true;
@@ -431,7 +440,7 @@ export async function verifyDeviceToken(params: {
     if (entry.revokedAtMs) {
       return { ok: false, reason: "token-revoked" };
     }
-    if (entry.token !== params.token) {
+    if (!safeEqual(entry.token, params.token)) {
       return { ok: false, reason: "token-mismatch" };
     }
     const requestedScopes = normalizeScopes(params.scopes);

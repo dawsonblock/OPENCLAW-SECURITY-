@@ -9,6 +9,7 @@ import { resolveBrewExecutable } from "../infra/brew.js";
 import { fetchWithSsrFGuard } from "../infra/net/fetch-guard.js";
 import { runCommandWithTimeout } from "../process/exec.js";
 import { scanDirectoryWithSummary } from "../security/skill-scanner.js";
+import { buildScrubbedEnv } from "../security/subprocess.js";
 import { CONFIG_DIR, ensureDir, resolveUserPath } from "../utils.js";
 import {
   hasBinary,
@@ -102,13 +103,20 @@ function formatScanFindingDetail(
   return `${finding.message} (${filePath}:${finding.line})`;
 }
 
-async function collectSkillInstallScanWarnings(entry: SkillEntry): Promise<string[]> {
+async function collectSkillInstallScanOutcome(entry: SkillEntry): Promise<{
+  warnings: string[];
+  criticalCount: number;
+  scanFailed: boolean;
+}> {
   const warnings: string[] = [];
   const skillName = entry.skill.name;
   const skillDir = path.resolve(entry.skill.baseDir);
+  let criticalCount = 0;
+  let scanFailed = false;
 
   try {
     const summary = await scanDirectoryWithSummary(skillDir);
+    criticalCount = summary.critical;
     if (summary.critical > 0) {
       const criticalDetails = summary.findings
         .filter((finding) => finding.severity === "critical")
@@ -123,12 +131,11 @@ async function collectSkillInstallScanWarnings(entry: SkillEntry): Promise<strin
       );
     }
   } catch (err) {
-    warnings.push(
-      `Skill "${skillName}" code safety scan failed (${String(err)}). Installation continues; run "openclaw security audit --deep" after install.`,
-    );
+    scanFailed = true;
+    warnings.push(`Skill "${skillName}" code safety scan failed (${String(err)}).`);
   }
 
-  return warnings;
+  return { warnings, criticalCount, scanFailed };
 }
 
 function resolveInstallId(spec: SkillInstallSpec, index: number): string {
@@ -146,6 +153,7 @@ function findInstallSpec(entry: SkillEntry, installId: string): SkillInstallSpec
 }
 
 function buildNodeInstallCommand(packageName: string, prefs: SkillsInstallPreferences): string[] {
+  const allowNpmScripts = process.env.OPENCLAW_ALLOW_NPM_SCRIPTS === "1";
   switch (prefs.nodeManager) {
     case "pnpm":
       return ["pnpm", "add", "-g", packageName];
@@ -154,7 +162,9 @@ function buildNodeInstallCommand(packageName: string, prefs: SkillsInstallPrefer
     case "bun":
       return ["bun", "add", "-g", packageName];
     default:
-      return ["npm", "install", "-g", packageName];
+      return allowNpmScripts
+        ? ["npm", "install", "-g", packageName]
+        : ["npm", "install", "-g", packageName, "--ignore-scripts"];
   }
 }
 
@@ -627,7 +637,39 @@ export async function installSkill(params: SkillInstallRequest): Promise<SkillIn
   }
 
   const spec = findInstallSpec(entry, params.installId);
-  const warnings = await collectSkillInstallScanWarnings(entry);
+  const scanOutcome = await collectSkillInstallScanOutcome(entry);
+  const warnings = scanOutcome.warnings;
+  if (scanOutcome.scanFailed && process.env.OPENCLAW_ALLOW_UNSCANNED_SKILL_INSTALL !== "1") {
+    return withWarnings(
+      {
+        ok: false,
+        message: "skill scan failed; set OPENCLAW_ALLOW_UNSCANNED_SKILL_INSTALL=1 to override",
+        stdout: "",
+        stderr: "",
+        code: null,
+      },
+      warnings,
+    );
+  }
+  if (scanOutcome.scanFailed) {
+    warnings.push(
+      "OPENCLAW_ALLOW_UNSCANNED_SKILL_INSTALL=1 is set; continuing install without scanner coverage.",
+    );
+  }
+  if (scanOutcome.criticalCount > 0 && process.env.OPENCLAW_ALLOW_UNSAFE_SKILL_INSTALL !== "1") {
+    return withWarnings(
+      {
+        ok: false,
+        message:
+          `skill scan found ${scanOutcome.criticalCount} critical issue(s); ` +
+          "set OPENCLAW_ALLOW_UNSAFE_SKILL_INSTALL=1 to override",
+        stdout: "",
+        stderr: "",
+        code: null,
+      },
+      warnings,
+    );
+  }
   if (!spec) {
     return withWarnings(
       {
@@ -752,11 +794,30 @@ export async function installSkill(params: SkillInstallRequest): Promise<SkillIn
   }
 
   let env: NodeJS.ProcessEnv | undefined;
+  let inheritProcessEnv: boolean | undefined;
   if (spec.kind === "go" && brewExe) {
     const brewBin = await resolveBrewBinDir(timeoutMs, brewExe);
     if (brewBin) {
       env = { GOBIN: brewBin };
     }
+  }
+
+  if (spec.kind === "node") {
+    const allowNpmScripts = process.env.OPENCLAW_ALLOW_NPM_SCRIPTS === "1";
+    env = buildScrubbedEnv({
+      envOverrides: {
+        ...env,
+        COREPACK_ENABLE_STRICT: "0",
+        COREPACK_ENABLE_DOWNLOAD_PROMPT: "0",
+        ...(allowNpmScripts
+          ? {}
+          : {
+              npm_config_ignore_scripts: "true",
+              NPM_CONFIG_IGNORE_SCRIPTS: "true",
+            }),
+      },
+    });
+    inheritProcessEnv = false;
   }
 
   const result = await (async () => {
@@ -768,6 +829,7 @@ export async function installSkill(params: SkillInstallRequest): Promise<SkillIn
       return await runCommandWithTimeout(argv, {
         timeoutMs,
         env,
+        inheritProcessEnv,
       });
     } catch (err) {
       const stderr = err instanceof Error ? err.message : String(err);

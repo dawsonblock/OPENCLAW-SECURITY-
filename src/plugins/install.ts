@@ -11,6 +11,7 @@ import {
 } from "../infra/archive.js";
 import { runCommandWithTimeout } from "../process/exec.js";
 import { scanDirectoryWithSummary } from "../security/skill-scanner.js";
+import { buildScrubbedEnv } from "../security/subprocess.js";
 import { CONFIG_DIR, resolveUserPath } from "../utils.js";
 
 type PluginInstallLogger = {
@@ -84,6 +85,30 @@ function extensionUsesSkippedScannerPath(entry: string): boolean {
       segment === "node_modules" ||
       (segment.startsWith(".") && segment !== "." && segment !== ".."),
   );
+}
+
+function shouldAllowNpmScripts(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.OPENCLAW_ALLOW_NPM_SCRIPTS === "1";
+}
+
+function buildSecureNpmEnv(params?: {
+  allowScripts?: boolean;
+  extra?: Record<string, string | undefined>;
+}): NodeJS.ProcessEnv {
+  const allowScripts = params?.allowScripts ?? false;
+  return buildScrubbedEnv({
+    envOverrides: {
+      COREPACK_ENABLE_STRICT: "0",
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0",
+      ...(allowScripts
+        ? {}
+        : {
+            npm_config_ignore_scripts: "true",
+            NPM_CONFIG_IGNORE_SCRIPTS: "true",
+          }),
+      ...params?.extra,
+    },
+  });
 }
 
 async function ensureOpenClawExtensions(manifest: PackageManifest) {
@@ -194,7 +219,7 @@ async function installPluginFromPackageDir(params: {
     forcedScanEntries.push(resolvedEntry);
   }
 
-  // Scan plugin source for dangerous code patterns (warn-only; never blocks install)
+  // Scan plugin source for dangerous code patterns before writing into the extensions dir.
   try {
     const scanSummary = await scanDirectoryWithSummary(params.packageDir, {
       includeFiles: forcedScanEntries,
@@ -207,14 +232,32 @@ async function installPluginFromPackageDir(params: {
       logger.warn?.(
         `WARNING: Plugin "${pluginId}" contains dangerous code patterns: ${criticalDetails}`,
       );
+      if (process.env.OPENCLAW_ALLOW_UNSAFE_PLUGIN_INSTALL !== "1") {
+        return {
+          ok: false,
+          error:
+            `plugin scan found ${scanSummary.critical} critical issue(s); ` +
+            "set OPENCLAW_ALLOW_UNSAFE_PLUGIN_INSTALL=1 to override",
+        };
+      }
     } else if (scanSummary.warn > 0) {
       logger.warn?.(
         `Plugin "${pluginId}" has ${scanSummary.warn} suspicious code pattern(s). Run "openclaw security audit --deep" for details.`,
       );
     }
   } catch (err) {
+    const scanError = String(err);
+    logger.warn?.(`Plugin "${pluginId}" code safety scan failed (${scanError}).`);
+    if (process.env.OPENCLAW_ALLOW_UNSCANNED_PLUGIN_INSTALL !== "1") {
+      return {
+        ok: false,
+        error:
+          `plugin scan failed; set OPENCLAW_ALLOW_UNSCANNED_PLUGIN_INSTALL=1 to override. ` +
+          `scanner error: ${scanError}`,
+      };
+    }
     logger.warn?.(
-      `Plugin "${pluginId}" code safety scan failed (${String(err)}). Installation continues; run "openclaw security audit --deep" after install.`,
+      `OPENCLAW_ALLOW_UNSCANNED_PLUGIN_INSTALL=1 is set; continuing plugin install without scanner coverage.`,
     );
   }
 
@@ -278,9 +321,16 @@ async function installPluginFromPackageDir(params: {
   const hasDeps = Object.keys(deps).length > 0;
   if (hasDeps) {
     logger.info?.("Installing plugin dependencies…");
-    const npmRes = await runCommandWithTimeout(["npm", "install", "--omit=dev", "--silent"], {
+    const allowScripts = shouldAllowNpmScripts(process.env);
+    const npmInstallArgs = ["npm", "install", "--omit=dev", "--silent"];
+    if (!allowScripts) {
+      npmInstallArgs.push("--ignore-scripts");
+    }
+    const npmRes = await runCommandWithTimeout(npmInstallArgs, {
       timeoutMs: Math.max(timeoutMs, 300_000),
       cwd: targetDir,
+      env: buildSecureNpmEnv({ allowScripts }),
+      inheritProcessEnv: false,
     });
     if (npmRes.code !== 0) {
       if (backupDir) {
@@ -474,7 +524,11 @@ export async function installPluginFromNpmSpec(params: {
   const res = await runCommandWithTimeout(["npm", "pack", spec], {
     timeoutMs: Math.max(timeoutMs, 300_000),
     cwd: tmpDir,
-    env: { COREPACK_ENABLE_DOWNLOAD_PROMPT: "0" },
+    env: buildSecureNpmEnv({
+      allowScripts: shouldAllowNpmScripts(process.env),
+      extra: { COREPACK_ENABLE_DOWNLOAD_PROMPT: "0" },
+    }),
+    inheritProcessEnv: false,
   });
   if (res.code !== 0) {
     return {

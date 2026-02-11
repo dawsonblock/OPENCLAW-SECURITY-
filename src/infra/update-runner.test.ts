@@ -178,7 +178,7 @@ describe("runGatewayUpdate", () => {
       if (key === "npm root -g") {
         return { stdout: nodeModules, stderr: "", code: 0 };
       }
-      if (key === "npm i -g openclaw@latest") {
+      if (key === "npm i -g openclaw@latest --ignore-scripts") {
         await fs.writeFile(
           path.join(pkgRoot, "package.json"),
           JSON.stringify({ name: "openclaw", version: "2.0.0" }),
@@ -202,7 +202,75 @@ describe("runGatewayUpdate", () => {
     expect(result.mode).toBe("npm");
     expect(result.before?.version).toBe("1.0.0");
     expect(result.after?.version).toBe("2.0.0");
-    expect(calls.some((call) => call === "npm i -g openclaw@latest")).toBe(true);
+    expect(calls.some((call) => call === "npm i -g openclaw@latest --ignore-scripts")).toBe(true);
+  });
+
+  it("scrubs environment for global npm alias installs", async () => {
+    const nodeModules = path.join(tempDir, "node_modules");
+    const pkgRoot = path.join(nodeModules, "openclaw");
+    await fs.mkdir(pkgRoot, { recursive: true });
+    await fs.writeFile(
+      path.join(pkgRoot, "package.json"),
+      JSON.stringify({ name: "openclaw", version: "1.0.0" }),
+      "utf-8",
+    );
+
+    const previousSecret = process.env.OPENCLAW_TEST_SECRET_TOKEN;
+    process.env.OPENCLAW_TEST_SECRET_TOKEN = "super-secret-value";
+
+    let npmInstallOptions:
+      | { timeoutMs: number; cwd?: string; env?: NodeJS.ProcessEnv; inheritProcessEnv?: boolean }
+      | undefined;
+    try {
+      const runCommand = async (
+        argv: string[],
+        options: {
+          timeoutMs: number;
+          cwd?: string;
+          env?: NodeJS.ProcessEnv;
+          inheritProcessEnv?: boolean;
+        },
+      ) => {
+        const key = argv.join(" ");
+        if (key === `git -C ${pkgRoot} rev-parse --show-toplevel`) {
+          return { stdout: "", stderr: "not a git repository", code: 128 };
+        }
+        if (key === "npm root -g") {
+          return { stdout: nodeModules, stderr: "", code: 0 };
+        }
+        if (key === "pnpm root -g") {
+          return { stdout: "", stderr: "", code: 1 };
+        }
+        if (key === "npm i -g openclaw@latest --ignore-scripts") {
+          npmInstallOptions = options;
+          await fs.writeFile(
+            path.join(pkgRoot, "package.json"),
+            JSON.stringify({ name: "openclaw", version: "2.0.0" }),
+            "utf-8",
+          );
+          return { stdout: "ok", stderr: "", code: 0 };
+        }
+        return { stdout: "", stderr: "", code: 0 };
+      };
+
+      const result = await runGatewayUpdate({
+        cwd: pkgRoot,
+        runCommand,
+        timeoutMs: 5000,
+      });
+
+      expect(result.status).toBe("ok");
+      expect(npmInstallOptions?.inheritProcessEnv).toBe(false);
+      expect(npmInstallOptions?.env?.npm_config_ignore_scripts).toBe("true");
+      expect(npmInstallOptions?.env?.NPM_CONFIG_IGNORE_SCRIPTS).toBe("true");
+      expect(npmInstallOptions?.env?.OPENCLAW_TEST_SECRET_TOKEN).toBeUndefined();
+    } finally {
+      if (previousSecret === undefined) {
+        delete process.env.OPENCLAW_TEST_SECRET_TOKEN;
+      } else {
+        process.env.OPENCLAW_TEST_SECRET_TOKEN = previousSecret;
+      }
+    }
   });
 
   it("uses update channel for global npm installs when tag is omitted", async () => {
@@ -225,7 +293,7 @@ describe("runGatewayUpdate", () => {
       if (key === "npm root -g") {
         return { stdout: nodeModules, stderr: "", code: 0 };
       }
-      if (key === "npm i -g openclaw@beta") {
+      if (key === "npm i -g openclaw@beta --ignore-scripts") {
         await fs.writeFile(
           path.join(pkgRoot, "package.json"),
           JSON.stringify({ name: "openclaw", version: "2.0.0" }),
@@ -250,7 +318,7 @@ describe("runGatewayUpdate", () => {
     expect(result.mode).toBe("npm");
     expect(result.before?.version).toBe("1.0.0");
     expect(result.after?.version).toBe("2.0.0");
-    expect(calls.some((call) => call === "npm i -g openclaw@beta")).toBe(true);
+    expect(calls.some((call) => call === "npm i -g openclaw@beta --ignore-scripts")).toBe(true);
   });
 
   it("cleans stale npm rename dirs before global update", async () => {
@@ -277,7 +345,7 @@ describe("runGatewayUpdate", () => {
       if (key === "pnpm root -g") {
         return { stdout: "", stderr: "", code: 1 };
       }
-      if (key === "npm i -g openclaw@latest") {
+      if (key === "npm i -g openclaw@latest --ignore-scripts") {
         stalePresentAtInstall = await pathExists(staleDir);
         return { stdout: "ok", stderr: "", code: 0 };
       }
@@ -315,7 +383,7 @@ describe("runGatewayUpdate", () => {
       if (key === "npm root -g") {
         return { stdout: nodeModules, stderr: "", code: 0 };
       }
-      if (key === "npm i -g openclaw@beta") {
+      if (key === "npm i -g openclaw@beta --ignore-scripts") {
         await fs.writeFile(
           path.join(pkgRoot, "package.json"),
           JSON.stringify({ name: "openclaw", version: "2.0.0" }),
@@ -340,7 +408,7 @@ describe("runGatewayUpdate", () => {
     expect(result.mode).toBe("npm");
     expect(result.before?.version).toBe("1.0.0");
     expect(result.after?.version).toBe("2.0.0");
-    expect(calls.some((call) => call === "npm i -g openclaw@beta")).toBe(true);
+    expect(calls.some((call) => call === "npm i -g openclaw@beta --ignore-scripts")).toBe(true);
   });
 
   it("updates global bun installs when detected", async () => {

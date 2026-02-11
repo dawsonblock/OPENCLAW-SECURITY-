@@ -85,6 +85,9 @@ describe("dashboardCommand", () => {
     });
     expect(mocks.copyToClipboard).toHaveBeenCalledWith("http://127.0.0.1:18789/#token=abc123");
     expect(mocks.openUrl).toHaveBeenCalledWith("http://127.0.0.1:18789/#token=abc123");
+    const logOutput = runtime.log.mock.calls.flat().join("\n");
+    expect(logOutput).not.toContain("#token=abc123");
+    expect(logOutput).toContain("Dashboard URL: http://127.0.0.1:18789/");
     expect(runtime.log).toHaveBeenCalledWith(
       "Opened in your browser. Keep that tab to control OpenClaw.",
     );

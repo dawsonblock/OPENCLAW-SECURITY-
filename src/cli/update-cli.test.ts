@@ -274,6 +274,87 @@ describe("update-cli", () => {
     }
   });
 
+  it("scrubs env for npm global updates when switching from git to package updates", async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-update-"));
+    const globalRoot = path.join(tempDir, "global-node-modules");
+    const globalPkgRoot = path.join(globalRoot, "openclaw");
+    const previousSecret = process.env.OPENCLAW_TEST_SECRET_TOKEN;
+    process.env.OPENCLAW_TEST_SECRET_TOKEN = "do-not-forward";
+
+    try {
+      await fs.writeFile(
+        path.join(tempDir, "package.json"),
+        JSON.stringify({ name: "openclaw", version: "1.0.0" }),
+        "utf-8",
+      );
+      await fs.mkdir(globalPkgRoot, { recursive: true });
+      await fs.writeFile(
+        path.join(globalPkgRoot, "package.json"),
+        JSON.stringify({ name: "openclaw", version: "1.0.0" }),
+        "utf-8",
+      );
+
+      const { resolveOpenClawPackageRoot } = await import("../infra/openclaw-root.js");
+      const { checkUpdateStatus } = await import("../infra/update-check.js");
+      const { runCommandWithTimeout } = await import("../process/exec.js");
+      const { updateCommand } = await import("./update-cli.js");
+
+      vi.mocked(resolveOpenClawPackageRoot).mockResolvedValue(tempDir);
+      vi.mocked(checkUpdateStatus).mockResolvedValue({
+        root: tempDir,
+        installKind: "git",
+        packageManager: "npm",
+        git: {
+          root: tempDir,
+          sha: "abc123",
+          tag: "v1.0.0",
+          branch: "main",
+          upstream: "origin/main",
+          dirty: false,
+          ahead: 0,
+          behind: 0,
+          fetchOk: true,
+        },
+      });
+
+      let installCall: { argv: string[]; options: Record<string, unknown> } | undefined;
+
+      vi.mocked(runCommandWithTimeout).mockImplementation(async (argv, options) => {
+        const command = argv.join(" ");
+        if (command === "npm root -g") {
+          return { stdout: globalRoot, stderr: "", code: 0, signal: null, killed: false };
+        }
+        if (command === "pnpm root -g") {
+          return { stdout: "", stderr: "", code: 1, signal: null, killed: false };
+        }
+        if (command === "npm i -g openclaw@latest --ignore-scripts") {
+          installCall = {
+            argv,
+            options: (options as Record<string, unknown>) ?? {},
+          };
+          return { stdout: "ok", stderr: "", code: 0, signal: null, killed: false };
+        }
+        return { stdout: "", stderr: "", code: 0, signal: null, killed: false };
+      });
+
+      await updateCommand({ channel: "stable", yes: true });
+
+      expect(installCall?.argv.join(" ")).toBe("npm i -g openclaw@latest --ignore-scripts");
+      expect(installCall?.options.inheritProcessEnv).toBe(false);
+      const env = (installCall?.options.env as Record<string, string | undefined>) ?? {};
+      expect(env.npm_config_ignore_scripts).toBe("true");
+      expect(env.NPM_CONFIG_IGNORE_SCRIPTS).toBe("true");
+      expect(env.OPENCLAW_TEST_SECRET_TOKEN).toBeUndefined();
+    } finally {
+      if (previousSecret === undefined) {
+        delete process.env.OPENCLAW_TEST_SECRET_TOKEN;
+      } else {
+        process.env.OPENCLAW_TEST_SECRET_TOKEN = previousSecret;
+      }
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it("uses stored beta channel when configured", async () => {
     const { readConfigFileSnapshot } = await import("../config/config.js");
     const { runGatewayUpdate } = await import("../infra/update-runner.js");

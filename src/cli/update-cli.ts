@@ -52,6 +52,7 @@ import {
 import { syncPluginsForUpdateChannel, updateNpmInstalledPlugins } from "../plugins/update.js";
 import { runCommandWithTimeout } from "../process/exec.js";
 import { defaultRuntime } from "../runtime.js";
+import { buildScrubbedEnv } from "../security/subprocess.js";
 import { formatDocsLink } from "../terminal/links.js";
 import { stylePromptHint, stylePromptMessage } from "../terminal/prompt-style.js";
 import { renderTable } from "../terminal/table.js";
@@ -317,6 +318,15 @@ function resolveNodeRunner(): string {
   return "node";
 }
 
+function isNpmInstallCommand(argv: string[]): boolean {
+  const command = path.basename(argv[0] ?? "").toLowerCase();
+  const action = (argv[1] ?? "").toLowerCase();
+  return (
+    (command === "npm" || command === "npm.cmd" || command === "npm.exe") &&
+    (action === "install" || action === "i" || action === "ci")
+  );
+}
+
 async function runUpdateStep(params: {
   name: string;
   argv: string[];
@@ -332,9 +342,25 @@ async function runUpdateStep(params: {
     total: 0,
   });
   const started = Date.now();
+  const scrubNpmInstall = isNpmInstallCommand(params.argv);
   const res = await runCommandWithTimeout(params.argv, {
     cwd: params.cwd,
     timeoutMs: params.timeoutMs,
+    env: scrubNpmInstall
+      ? buildScrubbedEnv({
+          envOverrides: {
+            COREPACK_ENABLE_STRICT: "0",
+            COREPACK_ENABLE_DOWNLOAD_PROMPT: "0",
+            ...(process.env.OPENCLAW_ALLOW_NPM_SCRIPTS === "1"
+              ? {}
+              : {
+                  npm_config_ignore_scripts: "true",
+                  NPM_CONFIG_IGNORE_SCRIPTS: "true",
+                }),
+          },
+        })
+      : undefined,
+    inheritProcessEnv: scrubNpmInstall ? false : undefined,
   });
   const durationMs = Date.now() - started;
   const stderrTail = trimLogTail(res.stderr, MAX_LOG_CHARS);

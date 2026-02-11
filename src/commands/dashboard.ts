@@ -36,7 +36,10 @@ export async function dashboardCommand(
     ? `${links.httpUrl}#token=${encodeURIComponent(token)}`
     : links.httpUrl;
 
-  runtime.log(`Dashboard URL: ${dashboardUrl}`);
+  runtime.log(`Dashboard URL: ${links.httpUrl}`);
+  if (token) {
+    runtime.log("Gateway token detected. Tokenized URL is used for open/copy but not printed.");
+  }
 
   const copied = await copyToClipboard(dashboardUrl).catch(() => false);
   runtime.log(copied ? "Copied to clipboard." : "Copy to clipboard unavailable.");

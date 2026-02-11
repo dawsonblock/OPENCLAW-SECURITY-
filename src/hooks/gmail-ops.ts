@@ -8,6 +8,7 @@ import {
   validateConfigObjectWithPlugins,
   writeConfigFile,
 } from "../config/config.js";
+import { redactSensitiveText } from "../logging/redact.js";
 import { runCommandWithTimeout } from "../process/exec.js";
 import { defaultRuntime } from "../runtime.js";
 import { spawnAllowed } from "../security/subprocess.js";
@@ -86,6 +87,33 @@ export type GmailRunOptions = {
 };
 
 const DEFAULT_GMAIL_TOPIC_IAM_MEMBER = "serviceAccount:gmail-api-push@system.gserviceaccount.com";
+const REDACT_TOOLS_MODE = { mode: "tools" as const };
+
+function maskSecret(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (trimmed.length <= 8) {
+    return "***";
+  }
+  return `${trimmed.slice(0, 4)}…${trimmed.slice(-4)}`;
+}
+
+function sanitizeUrlForDisplay(raw: string): string {
+  try {
+    const url = new URL(raw);
+    const sensitiveKeys = ["token", "hookToken", "pushToken", "api_key", "apikey", "secret"];
+    for (const key of sensitiveKeys) {
+      if (url.searchParams.has(key)) {
+        url.searchParams.set(key, "***");
+      }
+    }
+    return url.toString();
+  } catch {
+    return redactSensitiveText(raw, REDACT_TOOLS_MODE);
+  }
+}
 
 export async function runGmailSetup(opts: GmailSetupOptions) {
   await ensureDependency("gcloud", ["--cask", "gcloud-cli"]);
@@ -254,10 +282,10 @@ export async function runGmailSetup(opts: GmailSetupOptions) {
     projectId,
     topic: topicPath,
     subscription,
-    pushEndpoint,
-    hookUrl,
-    hookToken,
-    pushToken,
+    pushEndpoint: sanitizeUrlForDisplay(pushEndpoint),
+    hookUrl: sanitizeUrlForDisplay(hookUrl),
+    hookToken: maskSecret(hookToken),
+    pushToken: maskSecret(pushToken),
     serve: {
       bind: serveBind,
       port: servePort,
@@ -274,8 +302,10 @@ export async function runGmailSetup(opts: GmailSetupOptions) {
   defaultRuntime.log(`- project: ${projectId}`);
   defaultRuntime.log(`- topic: ${topicPath}`);
   defaultRuntime.log(`- subscription: ${subscription}`);
-  defaultRuntime.log(`- push endpoint: ${pushEndpoint}`);
-  defaultRuntime.log(`- hook url: ${hookUrl}`);
+  defaultRuntime.log(`- push endpoint: ${sanitizeUrlForDisplay(pushEndpoint)}`);
+  defaultRuntime.log(`- hook url: ${sanitizeUrlForDisplay(hookUrl)}`);
+  defaultRuntime.log(`- hook token: ${maskSecret(hookToken)}`);
+  defaultRuntime.log(`- push token: ${maskSecret(pushToken)}`);
   defaultRuntime.log(`- config: ${displayPath(CONFIG_PATH)}`);
   defaultRuntime.log(`Next: ${formatCliCommand("openclaw webhooks gmail run")}`);
 }
@@ -358,7 +388,7 @@ export async function runGmailService(opts: GmailRunOptions) {
 
 function spawnGogServe(cfg: GmailHookRuntimeConfig) {
   const args = buildGogWatchServeArgs(cfg);
-  defaultRuntime.log(`Starting gog ${args.join(" ")}`);
+  defaultRuntime.log(redactSensitiveText(`Starting gog ${args.join(" ")}`, REDACT_TOOLS_MODE));
   return spawnAllowed({
     command: "gog",
     args,
@@ -374,7 +404,10 @@ async function startGmailWatch(
   const args = ["gog", ...buildGogWatchStartArgs(cfg)];
   const result = await runCommandWithTimeout(args, { timeoutMs: 120_000 });
   if (result.code !== 0) {
-    const message = result.stderr || result.stdout || "gog watch start failed";
+    const message = redactSensitiveText(
+      result.stderr || result.stdout || "gog watch start failed",
+      REDACT_TOOLS_MODE,
+    );
     if (fatal) {
       throw new Error(message);
     }

@@ -123,4 +123,128 @@ describe("ensureTailscaleEndpoint", () => {
     expect(message).toContain("stdout: not-json");
     expect(message).toContain("code=0");
   });
+
+  it("redacts token-like values from command output context", async () => {
+    vi.doMock("../process/exec.js", () => ({
+      runCommandWithTimeout: vi.fn(),
+    }));
+
+    const { ensureTailscaleEndpoint } = await import("./gmail-setup-utils.js");
+    const { runCommandWithTimeout } = await import("../process/exec.js");
+    const runCommand = vi.mocked(runCommandWithTimeout);
+    const leakedToken = "secret-token-value-1234567890";
+
+    runCommand
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify({ Self: { DNSName: "host.tailnet.ts.net." } }),
+        stderr: "",
+        code: 0,
+        signal: null,
+        killed: false,
+      })
+      .mockResolvedValueOnce({
+        stdout: "",
+        stderr: "failed to connect",
+        code: 1,
+        signal: null,
+        killed: false,
+      });
+
+    let message = "";
+    try {
+      await ensureTailscaleEndpoint({
+        mode: "serve",
+        path: "/gmail-pubsub",
+        target: `http://127.0.0.1:8788/gmail-pubsub?token=${leakedToken}`,
+      });
+    } catch (err) {
+      message = err instanceof Error ? err.message : String(err);
+    }
+
+    expect(message).toContain("failed");
+    expect(message).not.toContain(leakedToken);
+  });
+
+  it("omits push token query by default when building tailscale endpoint", async () => {
+    vi.doMock("../process/exec.js", () => ({
+      runCommandWithTimeout: vi.fn(),
+    }));
+
+    const { ensureTailscaleEndpoint } = await import("./gmail-setup-utils.js");
+    const { runCommandWithTimeout } = await import("../process/exec.js");
+    const runCommand = vi.mocked(runCommandWithTimeout);
+
+    runCommand
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify({ Self: { DNSName: "host.tailnet.ts.net." } }),
+        stderr: "",
+        code: 0,
+        signal: null,
+        killed: false,
+      })
+      .mockResolvedValueOnce({
+        stdout: "ok",
+        stderr: "",
+        code: 0,
+        signal: null,
+        killed: false,
+      });
+
+    const endpoint = await ensureTailscaleEndpoint({
+      mode: "serve",
+      path: "/gmail-pubsub",
+      token: "a&b=c d",
+      port: 8788,
+    });
+
+    expect(endpoint).toBe("https://host.tailnet.ts.net/gmail-pubsub");
+    expect(endpoint).not.toContain("token=");
+  });
+
+  it("URL-encodes push token query only with explicit opt-in", async () => {
+    vi.doMock("../process/exec.js", () => ({
+      runCommandWithTimeout: vi.fn(),
+    }));
+
+    const previous = process.env.OPENCLAW_GMAIL_PUSH_ENDPOINT_QUERY_TOKEN;
+    process.env.OPENCLAW_GMAIL_PUSH_ENDPOINT_QUERY_TOKEN = "1";
+    try {
+      const { ensureTailscaleEndpoint } = await import("./gmail-setup-utils.js");
+      const { runCommandWithTimeout } = await import("../process/exec.js");
+      const runCommand = vi.mocked(runCommandWithTimeout);
+
+      runCommand
+        .mockResolvedValueOnce({
+          stdout: JSON.stringify({ Self: { DNSName: "host.tailnet.ts.net." } }),
+          stderr: "",
+          code: 0,
+          signal: null,
+          killed: false,
+        })
+        .mockResolvedValueOnce({
+          stdout: "ok",
+          stderr: "",
+          code: 0,
+          signal: null,
+          killed: false,
+        });
+
+      const endpoint = await ensureTailscaleEndpoint({
+        mode: "serve",
+        path: "/gmail-pubsub",
+        token: "a&b=c d",
+        port: 8788,
+      });
+
+      expect(endpoint).toContain("https://host.tailnet.ts.net/gmail-pubsub?");
+      expect(endpoint).toContain("token=a%26b%3Dc+d");
+      expect(endpoint).not.toContain("token=a&b=c d");
+    } finally {
+      if (previous === undefined) {
+        delete process.env.OPENCLAW_GMAIL_PUSH_ENDPOINT_QUERY_TOKEN;
+      } else {
+        process.env.OPENCLAW_GMAIL_PUSH_ENDPOINT_QUERY_TOKEN = previous;
+      }
+    }
+  });
 });

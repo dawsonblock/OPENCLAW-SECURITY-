@@ -54,6 +54,9 @@ describe("rfsnDispatch", () => {
     expect(entries[0]?.payload.type).toBe("proposal");
     expect(entries[1]?.payload.type).toBe("decision");
     expect(entries[2]?.payload.type).toBe("result");
+    if (entries[2]?.payload.type === "result") {
+      expect(entries[2].payload.result.summary).toBe("omitted");
+    }
   });
 
   test("denied actions do not execute and still write proposal/decision/result", async () => {
@@ -89,5 +92,46 @@ describe("rfsnDispatch", () => {
     expect(entries[0]?.payload.type).toBe("proposal");
     expect(entries[1]?.payload.type).toBe("decision");
     expect(entries[2]?.payload.type).toBe("result");
+  });
+
+  test("captures tool output summary when explicitly enabled", async () => {
+    const previousCapture = process.env.OPENCLAW_RFSN_LEDGER_CAPTURE_OUTPUT;
+    process.env.OPENCLAW_RFSN_LEDGER_CAPTURE_OUTPUT = "1";
+    try {
+      const workspaceDir = await createTmpDir();
+      const tool = createTestTool("read", async () => ({
+        content: [{ type: "text", text: "captured" as const }],
+        details: {},
+      }));
+      const policy = createDefaultRfsnPolicy({
+        mode: "allowlist",
+        allowTools: ["read"],
+      });
+
+      await rfsnDispatch({
+        tool,
+        toolCallId: "call-3",
+        args: {},
+        workspaceDir,
+        policy,
+        meta: {
+          actor: "embedded-agent",
+          sessionId: "session-3",
+        },
+      });
+
+      const ledgerPath = resolveLedgerFilePath({ workspaceDir, sessionId: "session-3" });
+      const entries = await readLedgerEntries(ledgerPath);
+      expect(entries).toHaveLength(3);
+      if (entries[2]?.payload.type === "result") {
+        expect(entries[2].payload.result.summary).toBe("captured");
+      }
+    } finally {
+      if (previousCapture === undefined) {
+        delete process.env.OPENCLAW_RFSN_LEDGER_CAPTURE_OUTPUT;
+      } else {
+        process.env.OPENCLAW_RFSN_LEDGER_CAPTURE_OUTPUT = previousCapture;
+      }
+    }
   });
 });

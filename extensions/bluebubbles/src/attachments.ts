@@ -81,7 +81,11 @@ export async function downloadBlueBubblesAttachment(
     path: `/api/v1/attachment/${encodeURIComponent(guid)}/download`,
     password,
   });
-  const res = await blueBubblesFetchWithTimeout(url, { method: "GET" }, opts.timeoutMs);
+  const res = await blueBubblesFetchWithTimeout(
+    url,
+    { method: "GET", blueBubblesPassword: password },
+    opts.timeoutMs,
+  );
   if (!res.ok) {
     const errorText = await res.text().catch(() => "");
     throw new Error(
@@ -277,6 +281,7 @@ export async function sendBlueBubblesAttachment(params: {
       headers: {
         "Content-Type": `multipart/form-data; boundary=${boundary}`,
       },
+      blueBubblesPassword: password,
       body,
     },
     opts.timeoutMs ?? 60_000, // longer timeout for file uploads

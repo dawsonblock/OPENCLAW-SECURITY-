@@ -1,5 +1,6 @@
 import type { CoreConfig, NextcloudTalkSendResult } from "./types.js";
 import { resolveNextcloudTalkAccount } from "./accounts.js";
+import { redactRoomToken } from "./redact.js";
 import { getNextcloudTalkRuntime } from "./runtime.js";
 import { generateNextcloudTalkSignature } from "./signature.js";
 
@@ -127,7 +128,7 @@ export async function sendMessageNextcloudTalk(
     } else if (status === 403) {
       errorMsg = "Nextcloud Talk: forbidden - bot may not have permission in this room";
     } else if (status === 404) {
-      errorMsg = `Nextcloud Talk: room not found (token=${roomToken})`;
+      errorMsg = "Nextcloud Talk: room not found";
     } else if (errorBody) {
       errorMsg = `Nextcloud Talk send failed: ${errorBody}`;
     }
@@ -157,7 +158,7 @@ export async function sendMessageNextcloudTalk(
   }
 
   if (opts.verbose) {
-    console.log(`[nextcloud-talk] Sent message ${messageId} to room ${roomToken}`);
+    console.log(`[nextcloud-talk] Sent message ${messageId} to room ${redactRoomToken(roomToken)}`);
   }
 
   getNextcloudTalkRuntime().channel.activity.record({

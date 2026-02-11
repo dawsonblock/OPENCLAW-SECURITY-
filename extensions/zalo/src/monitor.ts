@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { OpenClawConfig, MarkdownTableMode } from "openclaw/plugin-sdk";
+import { timingSafeEqual } from "node:crypto";
 import { createReplyPrefixOptions } from "openclaw/plugin-sdk";
 import type { ResolvedZaloAccount } from "./accounts.js";
 import {
@@ -119,6 +120,15 @@ function normalizeWebhookPath(raw: string): string {
   return withSlash;
 }
 
+function safeEqualSecret(expected: string, provided: string): boolean {
+  const left = Buffer.from(expected);
+  const right = Buffer.from(provided);
+  if (left.length !== right.length) {
+    return false;
+  }
+  return timingSafeEqual(left, right);
+}
+
 function resolveWebhookPath(webhookPath?: string, webhookUrl?: string): string | null {
   const trimmedPath = webhookPath?.trim();
   if (trimmedPath) {
@@ -169,8 +179,10 @@ export async function handleZaloWebhookRequest(
     return true;
   }
 
-  const headerToken = String(req.headers["x-bot-api-secret-token"] ?? "");
-  const target = targets.find((entry) => entry.secret === headerToken);
+  const rawHeaderToken = req.headers["x-bot-api-secret-token"];
+  const headerToken = (Array.isArray(rawHeaderToken) ? rawHeaderToken[0] : rawHeaderToken) ?? "";
+  const normalizedHeaderToken = headerToken.trim();
+  const target = targets.find((entry) => safeEqualSecret(entry.secret, normalizedHeaderToken));
   if (!target) {
     res.statusCode = 401;
     res.end("unauthorized");

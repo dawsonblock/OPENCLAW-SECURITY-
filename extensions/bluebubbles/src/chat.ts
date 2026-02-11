@@ -42,7 +42,11 @@ export async function markBlueBubblesChatRead(
     path: `/api/v1/chat/${encodeURIComponent(trimmed)}/read`,
     password,
   });
-  const res = await blueBubblesFetchWithTimeout(url, { method: "POST" }, opts.timeoutMs);
+  const res = await blueBubblesFetchWithTimeout(
+    url,
+    { method: "POST", blueBubblesPassword: password },
+    opts.timeoutMs,
+  );
   if (!res.ok) {
     const errorText = await res.text().catch(() => "");
     throw new Error(`BlueBubbles read failed (${res.status}): ${errorText || "unknown"}`);
@@ -66,7 +70,7 @@ export async function sendBlueBubblesTyping(
   });
   const res = await blueBubblesFetchWithTimeout(
     url,
-    { method: typing ? "POST" : "DELETE" },
+    { method: typing ? "POST" : "DELETE", blueBubblesPassword: password },
     opts.timeoutMs,
   );
   if (!res.ok) {
@@ -111,6 +115,7 @@ export async function editBlueBubblesMessage(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      blueBubblesPassword: password,
       body: JSON.stringify(payload),
     },
     opts.timeoutMs,
@@ -151,6 +156,7 @@ export async function unsendBlueBubblesMessage(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      blueBubblesPassword: password,
       body: JSON.stringify(payload),
     },
     opts.timeoutMs,
@@ -187,6 +193,7 @@ export async function renameBlueBubblesChat(
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
+      blueBubblesPassword: password,
       body: JSON.stringify({ displayName }),
     },
     opts.timeoutMs,
@@ -227,6 +234,7 @@ export async function addBlueBubblesParticipant(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      blueBubblesPassword: password,
       body: JSON.stringify({ address: trimmedAddress }),
     },
     opts.timeoutMs,
@@ -267,6 +275,7 @@ export async function removeBlueBubblesParticipant(
     {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
+      blueBubblesPassword: password,
       body: JSON.stringify({ address: trimmedAddress }),
     },
     opts.timeoutMs,
@@ -299,7 +308,11 @@ export async function leaveBlueBubblesChat(
     password,
   });
 
-  const res = await blueBubblesFetchWithTimeout(url, { method: "POST" }, opts.timeoutMs);
+  const res = await blueBubblesFetchWithTimeout(
+    url,
+    { method: "POST", blueBubblesPassword: password },
+    opts.timeoutMs,
+  );
 
   if (!res.ok) {
     const errorText = await res.text().catch(() => "");
@@ -370,6 +383,7 @@ export async function setGroupIconBlueBubbles(
       headers: {
         "Content-Type": `multipart/form-data; boundary=${boundary}`,
       },
+      blueBubblesPassword: password,
       body,
     },
     opts.timeoutMs ?? 60_000, // longer timeout for file uploads

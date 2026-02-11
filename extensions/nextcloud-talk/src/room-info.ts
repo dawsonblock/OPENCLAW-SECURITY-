@@ -1,6 +1,7 @@
 import type { RuntimeEnv } from "openclaw/plugin-sdk";
 import { readFileSync } from "node:fs";
 import type { ResolvedNextcloudTalkAccount } from "./accounts.js";
+import { redactRoomToken } from "./redact.js";
 
 const ROOM_CACHE_TTL_MS = 5 * 60 * 1000;
 const ROOM_CACHE_ERROR_TTL_MS = 30 * 1000;
@@ -103,7 +104,9 @@ export async function resolveNextcloudTalkRoomKind(params: {
         fetchedAt: Date.now(),
         error: `status:${response.status}`,
       });
-      runtime?.log?.(`nextcloud-talk: room lookup failed (${response.status}) token=${roomToken}`);
+      runtime?.log?.(
+        `nextcloud-talk: room lookup failed (${response.status}) room=${redactRoomToken(roomToken)}`,
+      );
       return undefined;
     }
 

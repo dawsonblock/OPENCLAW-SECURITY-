@@ -15,6 +15,11 @@ vi.mock("./accounts.js", () => ({
 
 const mockFetch = vi.fn();
 
+function headersFromCall(callIndex = 0): Headers {
+  const init = mockFetch.mock.calls[callIndex]?.[1] as RequestInit | undefined;
+  return new Headers(init?.headers);
+}
+
 describe("chat", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", mockFetch);
@@ -73,7 +78,7 @@ describe("chat", () => {
       );
     });
 
-    it("includes password in URL query", async () => {
+    it("sends password via auth headers and omits query secrets", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         text: () => Promise.resolve(""),
@@ -85,7 +90,10 @@ describe("chat", () => {
       });
 
       const calledUrl = mockFetch.mock.calls[0][0] as string;
-      expect(calledUrl).toContain("password=my-secret");
+      expect(calledUrl).not.toContain("password=");
+      const headers = headersFromCall(0);
+      expect(headers.get("x-bluebubbles-password")).toBe("my-secret");
+      expect(headers.get("authorization")).toBe("Bearer my-secret");
     });
 
     it("throws on non-ok response", async () => {
@@ -138,7 +146,9 @@ describe("chat", () => {
 
       const calledUrl = mockFetch.mock.calls[0][0] as string;
       expect(calledUrl).toContain("config-server:9999");
-      expect(calledUrl).toContain("password=config-pass");
+      expect(calledUrl).not.toContain("password=");
+      const headers = headersFromCall(0);
+      expect(headers.get("x-bluebubbles-password")).toBe("config-pass");
     });
   });
 
@@ -207,7 +217,7 @@ describe("chat", () => {
       );
     });
 
-    it("includes password in URL query", async () => {
+    it("sends password via auth headers and omits query secrets", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         text: () => Promise.resolve(""),
@@ -219,7 +229,10 @@ describe("chat", () => {
       });
 
       const calledUrl = mockFetch.mock.calls[0][0] as string;
-      expect(calledUrl).toContain("password=typing-secret");
+      expect(calledUrl).not.toContain("password=");
+      const headers = headersFromCall(0);
+      expect(headers.get("x-bluebubbles-password")).toBe("typing-secret");
+      expect(headers.get("authorization")).toBe("Bearer typing-secret");
     });
 
     it("throws on non-ok response", async () => {
@@ -286,7 +299,9 @@ describe("chat", () => {
 
       const calledUrl = mockFetch.mock.calls[0][0] as string;
       expect(calledUrl).toContain("typing-server:8888");
-      expect(calledUrl).toContain("password=typing-pass");
+      expect(calledUrl).not.toContain("password=");
+      const headers = headersFromCall(0);
+      expect(headers.get("x-bluebubbles-password")).toBe("typing-pass");
     });
 
     it("can start and stop typing in sequence", async () => {
@@ -372,7 +387,7 @@ describe("chat", () => {
       );
     });
 
-    it("includes password in URL query", async () => {
+    it("sends password via auth headers and omits query secrets", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         text: () => Promise.resolve(""),
@@ -384,7 +399,10 @@ describe("chat", () => {
       });
 
       const calledUrl = mockFetch.mock.calls[0][0] as string;
-      expect(calledUrl).toContain("password=my-secret");
+      expect(calledUrl).not.toContain("password=");
+      const headers = headersFromCall(0);
+      expect(headers.get("x-bluebubbles-password")).toBe("my-secret");
+      expect(headers.get("authorization")).toBe("Bearer my-secret");
     });
 
     it("throws on non-ok response", async () => {
@@ -437,7 +455,9 @@ describe("chat", () => {
 
       const calledUrl = mockFetch.mock.calls[0][0] as string;
       expect(calledUrl).toContain("config-server:9999");
-      expect(calledUrl).toContain("password=config-pass");
+      expect(calledUrl).not.toContain("password=");
+      const headers = headersFromCall(0);
+      expect(headers.get("x-bluebubbles-password")).toBe("config-pass");
     });
 
     it("includes filename in multipart body", async () => {

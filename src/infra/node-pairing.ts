@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { resolveStateDir } from "../config/paths.js";
@@ -274,7 +274,12 @@ export async function verifyNodeToken(
   if (!node) {
     return { ok: false };
   }
-  return node.token === token ? { ok: true, node } : { ok: false };
+  const expected = Buffer.from(node.token);
+  const provided = Buffer.from(token);
+  if (expected.length !== provided.length) {
+    return { ok: false };
+  }
+  return timingSafeEqual(expected, provided) ? { ok: true, node } : { ok: false };
 }
 
 export async function updatePairedNodeMetadata(

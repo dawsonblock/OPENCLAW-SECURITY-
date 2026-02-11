@@ -83,6 +83,17 @@ describe("redactSensitiveText", () => {
     expect(output).toBe("token=abcdef…ghij");
   });
 
+  it("masks token query parameters with default patterns", () => {
+    const input = "https://example.com/path?token=abcdef1234567890ghij&ok=1";
+    const output = redactSensitiveText(input, {
+      mode: "tools",
+      patterns: defaults,
+    });
+    expect(output).toContain("token=");
+    expect(output).toContain("&ok=1");
+    expect(output).not.toContain("abcdef1234567890ghij");
+  });
+
   it("skips redaction when mode is off", () => {
     const input = "OPENAI_API_KEY=sk-1234567890abcdef";
     const output = redactSensitiveText(input, {

@@ -75,6 +75,7 @@ export type CommandOptions = {
   cwd?: string;
   input?: string;
   env?: NodeJS.ProcessEnv;
+  inheritProcessEnv?: boolean;
   windowsVerbatimArguments?: boolean;
 };
 
@@ -84,7 +85,7 @@ export async function runCommandWithTimeout(
 ): Promise<SpawnResult> {
   const options: CommandOptions =
     typeof optionsOrTimeout === "number" ? { timeoutMs: optionsOrTimeout } : optionsOrTimeout;
-  const { timeoutMs, cwd, input, env } = options;
+  const { timeoutMs, cwd, input, env, inheritProcessEnv } = options;
   const { windowsVerbatimArguments } = options;
   const hasInput = input !== undefined;
 
@@ -100,7 +101,8 @@ export async function runCommandWithTimeout(
     return false;
   })();
 
-  const resolvedEnv = env ? { ...process.env, ...env } : { ...process.env };
+  const baseEnv = inheritProcessEnv === false ? {} : process.env;
+  const resolvedEnv = env ? { ...baseEnv, ...env } : { ...baseEnv };
   if (shouldSuppressNpmFund) {
     if (resolvedEnv.NPM_CONFIG_FUND == null) {
       resolvedEnv.NPM_CONFIG_FUND = "false";

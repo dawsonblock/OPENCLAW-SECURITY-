@@ -10,6 +10,8 @@ import {
   resolvePackedRootDir,
 } from "../infra/archive.js";
 import { runCommandWithTimeout } from "../process/exec.js";
+import { scanDirectoryWithSummary } from "../security/skill-scanner.js";
+import { buildScrubbedEnv } from "../security/subprocess.js";
 import { CONFIG_DIR, resolveUserPath } from "../utils.js";
 import { parseFrontmatter } from "./frontmatter.js";
 
@@ -65,6 +67,30 @@ function validateHookId(hookId: string): string | null {
   return null;
 }
 
+function shouldAllowNpmScripts(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.OPENCLAW_ALLOW_NPM_SCRIPTS === "1";
+}
+
+function buildSecureNpmEnv(params?: {
+  allowScripts?: boolean;
+  extra?: Record<string, string | undefined>;
+}): NodeJS.ProcessEnv {
+  const allowScripts = params?.allowScripts ?? false;
+  return buildScrubbedEnv({
+    envOverrides: {
+      COREPACK_ENABLE_STRICT: "0",
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0",
+      ...(allowScripts
+        ? {}
+        : {
+            npm_config_ignore_scripts: "true",
+            NPM_CONFIG_IGNORE_SCRIPTS: "true",
+          }),
+      ...params?.extra,
+    },
+  });
+}
+
 export function resolveHookInstallDir(hookId: string, hooksDir?: string): string {
   const hooksBase = hooksDir ? resolveUserPath(hooksDir) : path.join(CONFIG_DIR, "hooks");
   const hookIdError = validateHookId(hookId);
@@ -107,6 +133,31 @@ async function ensureOpenClawHooks(manifest: HookPackageManifest) {
     throw new Error("package.json openclaw.hooks is empty");
   }
   return list;
+}
+
+async function collectHookScannerFiles(params: {
+  packageDir: string;
+  hookEntries: string[];
+  logger?: HookInstallLogger;
+}): Promise<string[]> {
+  const includeFiles: string[] = [];
+  const packageDir = path.resolve(params.packageDir);
+  const scannerCandidates = ["handler.ts", "handler.js", "index.ts", "index.js"];
+  for (const entry of params.hookEntries) {
+    const hookDir = path.resolve(packageDir, entry);
+    const rel = path.relative(packageDir, hookDir);
+    if (rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
+      params.logger?.warn?.(`hook entry escapes hook pack and will not be scanned: ${entry}`);
+      continue;
+    }
+    for (const candidate of scannerCandidates) {
+      const candidatePath = path.join(hookDir, candidate);
+      if (await fileExists(candidatePath)) {
+        includeFiles.push(candidatePath);
+      }
+    }
+  }
+  return includeFiles;
 }
 
 async function resolveHookNameFromDir(hookDir: string): Promise<string> {
@@ -181,6 +232,52 @@ async function installHookPackageFromDir(params: {
     };
   }
 
+  try {
+    const includeFiles = await collectHookScannerFiles({
+      packageDir: params.packageDir,
+      hookEntries,
+      logger,
+    });
+    const scanSummary = await scanDirectoryWithSummary(params.packageDir, {
+      includeFiles,
+    });
+    if (scanSummary.critical > 0) {
+      const criticalDetails = scanSummary.findings
+        .filter((f) => f.severity === "critical")
+        .map((f) => `${f.message} (${f.file}:${f.line})`)
+        .join("; ");
+      logger.warn?.(
+        `WARNING: Hook pack "${hookPackId}" contains dangerous code patterns: ${criticalDetails}`,
+      );
+      if (process.env.OPENCLAW_ALLOW_UNSAFE_PLUGIN_INSTALL !== "1") {
+        return {
+          ok: false,
+          error:
+            `hook pack scan found ${scanSummary.critical} critical issue(s); ` +
+            "set OPENCLAW_ALLOW_UNSAFE_PLUGIN_INSTALL=1 to override",
+        };
+      }
+    } else if (scanSummary.warn > 0) {
+      logger.warn?.(
+        `Hook pack "${hookPackId}" has ${scanSummary.warn} suspicious code pattern(s). Run "openclaw security audit --deep" for details.`,
+      );
+    }
+  } catch (err) {
+    const scanError = String(err);
+    logger.warn?.(`Hook pack "${hookPackId}" code safety scan failed (${scanError}).`);
+    if (process.env.OPENCLAW_ALLOW_UNSCANNED_PLUGIN_INSTALL !== "1") {
+      return {
+        ok: false,
+        error:
+          `hook pack scan failed; set OPENCLAW_ALLOW_UNSCANNED_PLUGIN_INSTALL=1 to override. ` +
+          `scanner error: ${scanError}`,
+      };
+    }
+    logger.warn?.(
+      `OPENCLAW_ALLOW_UNSCANNED_PLUGIN_INSTALL=1 is set; continuing hook pack install without scanner coverage.`,
+    );
+  }
+
   const hooksDir = params.hooksDir
     ? resolveUserPath(params.hooksDir)
     : path.join(CONFIG_DIR, "hooks");
@@ -234,9 +331,16 @@ async function installHookPackageFromDir(params: {
   const hasDeps = Object.keys(deps).length > 0;
   if (hasDeps) {
     logger.info?.("Installing hook pack dependencies…");
-    const npmRes = await runCommandWithTimeout(["npm", "install", "--omit=dev", "--silent"], {
+    const allowScripts = shouldAllowNpmScripts(process.env);
+    const npmInstallArgs = ["npm", "install", "--omit=dev", "--silent"];
+    if (!allowScripts) {
+      npmInstallArgs.push("--ignore-scripts");
+    }
+    const npmRes = await runCommandWithTimeout(npmInstallArgs, {
       timeoutMs: Math.max(timeoutMs, 300_000),
       cwd: targetDir,
+      env: buildSecureNpmEnv({ allowScripts }),
+      inheritProcessEnv: false,
     });
     if (npmRes.code !== 0) {
       if (backupDir) {
@@ -417,7 +521,11 @@ export async function installHooksFromNpmSpec(params: {
   const res = await runCommandWithTimeout(["npm", "pack", spec], {
     timeoutMs: Math.max(timeoutMs, 300_000),
     cwd: tmpDir,
-    env: { COREPACK_ENABLE_DOWNLOAD_PROMPT: "0" },
+    env: buildSecureNpmEnv({
+      allowScripts: shouldAllowNpmScripts(process.env),
+      extra: { COREPACK_ENABLE_DOWNLOAD_PROMPT: "0" },
+    }),
+    inheritProcessEnv: false,
   });
   if (res.code !== 0) {
     return { ok: false, error: `npm pack failed: ${res.stderr.trim() || res.stdout.trim()}` };

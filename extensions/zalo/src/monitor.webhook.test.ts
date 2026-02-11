@@ -25,6 +25,52 @@ async function withServer(
 }
 
 describe("handleZaloWebhookRequest", () => {
+  it("returns 401 when webhook secret token does not match", async () => {
+    const core = {} as PluginRuntime;
+    const account: ResolvedZaloAccount = {
+      accountId: "default",
+      enabled: true,
+      token: "tok",
+      tokenSource: "config",
+      config: {},
+    };
+    const unregister = registerZaloWebhookTarget({
+      token: "tok",
+      account,
+      config: {} as OpenClawConfig,
+      runtime: {},
+      core,
+      secret: "secret",
+      path: "/hook",
+      mediaMaxMb: 5,
+    });
+
+    try {
+      await withServer(
+        async (req, res) => {
+          const handled = await handleZaloWebhookRequest(req, res);
+          if (!handled) {
+            res.statusCode = 404;
+            res.end("not found");
+          }
+        },
+        async (baseUrl) => {
+          const response = await fetch(`${baseUrl}/hook`, {
+            method: "POST",
+            headers: {
+              "x-bot-api-secret-token": "wrong-secret",
+            },
+            body: JSON.stringify({ event_name: "message" }),
+          });
+
+          expect(response.status).toBe(401);
+        },
+      );
+    } finally {
+      unregister();
+    }
+  });
+
   it("returns 400 for non-object payloads", async () => {
     const core = {} as PluginRuntime;
     const account: ResolvedZaloAccount = {

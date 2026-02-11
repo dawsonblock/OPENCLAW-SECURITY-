@@ -68,6 +68,7 @@ export async function rfsnDispatch(params: {
     sandboxed?: boolean;
   };
 }): Promise<Awaited<ReturnType<AnyAgentTool["execute"]>>> {
+  const captureToolOutput = process.env.OPENCLAW_RFSN_LEDGER_CAPTURE_OUTPUT === "1";
   const proposal = buildProposal({ tool: params.tool, args: params.args, meta: params.meta });
 
   await appendLedgerEntry({
@@ -130,10 +131,11 @@ export async function rfsnDispatch(params: {
       params.signal,
       params.onUpdate,
     );
+    const summary = captureToolOutput ? summarizeToolResult(output) : undefined;
     const resultEntry: RfsnActionResult = {
       status: "ok",
       toolName: proposal.toolName,
-      summary: summarizeToolResult(output) ?? "ok",
+      summary: summary ?? (captureToolOutput ? "ok" : "omitted"),
       durationMs: Math.max(0, Date.now() - startedAt),
     };
     await appendLedgerEntry({

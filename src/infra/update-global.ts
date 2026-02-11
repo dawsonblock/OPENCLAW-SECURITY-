@@ -133,7 +133,11 @@ export function globalInstallArgs(manager: GlobalInstallManager, spec: string): 
   if (manager === "bun") {
     return ["bun", "add", "-g", spec];
   }
-  return ["npm", "i", "-g", spec];
+  const args = ["npm", "i", "-g", spec];
+  if (process.env.OPENCLAW_ALLOW_NPM_SCRIPTS !== "1") {
+    args.push("--ignore-scripts");
+  }
+  return args;
 }
 
 export async function cleanupGlobalRenameDirs(params: {
