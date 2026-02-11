@@ -251,4 +251,86 @@ describe("createAndBootstrapDefaultPolicy", () => {
       }
     }
   });
+
+  test("fails closed when signed policy mode is required without policy path", () => {
+    const prevRequireSigned = process.env.OPENCLAW_RFSN_REQUIRE_SIGNED_POLICY;
+    const prevPath = process.env.OPENCLAW_POLICY_PATH;
+    const prevPubKey = process.env.OPENCLAW_POLICY_PUBKEY;
+    try {
+      process.env.OPENCLAW_RFSN_REQUIRE_SIGNED_POLICY = "1";
+      delete process.env.OPENCLAW_POLICY_PATH;
+      delete process.env.OPENCLAW_POLICY_PUBKEY;
+      expect(() =>
+        createAndBootstrapDefaultPolicy({
+          basePolicyOptions: { mode: "allowlist", allowTools: ["read"] },
+        }),
+      ).toThrow(/signed_policy_required_but_no_policy_path/);
+    } finally {
+      if (prevRequireSigned === undefined) {
+        delete process.env.OPENCLAW_RFSN_REQUIRE_SIGNED_POLICY;
+      } else {
+        process.env.OPENCLAW_RFSN_REQUIRE_SIGNED_POLICY = prevRequireSigned;
+      }
+      if (prevPath === undefined) {
+        delete process.env.OPENCLAW_POLICY_PATH;
+      } else {
+        process.env.OPENCLAW_POLICY_PATH = prevPath;
+      }
+      if (prevPubKey === undefined) {
+        delete process.env.OPENCLAW_POLICY_PUBKEY;
+      } else {
+        process.env.OPENCLAW_POLICY_PUBKEY = prevPubKey;
+      }
+    }
+  });
+
+  test("signed policy mode implies verification even when OPENCLAW_VERIFY_POLICY is unset", async () => {
+    const dir = await createTmpDir();
+    const { policyPath, publicKeyPem } = await writeSignedPolicyFile({
+      dir,
+      fileName: "policy.require-signed.json",
+      payload: { allowTools: ["read"] },
+    });
+
+    const prevRequireSigned = process.env.OPENCLAW_RFSN_REQUIRE_SIGNED_POLICY;
+    const prevVerify = process.env.OPENCLAW_VERIFY_POLICY;
+    const prevPath = process.env.OPENCLAW_POLICY_PATH;
+    const prevPubKey = process.env.OPENCLAW_POLICY_PUBKEY;
+
+    try {
+      process.env.OPENCLAW_RFSN_REQUIRE_SIGNED_POLICY = "1";
+      delete process.env.OPENCLAW_VERIFY_POLICY;
+      process.env.OPENCLAW_POLICY_PATH = policyPath;
+      process.env.OPENCLAW_POLICY_PUBKEY = publicKeyPem;
+
+      const boot = createAndBootstrapDefaultPolicy({
+        basePolicyOptions: { mode: "allowlist", allowTools: ["read", "write"] },
+      });
+
+      expect(boot.source).toBe("file");
+      expect(boot.policy.allowTools.has("read")).toBe(true);
+      expect(boot.policy.allowTools.has("write")).toBe(false);
+    } finally {
+      if (prevRequireSigned === undefined) {
+        delete process.env.OPENCLAW_RFSN_REQUIRE_SIGNED_POLICY;
+      } else {
+        process.env.OPENCLAW_RFSN_REQUIRE_SIGNED_POLICY = prevRequireSigned;
+      }
+      if (prevVerify === undefined) {
+        delete process.env.OPENCLAW_VERIFY_POLICY;
+      } else {
+        process.env.OPENCLAW_VERIFY_POLICY = prevVerify;
+      }
+      if (prevPath === undefined) {
+        delete process.env.OPENCLAW_POLICY_PATH;
+      } else {
+        process.env.OPENCLAW_POLICY_PATH = prevPath;
+      }
+      if (prevPubKey === undefined) {
+        delete process.env.OPENCLAW_POLICY_PUBKEY;
+      } else {
+        process.env.OPENCLAW_POLICY_PUBKEY = prevPubKey;
+      }
+    }
+  });
 });

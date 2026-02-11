@@ -8,6 +8,8 @@
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
+import dns from "node:dns/promises";
+import net from "node:net";
 import { z } from "zod";
 import { publishNostrProfile, getNostrProfileState } from "./channel.js";
 import { NostrProfileSchema, type NostrProfile } from "./config-schema.js";
@@ -44,6 +46,7 @@ interface RateLimitEntry {
 const rateLimitMap = new Map<string, RateLimitEntry>();
 const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
 const RATE_LIMIT_MAX_REQUESTS = 5; // 5 requests per minute
+const DNS_LOOKUP_TIMEOUT_MS = 2000;
 
 function checkRateLimit(accountId: string): boolean {
   const now = Date.now();
@@ -163,7 +166,21 @@ function isPrivateIp(ip: string): boolean {
   return false;
 }
 
-function validateUrlSafety(urlStr: string): { ok: true } | { ok: false; error: string } {
+async function resolveHostAddresses(hostname: string): Promise<string[]> {
+  const lookup = dns
+    .lookup(hostname, { all: true, verbatim: true })
+    .then((entries) => entries.map((entry) => entry.address));
+  const timeout = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      reject(new Error("DNS lookup timed out"));
+    }, DNS_LOOKUP_TIMEOUT_MS);
+  });
+  return await Promise.race([lookup, timeout]);
+}
+
+async function validateUrlSafety(
+  urlStr: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const url = new URL(urlStr);
 
@@ -186,6 +203,23 @@ function validateUrlSafety(urlStr: string): { ok: true } | { ok: false; error: s
     // Block suspicious TLDs that resolve to localhost
     if (hostname.endsWith(".localhost") || hostname.endsWith(".local")) {
       return { ok: false, error: "URL must not point to private/internal addresses" };
+    }
+
+    // Resolve DNS and ensure no private/internal target is reachable.
+    // This closes hostname->private-IP SSRF bypasses.
+    if (net.isIP(hostname) === 0) {
+      let addresses: string[];
+      try {
+        addresses = await resolveHostAddresses(hostname);
+      } catch {
+        return { ok: false, error: "URL hostname could not be resolved safely" };
+      }
+      if (addresses.length === 0) {
+        return { ok: false, error: "URL hostname did not resolve to any address" };
+      }
+      if (addresses.some((address) => isPrivateIp(address))) {
+        return { ok: false, error: "URL must not point to private/internal addresses" };
+      }
     }
 
     return { ok: true };
@@ -399,7 +433,7 @@ async function handleUpdateProfile(
 
   // SSRF check for picture URL
   if (profile.picture) {
-    const pictureCheck = validateUrlSafety(profile.picture);
+    const pictureCheck = await validateUrlSafety(profile.picture);
     if (!pictureCheck.ok) {
       sendJson(res, 400, { ok: false, error: `picture: ${pictureCheck.error}` });
       return true;
@@ -408,7 +442,7 @@ async function handleUpdateProfile(
 
   // SSRF check for banner URL
   if (profile.banner) {
-    const bannerCheck = validateUrlSafety(profile.banner);
+    const bannerCheck = await validateUrlSafety(profile.banner);
     if (!bannerCheck.ok) {
       sendJson(res, 400, { ok: false, error: `banner: ${bannerCheck.error}` });
       return true;
@@ -417,7 +451,7 @@ async function handleUpdateProfile(
 
   // SSRF check for website URL
   if (profile.website) {
-    const websiteCheck = validateUrlSafety(profile.website);
+    const websiteCheck = await validateUrlSafety(profile.website);
     if (!websiteCheck.ok) {
       sendJson(res, 400, { ok: false, error: `website: ${websiteCheck.error}` });
       return true;

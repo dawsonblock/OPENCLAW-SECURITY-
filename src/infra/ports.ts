@@ -28,24 +28,40 @@ export async function describePortOwner(port: number): Promise<string | undefine
   return formatPortDiagnostics(diagnostics).join("\n");
 }
 
-export async function ensurePortAvailable(port: number): Promise<void> {
-  // Detect EADDRINUSE early with a friendly message.
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const tester = net
-        .createServer()
-        .once("error", (err) => reject(err))
-        .once("listening", () => {
-          tester.close(() => resolve());
-        })
-        .listen(port);
-    });
-  } catch (err) {
-    if (isErrno(err) && err.code === "EADDRINUSE") {
-      const details = await describePortOwner(port);
-      throw new PortInUseError(port, details);
+export async function ensurePortAvailable(
+  port: number,
+  host: string | string[] = ["127.0.0.1", "::1"],
+): Promise<void> {
+  const diagnostics = await inspectPortUsage(port);
+  if (diagnostics.listeners.length > 0) {
+    const details = formatPortDiagnostics(diagnostics).join("\n");
+    throw new PortInUseError(port, details || undefined);
+  }
+
+  const hosts = Array.isArray(host) ? host : [host];
+  for (const candidateHost of hosts) {
+    // Detect EADDRINUSE early with a friendly message.
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const tester = net
+          .createServer()
+          .once("error", (err) => reject(err))
+          .once("listening", () => {
+            tester.close(() => resolve());
+          })
+          .listen(port, candidateHost);
+      });
+    } catch (err) {
+      if (isErrno(err) && (err.code === "EAFNOSUPPORT" || err.code === "EADDRNOTAVAIL")) {
+        // Skip unsupported address families (e.g. ipv6 disabled) and continue.
+        continue;
+      }
+      if (isErrno(err) && err.code === "EADDRINUSE") {
+        const details = await describePortOwner(port);
+        throw new PortInUseError(port, details);
+      }
+      throw err;
     }
-    throw err;
   }
 }
 

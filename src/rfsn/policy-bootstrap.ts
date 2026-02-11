@@ -212,12 +212,21 @@ export function createAndBootstrapDefaultPolicy(params?: {
   verify?: boolean;
   publicKeyPem?: string;
 }): PolicyBootstrap {
+  const requireSignedPolicy = process.env.OPENCLAW_RFSN_REQUIRE_SIGNED_POLICY === "1";
   const verify =
     typeof params?.verify === "boolean"
       ? params.verify
-      : process.env.OPENCLAW_VERIFY_POLICY === "1";
+      : requireSignedPolicy || process.env.OPENCLAW_VERIFY_POLICY === "1";
   const policyPath = params?.policyPath ?? process.env.OPENCLAW_POLICY_PATH;
   const publicKeyPem = params?.publicKeyPem ?? process.env.OPENCLAW_POLICY_PUBKEY;
+  if (requireSignedPolicy) {
+    if (!policyPath?.trim()) {
+      throw new Error("signed_policy_required_but_no_policy_path");
+    }
+    if (!publicKeyPem?.trim()) {
+      throw new Error("signed_policy_required_but_no_public_key");
+    }
+  }
   const basePolicy = createDefaultRfsnPolicy({
     ...params?.basePolicyOptions,
     // File-backed policy bootstraps should not be widened by ambient OPENCLAW_RFSN_* env.

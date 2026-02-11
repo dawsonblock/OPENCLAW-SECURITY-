@@ -56,14 +56,14 @@ const DEFAULT_TIMEOUT_MS = 5000;
  * Sanitize URLs in an imported profile to prevent SSRF attacks.
  * Removes any URLs that don't pass SSRF validation.
  */
-function sanitizeProfileUrls(profile: NostrProfile): NostrProfile {
+async function sanitizeProfileUrls(profile: NostrProfile): Promise<NostrProfile> {
   const result = { ...profile };
   const urlFields = ["picture", "banner", "website"] as const;
 
   for (const field of urlFields) {
     const value = result[field];
     if (value && typeof value === "string") {
-      const validation = validateUrlSafety(value);
+      const validation = await validateUrlSafety(value);
       if (!validation.ok) {
         // Remove unsafe URL
         delete result[field];
@@ -213,7 +213,7 @@ export async function importProfileFromRelays(
     const profile = contentToProfile(content);
 
     // Sanitize URLs from imported profile to prevent SSRF when auto-merging
-    const sanitizedProfile = sanitizeProfileUrls(profile);
+    const sanitizedProfile = await sanitizeProfileUrls(profile);
 
     return {
       ok: true,

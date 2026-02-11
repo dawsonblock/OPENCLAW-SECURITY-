@@ -70,6 +70,14 @@ function parseCsvEnv(value: string | undefined): string[] {
     .filter(Boolean);
 }
 
+function envFlagEnabled(value: string | undefined): boolean {
+  if (typeof value !== "string") {
+    return false;
+  }
+  const normalized = value.trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
+}
+
 function resolveMemoryToolDisableReasons(cfg: ReturnType<typeof loadConfig>): string[] {
   if (!process.env.VITEST) {
     return [];
@@ -359,6 +367,33 @@ export async function handleToolsInvokeHttpRequest(
     const invokeExecSafeBins = parseCsvEnv(
       process.env.OPENCLAW_GATEWAY_TOOLS_INVOKE_EXEC_SAFE_BINS,
     );
+    const invokeStrictMode =
+      envFlagEnabled(process.env.OPENCLAW_GATEWAY_TOOLS_INVOKE_STRICT) ||
+      envFlagEnabled(process.env.OPENCLAW_RFSN_REQUIRE_SIGNED_POLICY);
+    const toolCapabilities = new Set(toolRuleCapabilities);
+    const toolRequiresFetchDomainAllowlist =
+      tool.name === "web_fetch" ||
+      toolCapabilities.has("net:outbound") ||
+      [...toolCapabilities].some((capability) => capability.startsWith("net:outbound:"));
+    const toolRequiresExecSafeBins =
+      tool.name === "exec" ||
+      tool.name === "process" ||
+      toolCapabilities.has("proc:manage") ||
+      [...toolCapabilities].some((capability) => capability.startsWith("proc:spawn:"));
+    if (
+      invokeStrictMode &&
+      toolRequiresFetchDomainAllowlist &&
+      invokeFetchAllowedDomains.length === 0
+    ) {
+      throw new Error(
+        "tools.invoke strict mode requires OPENCLAW_GATEWAY_TOOLS_INVOKE_FETCH_ALLOW_DOMAINS for network-capable tools.",
+      );
+    }
+    if (invokeStrictMode && toolRequiresExecSafeBins && invokeExecSafeBins.length === 0) {
+      throw new Error(
+        "tools.invoke strict mode requires OPENCLAW_GATEWAY_TOOLS_INVOKE_EXEC_SAFE_BINS for process-capable tools.",
+      );
+    }
     const policyBoot = createAndBootstrapDefaultPolicy({
       basePolicyOptions: {
         mode: "allowlist",

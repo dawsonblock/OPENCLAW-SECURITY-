@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import type { RfsnLedgerEntry, RfsnLedgerEnvelope } from "./types.js";
 import { redactForLedger } from "./redact.js";
@@ -44,13 +45,24 @@ function resolveSessionKey(params: { sessionKey?: string; sessionId?: string }):
   return sanitizeLedgerKey(params.sessionKey || params.sessionId || "unknown");
 }
 
+function resolveLedgerRoot(workspaceDir: string): string {
+  const configured = process.env.OPENCLAW_LEDGER_DIR?.trim();
+  if (configured) {
+    return path.isAbsolute(configured) ? configured : path.join(workspaceDir, configured);
+  }
+  if (process.env.VITEST) {
+    return path.join(os.tmpdir(), "openclaw-ledger-vitest");
+  }
+  return path.join(workspaceDir, ".openclaw", "ledger");
+}
+
 export function resolveLedgerFilePath(params: {
   workspaceDir: string;
   sessionKey?: string;
   sessionId?: string;
 }): string {
   const fileName = `${resolveSessionKey(params)}.jsonl`;
-  return path.join(params.workspaceDir, ".openclaw", "ledger", fileName);
+  return path.join(resolveLedgerRoot(params.workspaceDir), fileName);
 }
 
 export function resolveLedgerLastHashPath(ledgerPath: string): string {

@@ -2,6 +2,7 @@
  * Tests for Nostr Profile HTTP Handler
  */
 
+import dns from "node:dns/promises";
 import { IncomingMessage, ServerResponse } from "node:http";
 import { Socket } from "node:net";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -221,6 +222,55 @@ describe("nostr-profile-http", () => {
       const data = JSON.parse(res._getData());
       expect(data.ok).toBe(false);
       expect(data.error).toContain("private");
+    });
+
+    it("rejects hostnames that resolve to private/internal IPs", async () => {
+      const lookupSpy = vi
+        .spyOn(dns, "lookup")
+        .mockResolvedValue([{ address: "127.0.0.1", family: 4 }]);
+      const ctx = createMockContext();
+      const handler = createNostrProfileHttpHandler(ctx);
+      const req = createMockRequest("PUT", "/api/channels/nostr/dns-private/profile", {
+        name: "hacker",
+        picture: "https://safe-looking-host.test/evil.jpg",
+      });
+      const res = createMockResponse();
+
+      await handler(req, res);
+
+      expect(res._getStatusCode()).toBe(400);
+      const data = JSON.parse(res._getData());
+      expect(data.ok).toBe(false);
+      expect(data.error).toContain("private/internal");
+      lookupSpy.mockRestore();
+    });
+
+    it("accepts hostnames that resolve only to public IPs", async () => {
+      const lookupSpy = vi
+        .spyOn(dns, "lookup")
+        .mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
+      const ctx = createMockContext();
+      const handler = createNostrProfileHttpHandler(ctx);
+      const req = createMockRequest("PUT", "/api/channels/nostr/dns-public/profile", {
+        name: "satoshi",
+        picture: "https://example.com/pic.jpg",
+      });
+      const res = createMockResponse();
+
+      vi.mocked(publishNostrProfile).mockResolvedValue({
+        eventId: "event123",
+        createdAt: 1234567890,
+        successes: ["wss://relay.damus.io"],
+        failures: [],
+      });
+
+      await handler(req, res);
+
+      expect(res._getStatusCode()).toBe(200);
+      const data = JSON.parse(res._getData());
+      expect(data.ok).toBe(true);
+      expect(ctx.updateConfigProfile).toHaveBeenCalled();
+      lookupSpy.mockRestore();
     });
 
     it("rejects non-https URLs", async () => {

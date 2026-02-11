@@ -14,6 +14,8 @@ beforeEach(() => {
   delete process.env.OPENCLAW_GATEWAY_PASSWORD;
   delete process.env.OPENCLAW_GATEWAY_TOOLS_INVOKE_FETCH_ALLOW_DOMAINS;
   delete process.env.OPENCLAW_GATEWAY_TOOLS_INVOKE_EXEC_SAFE_BINS;
+  delete process.env.OPENCLAW_GATEWAY_TOOLS_INVOKE_STRICT;
+  delete process.env.OPENCLAW_RFSN_REQUIRE_SIGNED_POLICY;
 });
 
 const resolveGatewayToken = (): string => {
@@ -375,6 +377,44 @@ describe("POST /tools/invoke", () => {
     const body = await res.json();
     expect(body.ok).toBe(false);
     expect(String(body.error?.message ?? "")).toContain("policy:net_domain_allowlist_empty");
+
+    await server.close();
+  });
+
+  it("enforces strict-mode config preflight for network-capable tools", async () => {
+    process.env.OPENCLAW_GATEWAY_TOOLS_INVOKE_STRICT = "1";
+    testState.agentsConfig = {
+      list: [
+        {
+          id: "main",
+          tools: {
+            allow: ["web_fetch"],
+          },
+        },
+      ],
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } as any;
+
+    const port = await getFreePort();
+    const server = await startGatewayServer(port, { bind: "loopback" });
+    const token = resolveGatewayToken();
+
+    const res = await fetch(`http://127.0.0.1:${port}/tools/invoke`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        tool: "web_fetch",
+        args: { url: "https://docs.openclaw.ai/configuration" },
+        sessionKey: "main",
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.ok).toBe(false);
+    expect(String(body.error?.message ?? "")).toContain(
+      "OPENCLAW_GATEWAY_TOOLS_INVOKE_FETCH_ALLOW_DOMAINS",
+    );
 
     await server.close();
   });
