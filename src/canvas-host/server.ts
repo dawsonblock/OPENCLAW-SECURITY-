@@ -519,9 +519,7 @@ export async function startCanvasHost(opts: CanvasHostServerOpts): Promise<Canva
     );
   }
   if (!loopbackOnly) {
-    opts.runtime.log(
-      `canvas host LAN bind enabled on ${bindHost}; bearer auth is ${requiredToken ? "required" : "disabled"}`,
-    );
+    opts.runtime.log(`canvas host LAN bind enabled on ${bindHost}; bearer auth is required`);
   }
 
   const server: Server = http.createServer((req, res) => {

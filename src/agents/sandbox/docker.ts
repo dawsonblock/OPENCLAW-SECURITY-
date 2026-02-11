@@ -1,36 +1,55 @@
-import { spawn } from "node:child_process";
 import type { SandboxConfig, SandboxDockerConfig, SandboxWorkspaceAccess } from "./types.js";
 import { formatCliCommand } from "../../cli/command-format.js";
 import { defaultRuntime } from "../../runtime.js";
+import { runAllowedCommand } from "../../security/subprocess.js";
 import { computeSandboxConfigHash } from "./config-hash.js";
 import { DEFAULT_SANDBOX_IMAGE, SANDBOX_AGENT_WORKSPACE_MOUNT } from "./constants.js";
 import { readRegistry, updateRegistry } from "./registry.js";
 import { resolveSandboxAgentId, resolveSandboxScopeKey, slugifySessionKey } from "./shared.js";
 
 const HOT_CONTAINER_WINDOW_MS = 5 * 60 * 1000;
+const DOCKER_ALLOWED_ENV_KEYS = [
+  "PATH",
+  "HOME",
+  "USERPROFILE",
+  "APPDATA",
+  "LOCALAPPDATA",
+  "XDG_CONFIG_HOME",
+  "XDG_DATA_HOME",
+  "TMPDIR",
+  "TMP",
+  "TEMP",
+  "SYSTEMROOT",
+  "WINDIR",
+  "COMSPEC",
+  "PATHEXT",
+  "DOCKER_HOST",
+  "DOCKER_CONTEXT",
+  "DOCKER_CONFIG",
+  "DOCKER_CERT_PATH",
+  "DOCKER_TLS_VERIFY",
+  "DOCKER_API_VERSION",
+  "SSH_AUTH_SOCK",
+] as const;
 
-export function execDocker(args: string[], opts?: { allowFailure?: boolean }) {
-  return new Promise<{ stdout: string; stderr: string; code: number }>((resolve, reject) => {
-    const child = spawn("docker", args, {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stdout?.on("data", (chunk) => {
-      stdout += chunk.toString();
-    });
-    child.stderr?.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-    child.on("close", (code) => {
-      const exitCode = code ?? 0;
-      if (exitCode !== 0 && !opts?.allowFailure) {
-        reject(new Error(stderr.trim() || `docker ${args.join(" ")} failed`));
-        return;
-      }
-      resolve({ stdout, stderr, code: exitCode });
-    });
+export async function execDocker(
+  args: string[],
+  opts?: { allowFailure?: boolean; timeoutMs?: number },
+) {
+  const result = await runAllowedCommand({
+    command: "docker",
+    args,
+    allowedBins: ["docker"],
+    allowEnv: DOCKER_ALLOWED_ENV_KEYS,
+    timeoutMs: opts?.timeoutMs ?? 10 * 60_000,
+    maxStdoutBytes: 5_000_000,
+    maxStderrBytes: 5_000_000,
   });
+  const exitCode = result.code ?? 1;
+  if (exitCode !== 0 && !opts?.allowFailure) {
+    throw new Error(result.stderr.trim() || `docker ${args.join(" ")} failed`);
+  }
+  return { stdout: result.stdout, stderr: result.stderr, code: exitCode };
 }
 
 export async function readDockerPort(containerName: string, port: number) {

@@ -17,7 +17,7 @@ from local_places.schemas import (
 
 app = FastAPI(
     title="My API",
-    servers=[{"url": os.getenv("OPENAPI_SERVER_URL", "http://maxims-macbook-air:8000")}],
+    servers=[{"url": os.getenv("OPENAPI_SERVER_URL", "http://localhost:8000")}],
 )
 logger = logging.getLogger("local_places.validation")
 
@@ -62,4 +62,7 @@ def locations_resolve(request: LocationResolveRequest) -> LocationResolveRespons
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("local_places.main:app", host="0.0.0.0", port=8000)
+    allow_lan = os.getenv("OPENCLAW_LOCAL_PLACES_ALLOW_LAN", "").strip() == "1"
+    host = os.getenv("LOCAL_PLACES_HOST", "0.0.0.0" if allow_lan else "127.0.0.1")
+    port = int(os.getenv("LOCAL_PLACES_PORT", "8000"))
+    uvicorn.run("local_places.main:app", host=host, port=port)

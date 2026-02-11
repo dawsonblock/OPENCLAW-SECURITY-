@@ -1,14 +1,20 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { Readable } from "node:stream";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { installSkill } from "./skills-install.js";
 
 const runCommandWithTimeoutMock = vi.fn();
 const scanDirectoryWithSummaryMock = vi.fn();
+const fetchWithSsrFGuardMock = vi.fn();
 
 vi.mock("../process/exec.js", () => ({
   runCommandWithTimeout: (...args: unknown[]) => runCommandWithTimeoutMock(...args),
+}));
+
+vi.mock("../infra/net/fetch-guard.js", () => ({
+  fetchWithSsrFGuard: (...args: unknown[]) => fetchWithSsrFGuardMock(...args),
 }));
 
 vi.mock("../security/skill-scanner.js", async (importOriginal) => {
@@ -19,7 +25,19 @@ vi.mock("../security/skill-scanner.js", async (importOriginal) => {
   };
 });
 
-async function writeInstallableSkill(workspaceDir: string, name: string): Promise<string> {
+vi.mock("./skills.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./skills.js")>();
+  return {
+    ...actual,
+    hasBinary: vi.fn(() => true),
+  };
+});
+
+async function writeInstallableSkill(
+  workspaceDir: string,
+  name: string,
+  installSpecsJson = '[{"id":"deps","kind":"node","package":"example-package"}]',
+): Promise<string> {
   const skillDir = path.join(workspaceDir, "skills", name);
   await fs.mkdir(skillDir, { recursive: true });
   await fs.writeFile(
@@ -27,7 +45,7 @@ async function writeInstallableSkill(workspaceDir: string, name: string): Promis
     `---
 name: ${name}
 description: test skill
-metadata: {"openclaw":{"install":[{"id":"deps","kind":"node","package":"example-package"}]}}
+metadata: {"openclaw":{"install":${installSpecsJson}}}
 ---
 
 # ${name}
@@ -42,6 +60,7 @@ describe("installSkill code safety scanning", () => {
   beforeEach(() => {
     runCommandWithTimeoutMock.mockReset();
     scanDirectoryWithSummaryMock.mockReset();
+    fetchWithSsrFGuardMock.mockReset();
     runCommandWithTimeoutMock.mockResolvedValue({
       code: 0,
       stdout: "ok",
@@ -49,6 +68,18 @@ describe("installSkill code safety scanning", () => {
       signal: null,
       killed: false,
     });
+    fetchWithSsrFGuardMock.mockResolvedValue({
+      response: {
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        body: Readable.from(["archive-bytes"]),
+      },
+      release: async () => {},
+    });
+    delete process.env.OPENCLAW_SKILL_DOWNLOAD_MAX_BYTES;
+    delete process.env.OPENCLAW_SKILL_ARCHIVE_MAX_ENTRIES;
+    delete process.env.OPENCLAW_SKILL_ARCHIVE_MAX_BYTES;
   });
 
   it("adds detailed warnings for critical findings and continues install", async () => {
@@ -107,6 +138,71 @@ describe("installSkill code safety scanning", () => {
       expect(result.warnings?.some((warning) => warning.includes("Installation continues"))).toBe(
         true,
       );
+    } finally {
+      await fs.rm(workspaceDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  });
+
+  it("blocks unsafe archive paths before extraction", async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-skills-install-"));
+    try {
+      await writeInstallableSkill(
+        workspaceDir,
+        "archive-skill",
+        '[{"id":"fetch","kind":"download","url":"https://example.com/archive.zip","extract":true,"archive":"zip"}]',
+      );
+      runCommandWithTimeoutMock.mockResolvedValueOnce({
+        code: 0,
+        stdout: "../escape\nsafe/file.txt\n",
+        stderr: "",
+        signal: null,
+        killed: false,
+      });
+
+      const result = await installSkill({
+        workspaceDir,
+        skillName: "archive-skill",
+        installId: "fetch",
+      });
+
+      expect(result.ok).toBe(false);
+      expect(result.stderr).toContain("blocked unsafe archive entry");
+      expect(
+        runCommandWithTimeoutMock.mock.calls.some((call) => (call[0] as string[]).includes("-q")),
+      ).toBe(false);
+    } finally {
+      await fs.rm(workspaceDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  });
+
+  it("enforces skill download byte caps", async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-skills-install-"));
+    try {
+      await writeInstallableSkill(
+        workspaceDir,
+        "download-cap-skill",
+        '[{"id":"fetch","kind":"download","url":"https://example.com/archive.zip","extract":false}]',
+      );
+      process.env.OPENCLAW_SKILL_DOWNLOAD_MAX_BYTES = "4";
+      fetchWithSsrFGuardMock.mockResolvedValueOnce({
+        response: {
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          body: Readable.from(["12345"]),
+        },
+        release: async () => {},
+      });
+
+      const result = await installSkill({
+        workspaceDir,
+        skillName: "download-cap-skill",
+        installId: "fetch",
+      });
+
+      expect(result.ok).toBe(false);
+      expect(result.message).toContain("Download too large");
+      expect(runCommandWithTimeoutMock).not.toHaveBeenCalled();
     } finally {
       await fs.rm(workspaceDir, { recursive: true, force: true }).catch(() => undefined);
     }

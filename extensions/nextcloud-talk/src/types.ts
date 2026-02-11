@@ -42,7 +42,7 @@ export type NextcloudTalkAccountConfig = {
   dmPolicy?: DmPolicy;
   /** Webhook server port. Default: 8788. */
   webhookPort?: number;
-  /** Webhook server host. Default: "0.0.0.0". */
+  /** Webhook server host. Default: "127.0.0.1". */
   webhookHost?: string;
   /** Webhook endpoint path. Default: "/nextcloud-talk-webhook". */
   webhookPath?: string;
@@ -168,6 +168,7 @@ export type NextcloudTalkWebhookServerOptions = {
   host: string;
   path: string;
   secret: string;
+  maxBodyBytes?: number;
   onMessage: (message: NextcloudTalkInboundMessage) => void | Promise<void>;
   onError?: (error: Error) => void;
   abortSignal?: AbortSignal;

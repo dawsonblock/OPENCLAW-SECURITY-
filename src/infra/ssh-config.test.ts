@@ -1,39 +1,33 @@
-import { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("node:child_process", () => {
-  const spawn = vi.fn(() => {
-    const child = new EventEmitter() as EventEmitter & {
-      stdout?: EventEmitter & { setEncoding?: (enc: string) => void };
-      kill?: (signal?: string) => void;
-    };
-    const stdout = new EventEmitter() as EventEmitter & {
-      setEncoding?: (enc: string) => void;
-    };
-    stdout.setEncoding = vi.fn();
-    child.stdout = stdout;
-    child.kill = vi.fn();
-    process.nextTick(() => {
-      stdout.emit(
-        "data",
-        [
-          "user steipete",
-          "hostname peters-mac-studio-1.sheep-coho.ts.net",
-          "port 2222",
-          "identityfile none",
-          "identityfile /tmp/id_ed25519",
-          "",
-        ].join("\n"),
-      );
-      child.emit("exit", 0);
-    });
-    return child;
-  });
-  return { spawn };
-});
+const { spawnAllowedMock } = vi.hoisted(() => ({
+  spawnAllowedMock: vi.fn(),
+}));
 
-const spawnMock = vi.mocked(spawn);
+vi.mock("../security/subprocess.js", () => ({
+  spawnAllowed: spawnAllowedMock,
+}));
+
+function createMockChild(params?: { exitCode?: number; stdoutText?: string }) {
+  const child = new EventEmitter() as EventEmitter & {
+    stdout?: EventEmitter & { setEncoding?: (enc: string) => void };
+    kill?: (signal?: string) => void;
+  };
+  const stdout = new EventEmitter() as EventEmitter & {
+    setEncoding?: (enc: string) => void;
+  };
+  stdout.setEncoding = vi.fn();
+  child.stdout = stdout;
+  child.kill = vi.fn();
+  process.nextTick(() => {
+    if (params?.stdoutText) {
+      stdout.emit("data", params.stdoutText);
+    }
+    child.emit("exit", params?.exitCode ?? 0);
+  });
+  return child;
+}
 
 describe("ssh-config", () => {
   it("parses ssh -G output", async () => {
@@ -48,33 +42,31 @@ describe("ssh-config", () => {
   });
 
   it("resolves ssh config via ssh -G", async () => {
+    spawnAllowedMock.mockImplementation(() =>
+      createMockChild({
+        stdoutText: [
+          "user steipete",
+          "hostname peters-mac-studio-1.sheep-coho.ts.net",
+          "port 2222",
+          "identityfile none",
+          "identityfile /tmp/id_ed25519",
+          "",
+        ].join("\n"),
+      }),
+    );
+
     const { resolveSshConfig } = await import("./ssh-config.js");
     const config = await resolveSshConfig({ user: "me", host: "alias", port: 22 });
     expect(config?.user).toBe("steipete");
     expect(config?.host).toBe("peters-mac-studio-1.sheep-coho.ts.net");
     expect(config?.port).toBe(2222);
     expect(config?.identityFiles).toEqual(["/tmp/id_ed25519"]);
-    const args = spawnMock.mock.calls[0]?.[1] as string[] | undefined;
-    expect(args?.slice(-2)).toEqual(["--", "me@alias"]);
+    const call = spawnAllowedMock.mock.calls[0]?.[0] as { args?: string[] } | undefined;
+    expect(call?.args?.slice(-2)).toEqual(["--", "me@alias"]);
   });
 
   it("returns null when ssh -G fails", async () => {
-    spawnMock.mockImplementationOnce(() => {
-      const child = new EventEmitter() as EventEmitter & {
-        stdout?: EventEmitter & { setEncoding?: (enc: string) => void };
-        kill?: (signal?: string) => void;
-      };
-      const stdout = new EventEmitter() as EventEmitter & {
-        setEncoding?: (enc: string) => void;
-      };
-      stdout.setEncoding = vi.fn();
-      child.stdout = stdout;
-      child.kill = vi.fn();
-      process.nextTick(() => {
-        child.emit("exit", 1);
-      });
-      return child;
-    });
+    spawnAllowedMock.mockImplementationOnce(() => createMockChild({ exitCode: 1 }));
 
     const { resolveSshConfig } = await import("./ssh-config.js");
     const config = await resolveSshConfig({ user: "me", host: "bad-host", port: 22 });

@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import http from "node:http";
 import { URL } from "node:url";
 import type { VoiceCallConfig } from "./config.js";
@@ -8,6 +7,7 @@ import type { MediaStreamConfig } from "./media-stream.js";
 import type { VoiceCallProvider } from "./providers/base.js";
 import type { TwilioProvider } from "./providers/twilio.js";
 import type { NormalizedEvent, WebhookContext } from "./types.js";
+import { runAllowedCommand } from "../../../src/security/subprocess.js";
 import { MediaStreamHandler } from "./media-stream.js";
 import { OpenAIRealtimeSTTProvider } from "./providers/stt-openai-realtime.js";
 
@@ -402,26 +402,19 @@ function runTailscaleCommand(
   args: string[],
   timeoutMs = 2500,
 ): Promise<{ code: number; stdout: string }> {
-  return new Promise((resolve) => {
-    const proc = spawn("tailscale", args, {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    proc.stdout.on("data", (data) => {
-      stdout += data;
-    });
-
-    const timer = setTimeout(() => {
-      proc.kill("SIGKILL");
-      resolve({ code: -1, stdout: "" });
-    }, timeoutMs);
-
-    proc.on("close", (code) => {
-      clearTimeout(timer);
-      resolve({ code: code ?? -1, stdout });
-    });
-  });
+  return runAllowedCommand({
+    command: "tailscale",
+    args,
+    allowedBins: ["tailscale"],
+    timeoutMs,
+    maxStdoutBytes: 500_000,
+    maxStderrBytes: 500_000,
+  })
+    .then((result) => ({
+      code: result.code ?? -1,
+      stdout: result.stdout,
+    }))
+    .catch(() => ({ code: -1, stdout: "" }));
 }
 
 export async function getTailscaleSelfInfo(): Promise<TailscaleSelfInfo | null> {

@@ -351,8 +351,8 @@ export class TwilioProvider implements VoiceCallProvider {
 
       // Conversation mode: return streaming TwiML immediately for outbound calls.
       if (isOutbound) {
-        const streamUrl = callSid ? this.getStreamUrlForCall(callSid) : null;
-        return streamUrl ? this.getStreamConnectXml(streamUrl) : TwilioProvider.PAUSE_TWIML;
+        const streamTwiml = callSid ? this.getStreamConnectXmlForCall(callSid) : null;
+        return streamTwiml ?? TwilioProvider.PAUSE_TWIML;
       }
     }
 
@@ -364,8 +364,8 @@ export class TwilioProvider implements VoiceCallProvider {
     // Handle subsequent webhook requests (status callbacks, etc.)
     // For inbound calls, answer immediately with stream
     if (direction === "inbound") {
-      const streamUrl = callSid ? this.getStreamUrlForCall(callSid) : null;
-      return streamUrl ? this.getStreamConnectXml(streamUrl) : TwilioProvider.PAUSE_TWIML;
+      const streamTwiml = callSid ? this.getStreamConnectXmlForCall(callSid) : null;
+      return streamTwiml ?? TwilioProvider.PAUSE_TWIML;
     }
 
     // For outbound calls, only connect to stream when call is in-progress
@@ -373,8 +373,8 @@ export class TwilioProvider implements VoiceCallProvider {
       return TwilioProvider.EMPTY_TWIML;
     }
 
-    const streamUrl = callSid ? this.getStreamUrlForCall(callSid) : null;
-    return streamUrl ? this.getStreamConnectXml(streamUrl) : TwilioProvider.PAUSE_TWIML;
+    const streamTwiml = callSid ? this.getStreamConnectXmlForCall(callSid) : null;
+    return streamTwiml ?? TwilioProvider.PAUSE_TWIML;
   }
 
   /**
@@ -411,15 +411,13 @@ export class TwilioProvider implements VoiceCallProvider {
     return token;
   }
 
-  private getStreamUrlForCall(callSid: string): string | null {
-    const baseUrl = this.getStreamUrl();
-    if (!baseUrl) {
+  private getStreamConnectXmlForCall(callSid: string): string | null {
+    const streamUrl = this.getStreamUrl();
+    if (!streamUrl) {
       return null;
     }
-    const token = this.getStreamAuthToken(callSid);
-    const url = new URL(baseUrl);
-    url.searchParams.set("token", token);
-    return url.toString();
+    const streamToken = this.getStreamAuthToken(callSid);
+    return this.getStreamConnectXml({ streamUrl, streamToken });
   }
 
   /**
@@ -428,11 +426,16 @@ export class TwilioProvider implements VoiceCallProvider {
    *
    * @param streamUrl - WebSocket URL (wss://...) for the media stream
    */
-  getStreamConnectXml(streamUrl: string): string {
+  getStreamConnectXml(params: { streamUrl: string; streamToken?: string }): string {
+    const { streamUrl, streamToken } = params;
+    const streamParameter = streamToken
+      ? `\n      <Parameter name="auth_token" value="${escapeXml(streamToken)}" />`
+      : "";
     return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
-    <Stream url="${escapeXml(streamUrl)}" />
+    <Stream url="${escapeXml(streamUrl)}">${streamParameter}
+    </Stream>
   </Connect>
 </Response>`;
   }

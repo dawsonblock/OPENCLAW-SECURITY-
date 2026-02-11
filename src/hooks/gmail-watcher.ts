@@ -5,11 +5,11 @@
  * if hooks.gmail is configured with an account.
  */
 
-import { type ChildProcess, spawn } from "node:child_process";
 import type { OpenClawConfig } from "../config/config.js";
 import { hasBinary } from "../agents/skills.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { runCommandWithTimeout } from "../process/exec.js";
+import { spawnAllowed } from "../security/subprocess.js";
 import { ensureTailscaleEndpoint } from "./gmail-setup-utils.js";
 import {
   buildGogWatchServeArgs,
@@ -26,7 +26,9 @@ export function isAddressInUseError(line: string): boolean {
   return ADDRESS_IN_USE_RE.test(line);
 }
 
-let watcherProcess: ChildProcess | null = null;
+type GogWatchProcess = ReturnType<typeof spawnAllowed>;
+
+let watcherProcess: GogWatchProcess | null = null;
 let renewInterval: ReturnType<typeof setInterval> | null = null;
 let shuttingDown = false;
 let currentConfig: GmailHookRuntimeConfig | null = null;
@@ -63,12 +65,15 @@ async function startGmailWatch(
 /**
  * Spawn the gog gmail watch serve process
  */
-function spawnGogServe(cfg: GmailHookRuntimeConfig): ChildProcess {
+function spawnGogServe(cfg: GmailHookRuntimeConfig): GogWatchProcess {
   const args = buildGogWatchServeArgs(cfg);
   log.info(`starting gog ${args.join(" ")}`);
   let addressInUse = false;
 
-  const child = spawn("gog", args, {
+  const child = spawnAllowed({
+    command: "gog",
+    args,
+    allowedBins: ["gog"],
     stdio: ["ignore", "pipe", "pipe"],
     detached: false,
   });

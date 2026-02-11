@@ -13,6 +13,14 @@ ENABLE_NOVNC="${OPENCLAW_BROWSER_ENABLE_NOVNC:-${CLAWDBOT_BROWSER_ENABLE_NOVNC:-
 HEADLESS="${OPENCLAW_BROWSER_HEADLESS:-${CLAWDBOT_BROWSER_HEADLESS:-0}}"
 EXPOSE_CDP="${OPENCLAW_BROWSER_EXPOSE_CDP:-${CLAWDBOT_BROWSER_EXPOSE_CDP:-0}}"
 CDP_BIND_HOST="${OPENCLAW_BROWSER_CDP_BIND_HOST:-${CLAWDBOT_BROWSER_CDP_BIND_HOST:-127.0.0.1}}"
+NOVNC_BIND_HOST="${OPENCLAW_BROWSER_NOVNC_BIND_HOST:-${CLAWDBOT_BROWSER_NOVNC_BIND_HOST:-127.0.0.1}}"
+CDP_TOKEN="${OPENCLAW_BROWSER_CDP_TOKEN:-${CLAWDBOT_BROWSER_CDP_TOKEN:-}}"
+ALLOW_INSECURE_CDP_LAN="${OPENCLAW_BROWSER_ALLOW_INSECURE_CDP_LAN:-${CLAWDBOT_BROWSER_ALLOW_INSECURE_CDP_LAN:-0}}"
+
+is_loopback_host() {
+  local host="${1:-}"
+  [[ "${host}" == "127.0.0.1" || "${host}" == "localhost" || "${host}" == "::1" ]]
+}
 
 mkdir -p "${HOME}" "${HOME}/.chrome" "${XDG_CONFIG_HOME}" "${XDG_CACHE_HOME}"
 
@@ -60,7 +68,18 @@ done
 if [[ "${EXPOSE_CDP}" != "1" ]]; then
   CDP_BIND_HOST="127.0.0.1"
 else
+  if ! is_loopback_host "${CDP_BIND_HOST}" && [[ "${ALLOW_INSECURE_CDP_LAN}" != "1" ]]; then
+    echo "ERROR: refusing non-loopback CDP bind (${CDP_BIND_HOST}) without OPENCLAW_BROWSER_ALLOW_INSECURE_CDP_LAN=1."
+    exit 1
+  fi
+  if ! is_loopback_host "${CDP_BIND_HOST}" && [[ -z "${CDP_TOKEN}" ]]; then
+    echo "ERROR: OPENCLAW_BROWSER_CDP_TOKEN is required for non-loopback CDP exposure."
+    exit 1
+  fi
   echo "WARNING: exposing CDP on ${CDP_BIND_HOST}:${CDP_PORT}. Set OPENCLAW_BROWSER_EXPOSE_CDP=0 to keep loopback-only."
+  if [[ -n "${CDP_TOKEN}" ]]; then
+    echo "WARNING: OPENCLAW_BROWSER_CDP_TOKEN is advisory here; this raw TCP bridge does not enforce auth."
+  fi
 fi
 
 socat \
@@ -69,7 +88,7 @@ socat \
 
 if [[ "${ENABLE_NOVNC}" == "1" && "${HEADLESS}" != "1" ]]; then
   x11vnc -display :1 -rfbport "${VNC_PORT}" -shared -forever -nopw -localhost &
-  websockify --web /usr/share/novnc/ "${NOVNC_PORT}" "localhost:${VNC_PORT}" &
+  websockify --web /usr/share/novnc/ --host "${NOVNC_BIND_HOST}" "${NOVNC_PORT}" "localhost:${VNC_PORT}" &
 fi
 
 wait -n

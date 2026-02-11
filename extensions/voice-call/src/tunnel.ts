@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { runAllowedCommand, spawnAllowed } from "../../../src/security/subprocess.js";
 import { getTailscaleDnsName } from "./webhook.js";
 
 /**
@@ -59,13 +59,22 @@ export async function startNgrokTunnel(config: {
   }
 
   return new Promise((resolve, reject) => {
-    const proc = spawn("ngrok", args, {
+    const proc = spawnAllowed({
+      command: "ngrok",
+      args,
+      allowedBins: ["ngrok"],
       stdio: ["ignore", "pipe", "pipe"],
+      envOverrides: {},
     });
+    if (!proc.stdout || !proc.stderr) {
+      reject(new Error("ngrok stdout/stderr pipes were not available"));
+      return;
+    }
 
     let resolved = false;
     let publicUrl: string | null = null;
     let outputBuffer = "";
+    const maxOutputBufferBytes = 1_000_000;
 
     const timeout = setTimeout(() => {
       if (!resolved) {
@@ -118,6 +127,15 @@ export async function startNgrokTunnel(config: {
 
     proc.stdout.on("data", (data: Buffer) => {
       outputBuffer += data.toString();
+      if (Buffer.byteLength(outputBuffer, "utf8") > maxOutputBufferBytes) {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeout);
+          proc.kill("SIGTERM");
+          reject(new Error("ngrok startup output exceeded limits"));
+        }
+        return;
+      }
       const lines = outputBuffer.split("\n");
       outputBuffer = lines.pop() || "";
 
@@ -162,50 +180,37 @@ export async function startNgrokTunnel(config: {
  * Run an ngrok command and wait for completion.
  */
 async function runNgrokCommand(args: string[]): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn("ngrok", args, {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    proc.stdout.on("data", (data) => {
-      stdout += data.toString();
-    });
-    proc.stderr.on("data", (data) => {
-      stderr += data.toString();
-    });
-
-    proc.on("close", (code) => {
-      if (code === 0) {
-        resolve(stdout);
-      } else {
-        reject(new Error(`ngrok command failed: ${stderr || stdout}`));
-      }
-    });
-
-    proc.on("error", reject);
+  const { code, stdout, stderr } = await runAllowedCommand({
+    command: "ngrok",
+    args,
+    allowedBins: ["ngrok"],
+    timeoutMs: 15_000,
+    maxStdoutBytes: 500_000,
+    maxStderrBytes: 500_000,
   });
+  if (code === 0) {
+    return stdout;
+  }
+  throw new Error(`ngrok command failed: ${stderr || stdout}`);
 }
 
 /**
  * Check if ngrok is installed and available.
  */
 export async function isNgrokAvailable(): Promise<boolean> {
-  return new Promise((resolve) => {
-    const proc = spawn("ngrok", ["version"], {
-      stdio: ["ignore", "pipe", "pipe"],
+  try {
+    const { code } = await runAllowedCommand({
+      command: "ngrok",
+      args: ["version"],
+      allowedBins: ["ngrok"],
+      timeoutMs: 5_000,
+      maxStdoutBytes: 100_000,
+      maxStderrBytes: 100_000,
     });
-
-    proc.on("close", (code) => {
-      resolve(code === 0);
-    });
-
-    proc.on("error", () => {
-      resolve(false);
-    });
-  });
+    return code === 0;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -226,8 +231,12 @@ export async function startTailscaleTunnel(config: {
   const localUrl = `http://127.0.0.1:${config.port}${path}`;
 
   return new Promise((resolve, reject) => {
-    const proc = spawn("tailscale", [config.mode, "--bg", "--yes", "--set-path", path, localUrl], {
+    const proc = spawnAllowed({
+      command: "tailscale",
+      args: [config.mode, "--bg", "--yes", "--set-path", path, localUrl],
+      allowedBins: ["tailscale"],
       stdio: ["ignore", "pipe", "pipe"],
+      envOverrides: {},
     });
 
     const timeout = setTimeout(() => {
@@ -264,21 +273,18 @@ export async function startTailscaleTunnel(config: {
  * Stop a Tailscale serve/funnel tunnel.
  */
 async function stopTailscaleTunnel(mode: "serve" | "funnel", path: string): Promise<void> {
-  return new Promise((resolve) => {
-    const proc = spawn("tailscale", [mode, "off", path], {
-      stdio: "ignore",
+  try {
+    await runAllowedCommand({
+      command: "tailscale",
+      args: [mode, "off", path],
+      allowedBins: ["tailscale"],
+      timeoutMs: 5_000,
+      maxStdoutBytes: 100_000,
+      maxStderrBytes: 100_000,
     });
-
-    const timeout = setTimeout(() => {
-      proc.kill("SIGKILL");
-      resolve();
-    }, 5000);
-
-    proc.on("close", () => {
-      clearTimeout(timeout);
-      resolve();
-    });
-  });
+  } catch {
+    // best effort stop
+  }
 }
 
 /**

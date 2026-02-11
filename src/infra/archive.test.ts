@@ -65,4 +65,40 @@ describe("archive utils", () => {
     const content = await fs.readFile(path.join(rootDir, "hello.txt"), "utf-8");
     expect(content).toBe("yo");
   });
+
+  it("rejects zip traversal entries", async () => {
+    const workDir = await makeTempDir();
+    const archivePath = path.join(workDir, "escape.zip");
+    const extractDir = path.join(workDir, "extract");
+
+    const zip = new JSZip();
+    zip.file("../escape.txt", "blocked");
+    await fs.writeFile(archivePath, await zip.generateAsync({ type: "nodebuffer" }));
+
+    await fs.mkdir(extractDir, { recursive: true });
+    await expect(
+      extractArchive({ archivePath, destDir: extractDir, timeoutMs: 5_000 }),
+    ).rejects.toThrow(/escapes destination/i);
+  });
+
+  it("rejects tar archives containing symbolic links", async () => {
+    if (process.platform === "win32") {
+      return;
+    }
+
+    const workDir = await makeTempDir();
+    const archivePath = path.join(workDir, "symlink.tar");
+    const extractDir = path.join(workDir, "extract");
+    const packageDir = path.join(workDir, "package");
+
+    await fs.mkdir(packageDir, { recursive: true });
+    await fs.writeFile(path.join(packageDir, "hello.txt"), "yo");
+    await fs.symlink("hello.txt", path.join(packageDir, "hello-link.txt"));
+    await tar.c({ cwd: workDir, file: archivePath }, ["package"]);
+
+    await fs.mkdir(extractDir, { recursive: true });
+    await expect(
+      extractArchive({ archivePath, destDir: extractDir, timeoutMs: 5_000 }),
+    ).rejects.toThrow(/not allowed/i);
+  });
 });

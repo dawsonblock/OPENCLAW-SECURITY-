@@ -15,10 +15,12 @@ Together, the skill and server let an agent turn natural-language place queries 
 
 uv venv
 uv pip install -e ".[dev]"
-uv run --env-file .env uvicorn local_places.main:app --host 0.0.0.0 --reload
+uv run --env-file .env uvicorn local_places.main:app --host 127.0.0.1 --reload
 ```
 
 Open the API docs at http://127.0.0.1:8000/docs.
+
+For LAN exposure, set `OPENCLAW_LOCAL_PLACES_ALLOW_LAN=1` and `LOCAL_PLACES_HOST=0.0.0.0`.
 
 ## Places API
 

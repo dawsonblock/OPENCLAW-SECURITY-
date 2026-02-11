@@ -6,6 +6,7 @@ import type {
 import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
 import type { ClientToolDefinition } from "./pi-embedded-runner/run/params.js";
 import { logDebug, logError } from "../logger.js";
+import { isRfsnWrappedTool } from "../rfsn/wrap-tools.js";
 import { isPlainObject } from "../utils.js";
 import { runBeforeToolCallHook } from "./pi-tools.before-tool-call.js";
 import { normalizeToolName } from "./tool-policy.js";
@@ -79,6 +80,14 @@ function splitToolExecuteArgs(args: ToolExecuteArgsAny): {
 }
 
 export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
+  for (const tool of tools) {
+    if (!isRfsnWrappedTool(tool)) {
+      throw new Error(
+        `RFSN final authority violation: tool "${tool.name}" is not wrapped by the kernel gate.`,
+      );
+    }
+  }
+
   return tools.map((tool) => {
     const name = tool.name || "tool";
     const normalizedName = normalizeToolName(name);

@@ -1,5 +1,5 @@
-import { spawn } from "node:child_process";
 import type { SshParsedTarget } from "./ssh-tunnel.js";
+import { spawnAllowed } from "../security/subprocess.js";
 
 export type SshResolvedConfig = {
   user?: string;
@@ -71,12 +71,20 @@ export async function resolveSshConfig(
   args.push("--", userHost);
 
   return await new Promise<SshResolvedConfig | null>((resolve) => {
-    const child = spawn(sshPath, args, {
+    const child = spawnAllowed({
+      command: sshPath,
+      args,
+      allowedBins: ["ssh"],
+      allowAbsolutePath: true,
       stdio: ["ignore", "pipe", "ignore"],
     });
+    if (!child.stdout) {
+      resolve(null);
+      return;
+    }
     let stdout = "";
-    child.stdout?.setEncoding("utf8");
-    child.stdout?.on("data", (chunk) => {
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
       stdout += String(chunk);
     });
 

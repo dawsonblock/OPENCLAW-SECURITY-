@@ -89,7 +89,6 @@ export class MediaStreamHandler {
    */
   private async handleConnection(ws: WebSocket, _request: IncomingMessage): Promise<void> {
     let session: StreamSession | null = null;
-    const streamToken = this.getStreamToken(_request);
 
     ws.on("message", async (data: Buffer) => {
       try {
@@ -101,7 +100,7 @@ export class MediaStreamHandler {
             break;
 
           case "start":
-            session = await this.handleStart(ws, message, streamToken);
+            session = await this.handleStart(ws, message);
             break;
 
           case "media":
@@ -141,7 +140,6 @@ export class MediaStreamHandler {
   private async handleStart(
     ws: WebSocket,
     message: TwilioMediaMessage,
-    streamToken?: string,
   ): Promise<StreamSession | null> {
     const streamSid = message.streamSid || "";
     const callSid = message.start?.callSid || "";
@@ -152,6 +150,7 @@ export class MediaStreamHandler {
       ws.close(1008, "Missing callSid");
       return null;
     }
+    const streamToken = this.getStreamToken(message.start?.customParameters);
     if (
       this.config.shouldAcceptStream &&
       !this.config.shouldAcceptStream({ callId: callSid, streamSid, token: streamToken })
@@ -209,16 +208,18 @@ export class MediaStreamHandler {
     this.config.onDisconnect?.(session.callId);
   }
 
-  private getStreamToken(request: IncomingMessage): string | undefined {
-    if (!request.url || !request.headers.host) {
+  private getStreamToken(
+    customParameters: Record<string, string | undefined> | undefined,
+  ): string | undefined {
+    if (!customParameters) {
       return undefined;
     }
-    try {
-      const url = new URL(request.url, `http://${request.headers.host}`);
-      return url.searchParams.get("token") ?? undefined;
-    } catch {
+    const token = customParameters.token ?? customParameters.auth_token;
+    if (!token) {
       return undefined;
     }
+    const trimmed = token.trim();
+    return trimmed || undefined;
   }
 
   /**
@@ -398,6 +399,7 @@ interface TwilioMediaMessage {
       sampleRate: number;
       channels: number;
     };
+    customParameters?: Record<string, string | undefined>;
   };
   media?: {
     track?: string;

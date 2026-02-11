@@ -1,6 +1,6 @@
-import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { createInterface, type Interface } from "node:readline";
 import type { RuntimeEnv } from "../runtime.js";
+import { spawnAllowed } from "../security/subprocess.js";
 import { resolveUserPath } from "../utils.js";
 import { DEFAULT_IMESSAGE_PROBE_TIMEOUT_MS } from "./constants.js";
 
@@ -37,6 +37,10 @@ type PendingRequest = {
   timer?: NodeJS.Timeout;
 };
 
+export function resolveIMessageCliAllowedBins(): string[] {
+  return process.platform === "win32" ? ["imsg", "imsg.cmd", "imsg.bat", "imsg.exe"] : ["imsg"];
+}
+
 export class IMessageRpcClient {
   private readonly cliPath: string;
   private readonly dbPath?: string;
@@ -45,7 +49,7 @@ export class IMessageRpcClient {
   private readonly pending = new Map<string, PendingRequest>();
   private readonly closed: Promise<void>;
   private closedResolve: (() => void) | null = null;
-  private child: ChildProcessWithoutNullStreams | null = null;
+  private child: ReturnType<typeof spawnAllowed> | null = null;
   private reader: Interface | null = null;
   private nextId = 1;
 
@@ -67,9 +71,17 @@ export class IMessageRpcClient {
     if (this.dbPath) {
       args.push("--db", this.dbPath);
     }
-    const child = spawn(this.cliPath, args, {
+    const child = spawnAllowed({
+      command: this.cliPath,
+      args,
+      allowedBins: resolveIMessageCliAllowedBins(),
+      allowAbsolutePath: true,
       stdio: ["pipe", "pipe", "pipe"],
     });
+    if (!child.stdin || !child.stdout || !child.stderr) {
+      child.kill("SIGKILL");
+      throw new Error("imsg rpc failed to initialize stdio pipes");
+    }
     this.child = child;
     this.reader = createInterface({ input: child.stdout });
 
@@ -81,7 +93,7 @@ export class IMessageRpcClient {
       this.handleLine(trimmed);
     });
 
-    child.stderr?.on("data", (chunk) => {
+    child.stderr.on("data", (chunk) => {
       const lines = chunk.toString().split(/\r?\n/);
       for (const line of lines) {
         if (!line.trim()) {

@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import type { WebSocket } from "ws";
+import { describe, expect, it, vi } from "vitest";
 import type {
   OpenAIRealtimeSTTProvider,
   RealtimeSTTSession,
@@ -92,5 +93,44 @@ describe("MediaStreamHandler TTS queue", () => {
     await flush();
 
     expect(queuedRan).toBe(false);
+  });
+
+  it("reads Twilio stream auth token from start customParameters", async () => {
+    let seenToken: string | undefined;
+    const handler = new MediaStreamHandler({
+      sttProvider: createStubSttProvider(),
+      shouldAcceptStream: ({ token }) => {
+        seenToken = token;
+        return true;
+      },
+    });
+    const ws = { close: vi.fn() } as unknown as WebSocket;
+    const message = {
+      event: "start",
+      streamSid: "MZ123",
+      start: {
+        streamSid: "MZ123",
+        accountSid: "AC123",
+        callSid: "CA123",
+        tracks: ["inbound"],
+        mediaFormat: {
+          encoding: "audio/x-mulaw",
+          sampleRate: 8000,
+          channels: 1,
+        },
+        customParameters: {
+          auth_token: "token-from-custom-params",
+        },
+      },
+    };
+
+    const session = await (
+      handler as unknown as {
+        handleStart: (ws: WebSocket, message: unknown) => Promise<unknown>;
+      }
+    ).handleStart(ws, message);
+
+    expect(session).toBeTruthy();
+    expect(seenToken).toBe("token-from-custom-params");
   });
 });

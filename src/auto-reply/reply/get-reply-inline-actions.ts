@@ -193,11 +193,12 @@ export async function handleInlineActions(params: {
 
       const toolCallId = `cmd_${Date.now()}_${Math.random().toString(16).slice(2)}`;
       try {
+        const runtimeSandboxed = resolveSandboxRuntimeStatus({ cfg, sessionKey }).sandboxed;
         const rfsnPolicy = createDefaultRfsnPolicy({
           mode: "allowlist",
           allowTools: [tool.name],
+          grantedCapabilities: runtimeSandboxed ? ["proc:manage"] : [],
         });
-        const runtimeSandboxed = resolveSandboxRuntimeStatus({ cfg, sessionKey }).sandboxed;
         const result = await rfsnDispatch({
           tool,
           toolCallId,

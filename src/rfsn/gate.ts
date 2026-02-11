@@ -1,5 +1,6 @@
 import type { RfsnPolicy } from "./policy.js";
 import type { RfsnActionProposal, RfsnGateDecision, RfsnRisk } from "./types.js";
+import { evaluateShellAllowlist } from "../infra/exec-approvals.js";
 import { validateAndNormalizeActionProposal } from "./schemas.js";
 
 function approxJsonBytes(value: unknown): number {
@@ -52,11 +53,201 @@ function collectMissingCapabilities(params: {
 }): string[] {
   const missing: string[] = [];
   for (const capability of params.required) {
-    if (!params.granted.has(capability)) {
+    if (!hasCapability(params.granted, capability)) {
       missing.push(`capability_missing:${capability}`);
     }
   }
   return missing;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function hasCapability(granted: Set<string>, required: string): boolean {
+  if (granted.has(required) || granted.has("*")) {
+    return true;
+  }
+  for (const candidate of granted) {
+    if (!candidate.includes("*")) {
+      continue;
+    }
+    const pattern = new RegExp(`^${candidate.split("*").map(escapeRegExp).join(".*")}$`);
+    if (pattern.test(required)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function toRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  return value as Record<string, unknown>;
+}
+
+function normalizeHostname(hostname: string): string {
+  return hostname.trim().toLowerCase().replace(/\.$/, "");
+}
+
+function isDomainAllowlisted(params: {
+  hostname: string;
+  allowlist: Set<string>;
+  allowSubdomains: boolean;
+}): boolean {
+  const hostname = normalizeHostname(params.hostname);
+  if (!hostname) {
+    return false;
+  }
+  if (params.allowlist.has("*")) {
+    return true;
+  }
+  for (const candidate of params.allowlist) {
+    const normalized = normalizeHostname(candidate);
+    if (!normalized) {
+      continue;
+    }
+    if (hostname === normalized) {
+      return true;
+    }
+    if (normalized.startsWith("*.")) {
+      const suffix = normalized.slice(2);
+      if (!suffix) {
+        continue;
+      }
+      if (hostname === suffix || hostname.endsWith(`.${suffix}`)) {
+        return true;
+      }
+      continue;
+    }
+    if (params.allowSubdomains && hostname.endsWith(`.${normalized}`)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function resolveUrlHost(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return undefined;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return undefined;
+  }
+  return normalizeHostname(parsed.hostname);
+}
+
+function resolveNetworkCapabilities(params: { policy: RfsnPolicy; proposal: RfsnActionProposal }): {
+  requiredCapabilities: string[];
+  reasons: string[];
+} {
+  const args = toRecord(params.proposal.args);
+  const toolName = params.proposal.toolName;
+  const reasons: string[] = [];
+  const requiredCapabilities: string[] = [];
+  const urlKeyByTool: Record<string, string[]> = {
+    web_fetch: ["url"],
+    image: ["image", "url"],
+    browser: ["targetUrl", "url"],
+    canvas: ["targetUrl", "url"],
+  };
+  const candidateKeys = urlKeyByTool[toolName] ?? [];
+  if (candidateKeys.length === 0) {
+    return { requiredCapabilities, reasons };
+  }
+
+  let hostname: string | undefined;
+  for (const key of candidateKeys) {
+    hostname = resolveUrlHost(args?.[key]);
+    if (hostname) {
+      break;
+    }
+  }
+
+  if (!hostname) {
+    if (toolName === "web_fetch") {
+      reasons.push("policy:web_fetch_url_required");
+    }
+    return { requiredCapabilities, reasons };
+  }
+
+  if (params.policy.enforceFetchDomainAllowlist) {
+    if (params.policy.fetchAllowedDomains.size === 0) {
+      reasons.push("policy:net_domain_allowlist_empty");
+      return { requiredCapabilities, reasons };
+    }
+    if (
+      !isDomainAllowlisted({
+        hostname,
+        allowlist: params.policy.fetchAllowedDomains,
+        allowSubdomains: params.policy.fetchAllowSubdomains,
+      })
+    ) {
+      reasons.push(`policy:net_domain_not_allowlisted:${hostname}`);
+      return { requiredCapabilities, reasons };
+    }
+  }
+
+  requiredCapabilities.push(`net:outbound:${hostname}`);
+  return { requiredCapabilities, reasons };
+}
+
+function resolveExecCapabilities(params: { policy: RfsnPolicy; proposal: RfsnActionProposal }): {
+  requiredCapabilities: string[];
+  reasons: string[];
+} {
+  if (params.proposal.toolName !== "exec") {
+    return { requiredCapabilities: [], reasons: [] };
+  }
+  const args = toRecord(params.proposal.args);
+  const command = typeof args?.command === "string" ? args.command.trim() : "";
+  if (!command) {
+    return { requiredCapabilities: [], reasons: ["policy:exec_command_required"] };
+  }
+  if (command.includes("\0") || command.includes("\r")) {
+    return { requiredCapabilities: [], reasons: ["policy:exec_command_invalid_characters"] };
+  }
+  if (
+    params.policy.blockExecCommandSubstitution &&
+    (command.includes("$(") || command.includes("`"))
+  ) {
+    return { requiredCapabilities: [], reasons: ["policy:exec_command_substitution_blocked"] };
+  }
+
+  const evaluation = evaluateShellAllowlist({
+    command,
+    allowlist: [],
+    safeBins: params.policy.execSafeBins,
+    cwd: process.cwd(),
+    env: process.env,
+  });
+  if (!evaluation.analysisOk) {
+    return { requiredCapabilities: [], reasons: ["policy:exec_command_unparseable"] };
+  }
+  if (!evaluation.allowlistSatisfied) {
+    return { requiredCapabilities: [], reasons: ["policy:exec_bin_not_allowlisted"] };
+  }
+
+  const bins = new Set<string>();
+  for (const segment of evaluation.segments) {
+    const executable = segment.resolution?.executableName?.trim().toLowerCase();
+    if (executable) {
+      bins.add(executable);
+    }
+  }
+  const requiredCapabilities = [...bins].map((bin) => `proc:spawn:${bin}`);
+  return { requiredCapabilities, reasons: [] };
 }
 
 export function evaluateGate(params: {
@@ -111,9 +302,34 @@ export function evaluateGate(params: {
     };
   }
 
+  const dynamicNetwork = resolveNetworkCapabilities({
+    policy: params.policy,
+    proposal,
+  });
+  if (dynamicNetwork.reasons.length > 0) {
+    return {
+      verdict: "deny",
+      reasons: dynamicNetwork.reasons,
+      risk,
+    };
+  }
+  const dynamicExec = resolveExecCapabilities({
+    policy: params.policy,
+    proposal,
+  });
+  if (dynamicExec.reasons.length > 0) {
+    return {
+      verdict: "deny",
+      reasons: dynamicExec.reasons,
+      risk,
+    };
+  }
+
   const requiredCapabilities = [
     ...(proposal.capabilitiesRequired ?? []),
     ...(rule?.capabilitiesRequired ?? []),
+    ...dynamicNetwork.requiredCapabilities,
+    ...dynamicExec.requiredCapabilities,
   ];
   const dedupedCapabilities = [...new Set(requiredCapabilities.map((cap) => cap.trim()))].filter(
     Boolean,

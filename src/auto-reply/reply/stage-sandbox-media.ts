@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +7,7 @@ import { assertSandboxPath } from "../../agents/sandbox-paths.js";
 import { ensureSandboxWorkspaceForSession } from "../../agents/sandbox.js";
 import { logVerbose } from "../../globals.js";
 import { getMediaDir } from "../../media/store.js";
+import { runAllowedCommand } from "../../security/subprocess.js";
 import { CONFIG_DIR } from "../../utils.js";
 
 export async function stageSandboxMedia(params: {
@@ -165,33 +165,25 @@ export async function stageSandboxMedia(params: {
 }
 
 async function scpFile(remoteHost: string, remotePath: string, localPath: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(
-      "/usr/bin/scp",
-      [
-        "-o",
-        "BatchMode=yes",
-        "-o",
-        "StrictHostKeyChecking=accept-new",
-        `${remoteHost}:${remotePath}`,
-        localPath,
-      ],
-      { stdio: ["ignore", "ignore", "pipe"] },
-    );
-
-    let stderr = "";
-    child.stderr?.setEncoding("utf8");
-    child.stderr?.on("data", (chunk) => {
-      stderr += chunk;
-    });
-
-    child.once("error", reject);
-    child.once("exit", (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`scp failed (${code}): ${stderr.trim()}`));
-      }
-    });
+  const result = await runAllowedCommand({
+    command: "/usr/bin/scp",
+    args: [
+      "-o",
+      "BatchMode=yes",
+      "-o",
+      "StrictHostKeyChecking=accept-new",
+      "--",
+      `${remoteHost}:${remotePath}`,
+      localPath,
+    ],
+    allowedBins: ["scp"],
+    allowAbsolutePath: true,
+    timeoutMs: 120_000,
+    maxStdoutBytes: 64_000,
+    maxStderrBytes: 256_000,
   });
+
+  if (result.code !== 0) {
+    throw new Error(`scp failed (${result.code ?? "null"}): ${result.stderr.trim()}`);
+  }
 }

@@ -10,6 +10,10 @@ type WrappedTool = AnyAgentTool & {
   [RFSN_WRAPPED_SYMBOL]?: boolean;
 };
 
+export function isRfsnWrappedTool(tool: AnyAgentTool): boolean {
+  return Boolean((tool as WrappedTool)[RFSN_WRAPPED_SYMBOL]);
+}
+
 export function wrapToolsWithRfsnGate(params: {
   tools: AnyAgentTool[];
   workspaceDir: string;
@@ -26,8 +30,7 @@ export function wrapToolsWithRfsnGate(params: {
   };
 }): AnyAgentTool[] {
   return params.tools.map((tool) => {
-    const existing = tool as WrappedTool;
-    if (existing[RFSN_WRAPPED_SYMBOL]) {
+    if (isRfsnWrappedTool(tool)) {
       return tool;
     }
 

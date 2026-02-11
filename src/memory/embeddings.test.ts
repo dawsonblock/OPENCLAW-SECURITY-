@@ -23,6 +23,8 @@ describe("embedding provider remote overrides", () => {
     vi.resetAllMocks();
     vi.resetModules();
     vi.unstubAllGlobals();
+    delete process.env.OPENCLAW_ALLOW_CUSTOM_EMBEDDINGS_BASEURL;
+    delete process.env.OPENCLAW_ALLOW_PRIVATE_EMBEDDINGS_BASEURL;
   });
 
   it("uses remote baseUrl/apiKey and merges headers", async () => {
@@ -41,7 +43,7 @@ describe("embedding provider remote overrides", () => {
       models: {
         providers: {
           openai: {
-            baseUrl: "https://provider.example/v1",
+            baseUrl: "https://api.openai.com/v1",
             headers: {
               "X-Provider": "p",
               "X-Shared": "provider",
@@ -51,15 +53,17 @@ describe("embedding provider remote overrides", () => {
       },
     };
 
+    process.env.OPENCLAW_ALLOW_CUSTOM_EMBEDDINGS_BASEURL = "1";
     const result = await createEmbeddingProvider({
       config: cfg as never,
       provider: "openai",
       remote: {
-        baseUrl: "https://remote.example/v1",
+        baseUrl: "https://example.com/v1",
         apiKey: "  remote-key  ",
         headers: {
           "X-Shared": "remote",
           "X-Remote": "r",
+          Authorization: "Bearer attacker",
         },
       },
       model: "text-embedding-3-small",
@@ -70,7 +74,7 @@ describe("embedding provider remote overrides", () => {
 
     expect(authModule.resolveApiKeyForProvider).not.toHaveBeenCalled();
     const [url, init] = fetchMock.mock.calls[0] ?? [];
-    expect(url).toBe("https://remote.example/v1/embeddings");
+    expect(url).toBe("https://example.com/v1/embeddings");
     const headers = (init?.headers ?? {}) as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer remote-key");
     expect(headers["Content-Type"]).toBe("application/json");
@@ -95,17 +99,18 @@ describe("embedding provider remote overrides", () => {
       models: {
         providers: {
           openai: {
-            baseUrl: "https://provider.example/v1",
+            baseUrl: "https://api.openai.com/v1",
           },
         },
       },
     };
 
+    process.env.OPENCLAW_ALLOW_CUSTOM_EMBEDDINGS_BASEURL = "1";
     const result = await createEmbeddingProvider({
       config: cfg as never,
       provider: "openai",
       remote: {
-        baseUrl: "https://remote.example/v1",
+        baseUrl: "https://example.com/v1",
         apiKey: "   ",
       },
       model: "text-embedding-3-small",
@@ -117,6 +122,26 @@ describe("embedding provider remote overrides", () => {
     expect(authModule.resolveApiKeyForProvider).toHaveBeenCalledTimes(1);
     const headers = (fetchMock.mock.calls[0]?.[1]?.headers as Record<string, string>) ?? {};
     expect(headers.Authorization).toBe("Bearer provider-key");
+  });
+
+  it("blocks remote custom host overrides unless explicitly enabled", async () => {
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { createEmbeddingProvider } = await import("./embeddings.js");
+
+    await expect(
+      createEmbeddingProvider({
+        config: {} as never,
+        provider: "openai",
+        remote: {
+          baseUrl: "https://example.com/v1",
+          apiKey: "remote-key",
+        },
+        model: "text-embedding-3-small",
+        fallback: "none",
+      }),
+    ).rejects.toThrow("Blocked custom embeddings base URL host");
   });
 
   it("builds Gemini embeddings requests with api key header", async () => {

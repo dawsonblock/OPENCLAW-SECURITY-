@@ -22,6 +22,8 @@ describe("voyage embedding provider", () => {
     vi.resetAllMocks();
     vi.resetModules();
     vi.unstubAllGlobals();
+    delete process.env.OPENCLAW_ALLOW_CUSTOM_EMBEDDINGS_BASEURL;
+    delete process.env.OPENCLAW_ALLOW_PRIVATE_EMBEDDINGS_BASEURL;
   });
 
   it("configures client with correct defaults and headers", async () => {
@@ -70,6 +72,7 @@ describe("voyage embedding provider", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { createVoyageEmbeddingProvider } = await import("./embeddings-voyage.js");
+    process.env.OPENCLAW_ALLOW_CUSTOM_EMBEDDINGS_BASEURL = "1";
 
     const result = await createVoyageEmbeddingProvider({
       config: {} as never,
@@ -77,16 +80,19 @@ describe("voyage embedding provider", () => {
       model: "voyage-4-lite",
       fallback: "none",
       remote: {
-        baseUrl: "https://proxy.example.com",
+        baseUrl: "https://example.com/v1",
         apiKey: "remote-override-key",
-        headers: { "X-Custom": "123" },
+        headers: {
+          "X-Custom": "123",
+          Authorization: "Bearer attacker",
+        },
       },
     });
 
     await result.provider.embedQuery("test");
 
     const [url, init] = fetchMock.mock.calls[0] ?? [];
-    expect(url).toBe("https://proxy.example.com/embeddings");
+    expect(url).toBe("https://example.com/v1/embeddings");
 
     const headers = (init?.headers ?? {}) as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer remote-override-key");

@@ -1,7 +1,8 @@
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { Readable } from "node:stream";
+import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { OpenClawConfig } from "../config/config.js";
 import { resolveBrewExecutable } from "../infra/brew.js";
@@ -225,11 +226,153 @@ function resolveArchiveType(spec: SkillInstallSpec, filename: string): string | 
   return undefined;
 }
 
+const DEFAULT_MAX_DOWNLOAD_BYTES = 200 * 1024 * 1024;
+const DEFAULT_MAX_ARCHIVE_ENTRIES = 10_000;
+const DEFAULT_MAX_EXTRACTED_BYTES = 250 * 1024 * 1024;
+
+function readPositiveIntEnv(name: string, fallback: number): number {
+  const raw = process.env[name]?.trim();
+  if (!raw) {
+    return fallback;
+  }
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return Math.floor(parsed);
+}
+
+function normalizeArchiveEntryPath(entryPath: string): string {
+  return entryPath.replaceAll("\\", "/").trim();
+}
+
+function isUnsafeArchiveEntryPath(entryPath: string): boolean {
+  const normalized = normalizeArchiveEntryPath(entryPath);
+  if (!normalized) {
+    return true;
+  }
+  if (normalized.includes("\u0000")) {
+    return true;
+  }
+  if (normalized.startsWith("/") || normalized.startsWith("\\")) {
+    return true;
+  }
+  if (/^[a-zA-Z]:\//.test(normalized) || /^[a-zA-Z]:\\/.test(normalized)) {
+    return true;
+  }
+  for (const segment of normalized.split("/")) {
+    if (segment === "..") {
+      return true;
+    }
+  }
+  return false;
+}
+
+function parseArchiveListOutput(text: string): string[] {
+  return text
+    .split("\n")
+    .map((entry) => normalizeArchiveEntryPath(entry))
+    .filter(Boolean);
+}
+
+async function listArchiveEntries(params: {
+  archivePath: string;
+  archiveType: string;
+  timeoutMs: number;
+}): Promise<
+  { entries: string[] } | { error: { stdout: string; stderr: string; code: number | null } }
+> {
+  const { archivePath, archiveType, timeoutMs } = params;
+
+  if (archiveType === "zip") {
+    if (!hasBinary("unzip")) {
+      return { error: { stdout: "", stderr: "unzip not found on PATH", code: null } };
+    }
+    const result = await runCommandWithTimeout(["unzip", "-Z1", archivePath], { timeoutMs });
+    if (result.code !== 0) {
+      return { error: { stdout: result.stdout, stderr: result.stderr, code: result.code } };
+    }
+    return { entries: parseArchiveListOutput(result.stdout) };
+  }
+
+  if (!hasBinary("tar")) {
+    return { error: { stdout: "", stderr: "tar not found on PATH", code: null } };
+  }
+  const result = await runCommandWithTimeout(["tar", "tf", archivePath], { timeoutMs });
+  if (result.code !== 0) {
+    return { error: { stdout: result.stdout, stderr: result.stderr, code: result.code } };
+  }
+  return { entries: parseArchiveListOutput(result.stdout) };
+}
+
+async function validateExtractedTree(params: { rootDir: string; maxBytes: number }): Promise<void> {
+  const { rootDir, maxBytes } = params;
+  const stack = [rootDir];
+  let totalBytes = 0;
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) {
+      continue;
+    }
+    const entries = await fs.promises.readdir(current, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(current, entry.name);
+      const stat = await fs.promises.lstat(fullPath);
+
+      if (stat.isSymbolicLink()) {
+        throw new Error(`Archive contains symbolic link: ${entry.name}`);
+      }
+      if (stat.isDirectory()) {
+        stack.push(fullPath);
+        continue;
+      }
+      if (!stat.isFile()) {
+        throw new Error(`Archive contains unsupported entry type: ${entry.name}`);
+      }
+
+      totalBytes += stat.size;
+      if (totalBytes > maxBytes) {
+        throw new Error(`Archive exceeds extracted size limit (${maxBytes} bytes)`);
+      }
+    }
+  }
+}
+
+async function moveStagedEntry(src: string, dst: string): Promise<void> {
+  try {
+    await fs.promises.rename(src, dst);
+    return;
+  } catch (err) {
+    if (
+      !(err instanceof Error) ||
+      !("code" in err) ||
+      (err as { code?: string }).code !== "EXDEV"
+    ) {
+      throw err;
+    }
+  }
+
+  const stat = await fs.promises.lstat(src);
+  if (stat.isDirectory()) {
+    await fs.promises.cp(src, dst, { recursive: true, force: true });
+    await fs.promises.rm(src, { recursive: true, force: true });
+    return;
+  }
+
+  await fs.promises.copyFile(src, dst);
+  await fs.promises.rm(src, { force: true });
+}
+
 async function downloadFile(
   url: string,
   destPath: string,
   timeoutMs: number,
 ): Promise<{ bytes: number }> {
+  const maxDownloadBytes = readPositiveIntEnv(
+    "OPENCLAW_SKILL_DOWNLOAD_MAX_BYTES",
+    DEFAULT_MAX_DOWNLOAD_BYTES,
+  );
   const { response, release } = await fetchWithSsrFGuard({
     url,
     timeoutMs: Math.max(1_000, timeoutMs),
@@ -240,11 +383,23 @@ async function downloadFile(
     }
     await ensureDir(path.dirname(destPath));
     const file = fs.createWriteStream(destPath);
+    let downloadedBytes = 0;
+    const limiter = new Transform({
+      transform(chunk, _encoding, callback) {
+        const size = Buffer.isBuffer(chunk) ? chunk.length : Buffer.byteLength(String(chunk));
+        downloadedBytes += size;
+        if (downloadedBytes > maxDownloadBytes) {
+          callback(new Error(`Download too large (>${maxDownloadBytes} bytes)`));
+          return;
+        }
+        callback(null, chunk);
+      },
+    });
     const body = response.body as unknown;
     const readable = isNodeReadableStream(body)
       ? body
       : Readable.fromWeb(body as NodeReadableStream);
-    await pipeline(readable, file);
+    await pipeline(readable, limiter, file);
     const stat = await fs.promises.stat(destPath);
     return { bytes: stat.size };
   } finally {
@@ -260,22 +415,85 @@ async function extractArchive(params: {
   timeoutMs: number;
 }): Promise<{ stdout: string; stderr: string; code: number | null }> {
   const { archivePath, archiveType, targetDir, stripComponents, timeoutMs } = params;
-  if (archiveType === "zip") {
-    if (!hasBinary("unzip")) {
-      return { stdout: "", stderr: "unzip not found on PATH", code: null };
-    }
-    const argv = ["unzip", "-q", archivePath, "-d", targetDir];
-    return await runCommandWithTimeout(argv, { timeoutMs });
+  const maxEntries = readPositiveIntEnv(
+    "OPENCLAW_SKILL_ARCHIVE_MAX_ENTRIES",
+    DEFAULT_MAX_ARCHIVE_ENTRIES,
+  );
+  const maxExtractedBytes = readPositiveIntEnv(
+    "OPENCLAW_SKILL_ARCHIVE_MAX_BYTES",
+    DEFAULT_MAX_EXTRACTED_BYTES,
+  );
+
+  const listed = await listArchiveEntries({ archivePath, archiveType, timeoutMs });
+  if ("error" in listed) {
+    return listed.error;
   }
 
-  if (!hasBinary("tar")) {
-    return { stdout: "", stderr: "tar not found on PATH", code: null };
+  if (listed.entries.length === 0) {
+    return { stdout: "", stderr: "archive is empty", code: 1 };
   }
-  const argv = ["tar", "xf", archivePath, "-C", targetDir];
-  if (typeof stripComponents === "number" && Number.isFinite(stripComponents)) {
-    argv.push("--strip-components", String(Math.max(0, Math.floor(stripComponents))));
+  if (listed.entries.length > maxEntries) {
+    return {
+      stdout: "",
+      stderr: `archive has too many entries (${listed.entries.length} > ${maxEntries})`,
+      code: 1,
+    };
   }
-  return await runCommandWithTimeout(argv, { timeoutMs });
+  for (const entryPath of listed.entries) {
+    if (isUnsafeArchiveEntryPath(entryPath)) {
+      return { stdout: "", stderr: `blocked unsafe archive entry: ${entryPath}`, code: 1 };
+    }
+  }
+
+  const stageRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), "openclaw-skill-install-"));
+  const stageExtractDir = path.join(stageRoot, "extract");
+  await fs.promises.mkdir(stageExtractDir, { recursive: true });
+
+  try {
+    let extractionResult: { stdout: string; stderr: string; code: number | null };
+    if (archiveType === "zip") {
+      if (!hasBinary("unzip")) {
+        return { stdout: "", stderr: "unzip not found on PATH", code: null };
+      }
+      extractionResult = await runCommandWithTimeout(
+        ["unzip", "-q", archivePath, "-d", stageExtractDir],
+        { timeoutMs },
+      );
+    } else {
+      if (!hasBinary("tar")) {
+        return { stdout: "", stderr: "tar not found on PATH", code: null };
+      }
+      const argv = ["tar", "xf", archivePath, "-C", stageExtractDir];
+      if (typeof stripComponents === "number" && Number.isFinite(stripComponents)) {
+        argv.push("--strip-components", String(Math.max(0, Math.floor(stripComponents))));
+      }
+      extractionResult = await runCommandWithTimeout(argv, { timeoutMs });
+    }
+
+    if (extractionResult.code !== 0) {
+      return extractionResult;
+    }
+
+    try {
+      await validateExtractedTree({ rootDir: stageExtractDir, maxBytes: maxExtractedBytes });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { stdout: extractionResult.stdout, stderr: message, code: 1 };
+    }
+
+    await ensureDir(targetDir);
+    const stagedEntries = await fs.promises.readdir(stageExtractDir, { withFileTypes: true });
+    for (const entry of stagedEntries) {
+      const src = path.join(stageExtractDir, entry.name);
+      const dst = path.join(targetDir, entry.name);
+      await fs.promises.rm(dst, { recursive: true, force: true });
+      await moveStagedEntry(src, dst);
+    }
+
+    return extractionResult;
+  } finally {
+    await fs.promises.rm(stageRoot, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 async function installDownloadSpec(params: {

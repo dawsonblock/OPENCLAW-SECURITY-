@@ -14,6 +14,8 @@ export type MonitorFeishuOpts = {
   accountId?: string;
 };
 
+const DEFAULT_FEISHU_WEBHOOK_MAX_BODY_BYTES = 1_000_000;
+
 // Per-account WebSocket clients, HTTP servers, and bot info
 const wsClients = new Map<string, Lark.WSClient>();
 const httpServers = new Map<string, http.Server>();
@@ -192,12 +194,37 @@ async function monitorWebhook({
   const error = runtime?.error ?? console.error;
 
   const port = account.config.webhookPort ?? 3000;
+  const host = account.config.webhookHost?.trim() || "127.0.0.1";
   const path = account.config.webhookPath ?? "/feishu/events";
+  const allowLan = process.env.OPENCLAW_FEISHU_WEBHOOK_ALLOW_LAN?.trim() === "1";
+  const isLoopbackHost = host === "127.0.0.1" || host === "localhost" || host === "::1";
+  if (!isLoopbackHost && !allowLan) {
+    throw new Error(
+      `Feishu webhook host "${host}" is not loopback. Set OPENCLAW_FEISHU_WEBHOOK_ALLOW_LAN=1 to allow.`,
+    );
+  }
 
-  log(`feishu[${accountId}]: starting Webhook server on port ${port}, path ${path}...`);
+  log(`feishu[${accountId}]: starting Webhook server on ${host}:${port}, path ${path}...`);
 
   const server = http.createServer();
-  server.on("request", Lark.adaptDefault(path, eventDispatcher, { autoChallenge: true }));
+  const larkHandler = Lark.adaptDefault(path, eventDispatcher, { autoChallenge: true });
+  server.on("request", (req, res) => {
+    const reqPath = (req.url ?? "").split("?")[0] ?? "";
+    if (req.method === "POST" && reqPath === path) {
+      const rawLength = req.headers["content-length"];
+      const firstLength = Array.isArray(rawLength) ? rawLength[0] : rawLength;
+      const declaredLength = Number.parseInt(firstLength ?? "", 10);
+      if (
+        Number.isFinite(declaredLength) &&
+        declaredLength > DEFAULT_FEISHU_WEBHOOK_MAX_BODY_BYTES
+      ) {
+        res.writeHead(413);
+        res.end();
+        return;
+      }
+    }
+    larkHandler(req, res);
+  });
   httpServers.set(accountId, server);
 
   return new Promise((resolve, reject) => {
@@ -221,8 +248,8 @@ async function monitorWebhook({
 
     abortSignal?.addEventListener("abort", handleAbort, { once: true });
 
-    server.listen(port, () => {
-      log(`feishu[${accountId}]: Webhook server listening on port ${port}`);
+    server.listen(port, host, () => {
+      log(`feishu[${accountId}]: Webhook server listening on ${host}:${port}`);
     });
 
     server.on("error", (err) => {

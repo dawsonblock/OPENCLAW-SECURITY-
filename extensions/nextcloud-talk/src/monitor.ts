@@ -12,9 +12,25 @@ import { getNextcloudTalkRuntime } from "./runtime.js";
 import { extractNextcloudTalkHeaders, verifyNextcloudTalkSignature } from "./signature.js";
 
 const DEFAULT_WEBHOOK_PORT = 8788;
-const DEFAULT_WEBHOOK_HOST = "0.0.0.0";
+const DEFAULT_WEBHOOK_HOST = "127.0.0.1";
 const DEFAULT_WEBHOOK_PATH = "/nextcloud-talk-webhook";
+const DEFAULT_WEBHOOK_MAX_BODY_BYTES = 1_000_000;
 const HEALTH_PATH = "/healthz";
+
+class BodyTooLargeError extends Error {
+  constructor(public readonly maxBytes: number) {
+    super(`request body exceeded ${maxBytes} bytes`);
+    this.name = "BodyTooLargeError";
+  }
+}
+
+function isLoopbackHost(hostRaw: string): boolean {
+  const host = hostRaw
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "");
+  return host === "127.0.0.1" || host === "localhost" || host === "::1";
+}
 
 function formatError(err: unknown): string {
   if (err instanceof Error) {
@@ -62,11 +78,44 @@ function payloadToInboundMessage(
   };
 }
 
-function readBody(req: IncomingMessage): Promise<string> {
+function parseContentLength(req: IncomingMessage): number | null {
+  const raw = req.headers["content-length"];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (!value?.trim()) {
+    return null;
+  }
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return null;
+  }
+  return parsed;
+}
+
+function readBody(req: IncomingMessage, maxBytes: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on("data", (chunk: Buffer) => chunks.push(chunk));
-    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
+    let total = 0;
+    let settled = false;
+    req.on("data", (chunk: Buffer) => {
+      if (settled) {
+        return;
+      }
+      total += chunk.length;
+      if (total > maxBytes) {
+        settled = true;
+        reject(new BodyTooLargeError(maxBytes));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve(Buffer.concat(chunks).toString("utf-8"));
+    });
     req.on("error", reject);
   });
 }
@@ -77,6 +126,7 @@ export function createNextcloudTalkWebhookServer(opts: NextcloudTalkWebhookServe
   stop: () => void;
 } {
   const { port, host, path, secret, onMessage, onError, abortSignal } = opts;
+  const maxBodyBytes = Math.max(1, opts.maxBodyBytes ?? DEFAULT_WEBHOOK_MAX_BODY_BYTES);
 
   const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     if (req.url === HEALTH_PATH) {
@@ -92,7 +142,14 @@ export function createNextcloudTalkWebhookServer(opts: NextcloudTalkWebhookServe
     }
 
     try {
-      const body = await readBody(req);
+      const declaredLength = parseContentLength(req);
+      if (typeof declaredLength === "number" && declaredLength > maxBodyBytes) {
+        res.writeHead(413, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Request body too large" }));
+        return;
+      }
+
+      const body = await readBody(req, maxBodyBytes);
 
       const headers = extractNextcloudTalkHeaders(
         req.headers as Record<string, string | string[] | undefined>,
@@ -140,6 +197,13 @@ export function createNextcloudTalkWebhookServer(opts: NextcloudTalkWebhookServe
         onError?.(err instanceof Error ? err : new Error(formatError(err)));
       }
     } catch (err) {
+      if (err instanceof BodyTooLargeError) {
+        if (!res.headersSent) {
+          res.writeHead(413, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Request body too large" }));
+        }
+        return;
+      }
       const error = err instanceof Error ? err : new Error(formatError(err));
       onError?.(error);
       if (!res.headersSent) {
@@ -199,6 +263,12 @@ export async function monitorNextcloudTalkProvider(
   const port = account.config.webhookPort ?? DEFAULT_WEBHOOK_PORT;
   const host = account.config.webhookHost ?? DEFAULT_WEBHOOK_HOST;
   const path = account.config.webhookPath ?? DEFAULT_WEBHOOK_PATH;
+  const allowLan = process.env.OPENCLAW_NEXTCLOUD_TALK_ALLOW_LAN?.trim() === "1";
+  if (!isLoopbackHost(host) && !allowLan) {
+    throw new Error(
+      `Nextcloud Talk webhook host "${host}" is not loopback. Set OPENCLAW_NEXTCLOUD_TALK_ALLOW_LAN=1 to allow.`,
+    );
+  }
 
   const logger = core.logging.getChildLogger({
     channel: "nextcloud-talk",
@@ -239,7 +309,7 @@ export async function monitorNextcloudTalkProvider(
 
   const publicUrl =
     account.config.webhookPublicUrl ??
-    `http://${host === "0.0.0.0" ? "localhost" : host}:${port}${path}`;
+    `http://${isLoopbackHost(host) ? "localhost" : host}:${port}${path}`;
   logger.info(`[nextcloud-talk:${account.accountId}] webhook listening on ${publicUrl}`);
 
   return { stop };

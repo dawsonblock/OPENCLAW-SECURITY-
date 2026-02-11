@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { formatCliCommand } from "../cli/command-format.js";
 import {
   type OpenClawConfig,
@@ -11,6 +10,7 @@ import {
 } from "../config/config.js";
 import { runCommandWithTimeout } from "../process/exec.js";
 import { defaultRuntime } from "../runtime.js";
+import { spawnAllowed } from "../security/subprocess.js";
 import { displayPath } from "../utils.js";
 import {
   ensureDependency,
@@ -359,7 +359,12 @@ export async function runGmailService(opts: GmailRunOptions) {
 function spawnGogServe(cfg: GmailHookRuntimeConfig) {
   const args = buildGogWatchServeArgs(cfg);
   defaultRuntime.log(`Starting gog ${args.join(" ")}`);
-  return spawn("gog", args, { stdio: "inherit" });
+  return spawnAllowed({
+    command: "gog",
+    args,
+    allowedBins: ["gog"],
+    stdio: "inherit",
+  });
 }
 
 async function startGmailWatch(

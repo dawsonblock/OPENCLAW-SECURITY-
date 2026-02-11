@@ -1,5 +1,5 @@
-import { spawn } from "node:child_process";
 import net from "node:net";
+import { spawnAllowed } from "../security/subprocess.js";
 import { isErrno } from "./errors.js";
 import { ensurePortAvailable } from "./ports.js";
 
@@ -152,7 +152,11 @@ export async function startSshPortForward(opts: {
   args.push("--", userHost);
 
   const stderr: string[] = [];
-  const child = spawn("/usr/bin/ssh", args, {
+  const child = spawnAllowed({
+    command: "/usr/bin/ssh",
+    args,
+    allowedBins: ["ssh"],
+    allowAbsolutePath: true,
     stdio: ["ignore", "ignore", "pipe"],
   });
   child.stderr?.setEncoding("utf8");

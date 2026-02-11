@@ -377,6 +377,7 @@ export async function handleBashChatCommand(params: {
     const rfsnPolicy = createDefaultRfsnPolicy({
       mode: "allowlist",
       allowTools: [execTool.name],
+      grantedCapabilities: runtimeSandboxed ? ["proc:manage"] : [],
       toolRules: {
         [execTool.name]: { risk: "high" },
       },

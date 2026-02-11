@@ -16,6 +16,16 @@ import { resolveTelegramAllowedUpdates } from "./allowed-updates.js";
 import { withTelegramApiErrorLogging } from "./api-logging.js";
 import { createTelegramBot } from "./bot.js";
 
+const DEFAULT_WEBHOOK_MAX_BODY_BYTES = 1_000_000;
+
+function isLoopbackHost(hostRaw: string): boolean {
+  const host = hostRaw
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "");
+  return host === "127.0.0.1" || host === "localhost" || host === "::1";
+}
+
 export async function startTelegramWebhook(opts: {
   token: string;
   accountId?: string;
@@ -29,12 +39,20 @@ export async function startTelegramWebhook(opts: {
   abortSignal?: AbortSignal;
   healthPath?: string;
   publicUrl?: string;
+  maxBodyBytes?: number;
 }) {
   const path = opts.path ?? "/telegram-webhook";
   const healthPath = opts.healthPath ?? "/healthz";
   const port = opts.port ?? 8787;
-  const host = opts.host ?? "0.0.0.0";
+  const host = opts.host ?? "127.0.0.1";
+  const allowLan = process.env.OPENCLAW_TELEGRAM_WEBHOOK_ALLOW_LAN?.trim() === "1";
+  if (!isLoopbackHost(host) && !allowLan) {
+    throw new Error(
+      `Telegram webhook host "${host}" is not loopback. Set OPENCLAW_TELEGRAM_WEBHOOK_ALLOW_LAN=1 to allow.`,
+    );
+  }
   const runtime = opts.runtime ?? defaultRuntime;
+  const maxBodyBytes = Math.max(1, opts.maxBodyBytes ?? DEFAULT_WEBHOOK_MAX_BODY_BYTES);
   const diagnosticsEnabled = isDiagnosticsEnabled(opts.config);
   const bot = createTelegramBot({
     token: opts.token,
@@ -59,6 +77,14 @@ export async function startTelegramWebhook(opts: {
     }
     if (req.url !== path || req.method !== "POST") {
       res.writeHead(404);
+      res.end();
+      return;
+    }
+    const rawLength = req.headers["content-length"];
+    const firstLength = Array.isArray(rawLength) ? rawLength[0] : rawLength;
+    const declaredLength = Number.parseInt(firstLength ?? "", 10);
+    if (Number.isFinite(declaredLength) && declaredLength > maxBodyBytes) {
+      res.writeHead(413);
       res.end();
       return;
     }
@@ -97,7 +123,7 @@ export async function startTelegramWebhook(opts: {
   });
 
   const publicUrl =
-    opts.publicUrl ?? `http://${host === "0.0.0.0" ? "localhost" : host}:${port}${path}`;
+    opts.publicUrl ?? `http://${isLoopbackHost(host) ? "localhost" : host}:${port}${path}`;
 
   await withTelegramApiErrorLogging({
     operation: "setWebhook",

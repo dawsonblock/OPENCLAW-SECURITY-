@@ -241,8 +241,14 @@ export async function compactEmbeddedPiSessionDirect(
       modelId,
       modelAuthMode: resolveModelAuthMode(model.provider, params.config),
     });
+    const allowAllTools = process.env.OPENCLAW_RFSN_AUTOWHITELIST_ALL_TOOLS?.trim() === "1";
+    const runtimeSandboxed = Boolean(sandbox?.enabled);
+    if (allowAllTools) {
+      log.warn("RFSN: OPENCLAW_RFSN_AUTOWHITELIST_ALL_TOOLS=1 weakens gate policy.");
+    }
     const rfsnPolicy = createDefaultRfsnPolicy({
-      allowTools: toolsRaw.map((tool) => tool.name),
+      ...(allowAllTools ? { allowTools: toolsRaw.map((tool) => tool.name) } : {}),
+      grantedCapabilities: runtimeSandboxed ? ["proc:manage"] : [],
     });
     const gatedToolsRaw = wrapToolsWithRfsnGate({
       tools: toolsRaw,
@@ -257,7 +263,7 @@ export async function compactEmbeddedPiSessionDirect(
           modelId,
         },
       },
-      runtime: { sandboxed: Boolean(sandbox?.enabled) },
+      runtime: { sandboxed: runtimeSandboxed },
     });
     const tools = sanitizeToolsForGoogle({ tools: gatedToolsRaw, provider });
     logToolSchemasForGoogle({ tools, provider });

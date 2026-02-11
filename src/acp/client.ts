@@ -5,10 +5,10 @@ import {
   type RequestPermissionRequest,
   type SessionNotification,
 } from "@agentclientprotocol/sdk";
-import { spawn, type ChildProcess } from "node:child_process";
 import * as readline from "node:readline";
 import { Readable, Writable } from "node:stream";
 import { ensureOpenClawCliOnPath } from "../infra/path-env.js";
+import { spawnAllowed } from "../security/subprocess.js";
 
 export type AcpClientOptions = {
   cwd?: string;
@@ -20,7 +20,7 @@ export type AcpClientOptions = {
 
 export type AcpClientHandle = {
   client: ClientSideConnection;
-  agent: ChildProcess;
+  agent: ReturnType<typeof spawnAllowed>;
   sessionId: string;
 };
 
@@ -85,7 +85,11 @@ export async function createAcpClient(opts: AcpClientOptions = {}): Promise<AcpC
 
   log(`spawning: ${serverCommand} ${serverArgs.join(" ")}`);
 
-  const agent = spawn(serverCommand, serverArgs, {
+  const agent = spawnAllowed({
+    command: serverCommand,
+    args: serverArgs,
+    allowedBins: ["openclaw"],
+    allowAbsolutePath: true,
     stdio: ["pipe", "pipe", "inherit"],
     cwd,
   });

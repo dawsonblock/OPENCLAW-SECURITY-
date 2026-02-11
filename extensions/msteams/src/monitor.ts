@@ -202,6 +202,15 @@ export async function monitorMSTeamsProvider(
   };
 
   const port = msteamsCfg.webhook?.port ?? 3978;
+  const webhookHost = (msteamsCfg.webhook as { host?: string } | undefined)?.host ?? undefined;
+  const host = webhookHost?.trim() || "127.0.0.1";
+  const allowLan = process.env.OPENCLAW_MSTEAMS_WEBHOOK_ALLOW_LAN?.trim() === "1";
+  const isLoopbackHost = host === "127.0.0.1" || host === "localhost" || host === "::1";
+  if (!isLoopbackHost && !allowLan) {
+    throw new Error(
+      `MS Teams webhook host "${host}" is not loopback. Set OPENCLAW_MSTEAMS_WEBHOOK_ALLOW_LAN=1 to allow.`,
+    );
+  }
   const textLimit = core.channel.text.resolveTextChunkLimit(cfg, "msteams");
   const MB = 1024 * 1024;
   const agentDefaults = cfg.agents?.defaults;
@@ -212,7 +221,7 @@ export async function monitorMSTeamsProvider(
   const conversationStore = opts.conversationStore ?? createMSTeamsConversationStoreFs();
   const pollStore = opts.pollStore ?? createMSTeamsPollStoreFs();
 
-  log.info(`starting provider (port ${port})`);
+  log.info(`starting provider (${host}:${port})`);
 
   // Dynamic import to avoid loading SDK when provider is disabled
   const express = await import("express");
@@ -239,7 +248,7 @@ export async function monitorMSTeamsProvider(
 
   // Create Express server
   const expressApp = express.default();
-  expressApp.use(express.json());
+  expressApp.use(express.json({ limit: "1mb" }));
   expressApp.use(authorizeJWT(authConfig));
 
   // Set up the messages endpoint - use configured path and /api/messages as fallback
@@ -264,8 +273,8 @@ export async function monitorMSTeamsProvider(
   });
 
   // Start listening and capture the HTTP server handle
-  const httpServer = expressApp.listen(port, () => {
-    log.info(`msteams provider started on port ${port}`);
+  const httpServer = expressApp.listen(port, host, () => {
+    log.info(`msteams provider started on ${host}:${port}`);
   });
 
   httpServer.on("error", (err) => {

@@ -1,6 +1,6 @@
-import { spawn, type SpawnOptions } from "node:child_process";
 import { stripAnsi } from "openclaw/plugin-sdk";
 import type { ZcaResult, ZcaRunOptions } from "./types.js";
+import { spawnAllowed } from "../../../src/security/subprocess.js";
 
 const ZCA_BINARY = "zca";
 const DEFAULT_TIMEOUT = 30000;
@@ -21,13 +21,14 @@ export async function runZca(args: string[], options?: ZcaRunOptions): Promise<Z
   const timeout = options?.timeout ?? DEFAULT_TIMEOUT;
 
   return new Promise((resolve) => {
-    const spawnOpts: SpawnOptions = {
+    const proc = spawnAllowed({
+      command: ZCA_BINARY,
+      args: fullArgs,
+      allowedBins: [ZCA_BINARY],
       cwd: options?.cwd,
-      env: { ...process.env },
       stdio: ["pipe", "pipe", "pipe"],
-    };
-
-    const proc = spawn(ZCA_BINARY, fullArgs, spawnOpts);
+      envOverrides: {},
+    });
     let stdout = "";
     let stderr = "";
     let timedOut = false;
@@ -80,13 +81,14 @@ export function runZcaInteractive(args: string[], options?: ZcaRunOptions): Prom
   const fullArgs = buildArgs(args, options);
 
   return new Promise((resolve) => {
-    const spawnOpts: SpawnOptions = {
+    const proc = spawnAllowed({
+      command: ZCA_BINARY,
+      args: fullArgs,
+      allowedBins: [ZCA_BINARY],
       cwd: options?.cwd,
-      env: { ...process.env },
       stdio: "inherit",
-    };
-
-    const proc = spawn(ZCA_BINARY, fullArgs, spawnOpts);
+      envOverrides: {},
+    });
 
     proc.on("close", (code) => {
       resolve({
@@ -150,16 +152,17 @@ export type ZcaStreamingOptions = ZcaRunOptions & {
 export function runZcaStreaming(
   args: string[],
   options?: ZcaStreamingOptions,
-): { proc: ReturnType<typeof spawn>; promise: Promise<ZcaResult> } {
+): { proc: ReturnType<typeof spawnAllowed>; promise: Promise<ZcaResult> } {
   const fullArgs = buildArgs(args, options);
 
-  const spawnOpts: SpawnOptions = {
+  const proc = spawnAllowed({
+    command: ZCA_BINARY,
+    args: fullArgs,
+    allowedBins: [ZCA_BINARY],
     cwd: options?.cwd,
-    env: { ...process.env },
     stdio: ["pipe", "pipe", "pipe"],
-  };
-
-  const proc = spawn(ZCA_BINARY, fullArgs, spawnOpts);
+    envOverrides: {},
+  });
   let stdout = "";
   let stderr = "";
 

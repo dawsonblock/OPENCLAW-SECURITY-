@@ -1,5 +1,5 @@
-import { spawn } from "node:child_process";
 import type { RuntimeEnv } from "../runtime.js";
+import { spawnAllowed } from "../security/subprocess.js";
 
 export type SignalDaemonOpts = {
   cliPath: string;
@@ -17,6 +17,12 @@ export type SignalDaemonHandle = {
   pid?: number;
   stop: () => void;
 };
+
+function resolveSignalCliAllowedBins(): string[] {
+  return process.platform === "win32"
+    ? ["signal-cli", "signal-cli.cmd", "signal-cli.bat", "signal-cli.exe"]
+    : ["signal-cli"];
+}
 
 export function classifySignalCliLogLine(line: string): "log" | "error" | null {
   const trimmed = line.trim();
@@ -61,7 +67,11 @@ function buildDaemonArgs(opts: SignalDaemonOpts): string[] {
 
 export function spawnSignalDaemon(opts: SignalDaemonOpts): SignalDaemonHandle {
   const args = buildDaemonArgs(opts);
-  const child = spawn(opts.cliPath, args, {
+  const child = spawnAllowed({
+    command: opts.cliPath,
+    args,
+    allowedBins: resolveSignalCliAllowedBins(),
+    allowAbsolutePath: true,
     stdio: ["ignore", "pipe", "pipe"],
   });
   const log = opts.runtime?.log ?? (() => {});

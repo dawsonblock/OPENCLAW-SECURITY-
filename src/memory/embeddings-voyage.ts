@@ -1,5 +1,6 @@
 import type { EmbeddingProvider, EmbeddingProviderOptions } from "./embeddings.js";
 import { requireApiKey, resolveApiKeyForProvider } from "../agents/model-auth.js";
+import { mergeHeadersSafe, sanitizeRemoteBaseUrl } from "../security/provider-remote.js";
 
 export type VoyageEmbeddingClient = {
   baseUrl: string;
@@ -75,6 +76,7 @@ export async function resolveVoyageEmbeddingClient(
   const remote = options.remote;
   const remoteApiKey = remote?.apiKey?.trim();
   const remoteBaseUrl = remote?.baseUrl?.trim();
+  const providerConfig = options.config.models?.providers?.voyage;
 
   const apiKey = remoteApiKey
     ? remoteApiKey
@@ -87,13 +89,20 @@ export async function resolveVoyageEmbeddingClient(
         "voyage",
       );
 
-  const providerConfig = options.config.models?.providers?.voyage;
-  const baseUrl = remoteBaseUrl || providerConfig?.baseUrl?.trim() || DEFAULT_VOYAGE_BASE_URL;
-  const headerOverrides = Object.assign({}, providerConfig?.headers, remote?.headers);
+  const baseUrl = await sanitizeRemoteBaseUrl({
+    baseUrl: remoteBaseUrl || providerConfig?.baseUrl?.trim() || DEFAULT_VOYAGE_BASE_URL,
+    defaultBaseUrl: DEFAULT_VOYAGE_BASE_URL,
+    requireCustomHostOptIn: Boolean(remoteBaseUrl),
+  });
+  const headerOverrides = mergeHeadersSafe({
+    providerHeaders: providerConfig?.headers,
+    remoteHeaders: remote?.headers,
+  });
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${apiKey}`,
     ...headerOverrides,
+    // Keep auth last so remote/provider overrides cannot replace it.
+    Authorization: `Bearer ${apiKey}`,
   };
   const model = normalizeVoyageModel(options.model);
   return { baseUrl, headers, model };

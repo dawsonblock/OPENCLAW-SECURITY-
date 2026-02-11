@@ -1,8 +1,8 @@
 import { Type } from "@sinclair/typebox";
-import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import type { OpenClawPluginApi } from "../../../src/plugins/types.js";
+import { spawnAllowed } from "../../../src/security/subprocess.js";
 
 type LobsterEnvelope =
   | {
@@ -110,19 +110,17 @@ async function runLobsterSubprocessOnce(
   const timeoutMs = Math.max(200, params.timeoutMs);
   const maxStdoutBytes = Math.max(1024, params.maxStdoutBytes);
 
-  const env = { ...process.env, LOBSTER_MODE: "tool" } as Record<string, string | undefined>;
-  const nodeOptions = env.NODE_OPTIONS ?? "";
-  if (nodeOptions.includes("--inspect")) {
-    delete env.NODE_OPTIONS;
-  }
-
   return await new Promise<{ stdout: string }>((resolve, reject) => {
-    const child = spawn(execPath, argv, {
+    const child = spawnAllowed({
+      command: execPath,
+      args: argv,
+      allowedBins: ["lobster"],
+      allowAbsolutePath: true,
       cwd,
       stdio: ["ignore", "pipe", "pipe"],
-      env,
       shell: useShell,
       windowsHide: useShell ? true : undefined,
+      envOverrides: { LOBSTER_MODE: "tool" },
     });
 
     let stdout = "";

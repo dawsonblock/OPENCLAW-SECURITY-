@@ -2,6 +2,7 @@ import type { EmbeddingProvider, EmbeddingProviderOptions } from "./embeddings.j
 import { requireApiKey, resolveApiKeyForProvider } from "../agents/model-auth.js";
 import { isTruthyEnvValue } from "../infra/env.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
+import { mergeHeadersSafe, sanitizeRemoteBaseUrl } from "../security/provider-remote.js";
 
 export type GeminiEmbeddingClient = {
   baseUrl: string;
@@ -130,6 +131,7 @@ export async function resolveGeminiEmbeddingClient(
   const remote = options.remote;
   const remoteApiKey = resolveRemoteApiKey(remote?.apiKey);
   const remoteBaseUrl = remote?.baseUrl?.trim();
+  const providerConfig = options.config.models?.providers?.google;
 
   const apiKey = remoteApiKey
     ? remoteApiKey
@@ -142,14 +144,21 @@ export async function resolveGeminiEmbeddingClient(
         "google",
       );
 
-  const providerConfig = options.config.models?.providers?.google;
   const rawBaseUrl = remoteBaseUrl || providerConfig?.baseUrl?.trim() || DEFAULT_GEMINI_BASE_URL;
-  const baseUrl = normalizeGeminiBaseUrl(rawBaseUrl);
-  const headerOverrides = Object.assign({}, providerConfig?.headers, remote?.headers);
+  const baseUrl = await sanitizeRemoteBaseUrl({
+    baseUrl: normalizeGeminiBaseUrl(rawBaseUrl),
+    defaultBaseUrl: DEFAULT_GEMINI_BASE_URL,
+    requireCustomHostOptIn: Boolean(remoteBaseUrl),
+  });
+  const headerOverrides = mergeHeadersSafe({
+    providerHeaders: providerConfig?.headers,
+    remoteHeaders: remote?.headers,
+  });
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "x-goog-api-key": apiKey,
     ...headerOverrides,
+    // Keep API key last so remote/provider overrides cannot replace it.
+    "x-goog-api-key": apiKey,
   };
   const model = normalizeGeminiModel(options.model);
   const modelPath = buildGeminiModelPath(model);
