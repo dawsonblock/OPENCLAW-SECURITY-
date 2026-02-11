@@ -332,6 +332,140 @@ Minimal `~/.openclaw/openclaw.json` (model + defaults):
 
 Details: [Security guide](https://docs.openclaw.ai/gateway/security) · [Docker + sandboxing](https://docs.openclaw.ai/install/docker) · [Sandbox config](https://docs.openclaw.ai/gateway/configuration)
 
+## 🔒 Security Hardening (OPENCLAW-SECURITY)
+
+This fork includes a comprehensive security hardening pass across the entire codebase — 120+ files changed, 5,200+ lines added. The hardening covers process isolation, network boundary enforcement, secret redaction, and capability-gated tool execution.
+
+### Subprocess Sandboxing (`src/security/subprocess.ts`)
+
+A drop-in replacement for `child_process.spawn` that enforces:
+
+- **Executable allowlisting** — only pre-approved binaries can be spawned (normalized cross-platform: `.exe`/`.cmd`/`.bat` stripped).
+- **Absolute path blocking** — prevents path-traversal spawns unless explicitly opted in.
+- **Environment scrubbing** — inherits only safe env vars (`PATH`, `HOME`, `TMPDIR`, etc.) and blocks injection vectors (`NODE_OPTIONS`, `LD_PRELOAD`, `DYLD_INSERT_LIBRARIES`).
+- **Stdout/stderr byte caps** — kills processes that exceed output limits to prevent memory exhaustion.
+- **Timeout enforcement** — automatic `SIGKILL` on runaway commands.
+
+```ts
+import { runAllowedCommand } from "./security/subprocess.js";
+
+const result = await runAllowedCommand({
+  command: "git",
+  args: ["status"],
+  allowedBins: ["git", "ls", "cat"],
+  timeoutMs: 5000,
+  maxStdoutBytes: 1_000_000,
+});
+```
+
+### Provider Remote Validation (`src/security/provider-remote.ts`)
+
+Hardens external API integrations (embeddings, LLM providers) against SSRF and header injection:
+
+- **HTTPS enforcement** — blocks non-HTTPS base URLs for remote providers.
+- **SSRF protection** — validates hostnames resolve to public IPs (blocks `127.0.0.1`, `10.x.x.x`, `169.254.x.x`, etc.).
+- **Protected header filtering** — strips `Authorization`, `Cookie`, `Host`, `Proxy-Authorization`, and `X-Goog-API-Key` from user-supplied headers to prevent auth credential theft.
+- **Custom host opt-in** — requires explicit env var (`OPENCLAW_ALLOW_CUSTOM_EMBEDDINGS_BASEURL`) to use non-default hosts.
+
+### RFSN Policy Engine (`src/rfsn/policy.ts`)
+
+A capability-based access control system for the agent runtime:
+
+- **Tool allowlist/denylist** — each tool (`exec`, `browser`, `web_fetch`, etc.) is gated by policy.
+- **Risk classification** — tools categorized as `low`/`medium`/`high` risk with per-tool rules.
+- **Capability grants** — fine-grained capabilities like `fs:read:workspace`, `net:outbound`, `proc:manage`, `net:browser`.
+- **Safe binary registry** — whitelisted executables for `exec` tool (`git`, `cat`, `ls`, `find`, `rg`, `sed`, etc.).
+- **Fetch domain allowlisting** — optional domain-level network allowlist with subdomain support.
+- **Command substitution blocking** — prevents `$(...)` and backtick injection in exec args.
+- **Env-driven overrides** — all policy knobs configurable via `OPENCLAW_RFSN_*` environment variables.
+
+### RFSN Gate & Dispatch Hardening (`src/rfsn/gate.ts`, `src/rfsn/dispatch.ts`)
+
+- **Gate enforcement** expanded with argument-size limits, capability checks, and sandbox requirements.
+- **Dispatch hardening** ensures the RFSN kernel is the final authority on tool execution across runtime and extensions.
+- **Tool wrapping** (`src/rfsn/wrap-tools.ts`) intercepts tool calls to enforce policy before execution.
+
+### Secret Redaction (`src/rfsn/redact.ts`, `src/logging/redact.ts`)
+
+Automatic redaction of sensitive data in ledger entries and logs:
+
+- **Pattern-based redaction** — strips API keys (`sk-*`, `ghp_*`, `github_pat_*`, Slack `xox*`, Google `AIza*`, Perplexity `pplx-*`, npm tokens).
+- **Bearer token stripping** — removes `Bearer <token>` from string values.
+- **Query parameter sanitization** — redacts `token`, `access_token`, `api_key`, `secret`, `password` in URLs.
+- **Key-name detection** — any object key matching `token|secret|password|authorization|cookie|api_key|bearer|jwt|session` is auto-redacted.
+- **Depth/size limits** — prevents DoS via deeply nested or oversized payloads (max depth 8, max array 64 items, max string 1024 chars).
+
+### Archive Extraction Safety (`src/infra/archive.ts`)
+
+Hardened archive extraction (used in skill/plugin install) against:
+
+- **Zip slip / path traversal** — rejects entries with absolute paths, `..` components, or symlinks.
+- **File size quotas** — enforces per-file and total extraction byte limits.
+- **Entry count limits** — prevents zip bombs with excessive file counts.
+
+### Browser Auth Proxy (`scripts/browser-auth-proxy.mjs`)
+
+A new authentication proxy for the browser debug stack:
+
+- Prevents unauthenticated access to CDP (Chrome DevTools Protocol) endpoints.
+- Enforces auth tokens on WebSocket upgrade and HTTP requests to the browser bridge.
+
+### Channel & Extension Hardening
+
+- **BlueBubbles** — full TypeScript type-safety overhaul for attachments, reactions, chat, and send modules with proper error boundaries.
+- **Nextcloud Talk** — request body size caps, webhook auth enforcement, and new redaction module.
+- **Zalo/Zalo Personal** — monitor webhook validation and input sanitization.
+- **Voice Call / Twilio** — media stream hardening and provider-level input validation.
+- **Feishu, MS Teams** — monitor and channel security improvements.
+- **iMessage** — binary execution allowlist enforcement with dedicated test coverage.
+
+### Skills & Plugins Hardening
+
+- **Skills install** (`src/agents/skills-install.ts`) — path traversal prevention, download size caps, integrity verification.
+- **Plugin install** (`src/plugins/install.ts`) — sandboxed extraction, config state validation.
+- **Web fetch/search** (`src/agents/tools/web-fetch.ts`, `web-search.ts`) — URL validation, response size limits, SSRF guards.
+
+### Infrastructure Hardening
+
+- **SSH config/tunnel** — config file permission validation, tunnel authentication.
+- **Device pairing** — pairing code entropy verification, replay protection.
+- **Update runner** — update integrity checks, rollback safety.
+- **Gmail hooks** — token redaction in logs, webhook secret validation.
+- **Dashboard** — auth enforcement on admin endpoints.
+- **Process exec** — exec approval flow with safe binary allowlists.
+
+### Security Audit Report (`security_best_practices_report.md`)
+
+A comprehensive 10-finding security audit covering:
+
+| ID | Severity | Finding |
+|---|---|---|
+| SEC-001 | Critical | Archive extraction path traversal |
+| SEC-002 | Critical | Embeddings SSRF + auth header override |
+| SEC-003 | High | Browser debug stack exposed without auth |
+| SEC-004 | High | WebView bridge trust boundary too broad |
+| SEC-005 | High | RFSN not mediating all side-effect primitives |
+| SEC-006 | Medium | Extension services bind `0.0.0.0` by default |
+| SEC-007 | Medium | Nextcloud Talk webhook no body size cap |
+| SEC-008 | Medium | Webhook endpoints missing auth |
+| SEC-009 | Medium | Secrets in query strings and logs |
+| SEC-010 | Medium | Embeddings client allows header override |
+
+### Test Coverage
+
+Every security module includes dedicated test files:
+
+- `src/security/subprocess.test.ts` — executable allowlisting, env scrubbing, timeout, output caps
+- `src/security/provider-remote.test.ts` — SSRF, HTTPS enforcement, header filtering
+- `src/rfsn/policy.test.ts` — policy creation, env override, capability resolution
+- `src/rfsn/redact.test.ts` — pattern matching, depth limits, circular refs
+- `src/rfsn/dispatch.test.ts` — gate enforcement, final authority checks
+- `src/rfsn/gate.test.ts` — tool blocking, arg size limits, sandbox requirements
+- `src/rfsn/final-authority.test.ts` — end-to-end gate scenarios
+- `src/imessage/client.allowed-bins.test.ts` — binary allowlist for iMessage
+- `src/browser/bridge-server.auth.test.ts` — browser auth proxy
+- `src/infra/node-pairing.test.ts` — pairing security
+
 ### [WhatsApp](https://docs.openclaw.ai/channels/whatsapp)
 
 - Link the device: `pnpm openclaw channels login` (stores creds in `~/.openclaw/credentials`).
