@@ -1,5 +1,5 @@
 import type { OAuthCredentials, OAuthProvider } from "@mariozechner/pi-ai";
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -85,7 +85,45 @@ type ClaudeCliWriteOptions = ClaudeCliFileOptions & {
   writeFile?: (credentials: OAuthCredentials, options?: ClaudeCliFileOptions) => boolean;
 };
 
-type ExecSyncFn = typeof execSync;
+type ExecSyncFn = (
+  command: string,
+  options?: {
+    encoding?: BufferEncoding;
+    timeout?: number;
+    stdio?: ["pipe", "pipe", "pipe"] | ["pipe", "pipe", "ignore"];
+  },
+) => string;
+
+function quoteShellArg(value: string): string {
+  return `'${value.replace(/'/g, "'\"'\"'")}'`;
+}
+
+function runSecurityCommand(params: {
+  file: string;
+  args: string[];
+  timeoutMs: number;
+  suppressStderr?: boolean;
+  execSyncImpl?: ExecSyncFn;
+}): string {
+  const stdio: ["pipe", "pipe", "ignore"] | ["pipe", "pipe", "pipe"] = params.suppressStderr
+    ? ["pipe", "pipe", "ignore"]
+    : ["pipe", "pipe", "pipe"];
+  if (params.execSyncImpl) {
+    const command = [params.file, ...params.args.map((arg) => quoteShellArg(arg))].join(" ");
+    return String(
+      params.execSyncImpl(command, {
+        encoding: "utf8",
+        timeout: params.timeoutMs,
+        stdio,
+      }),
+    );
+  }
+  return execFileSync(params.file, params.args, {
+    encoding: "utf8",
+    timeout: params.timeoutMs,
+    stdio,
+  });
+}
 
 function resolveClaudeCliCredentialsPath(homeDir?: string) {
   const baseDir = homeDir ?? resolveUserPath("~");
@@ -129,20 +167,18 @@ function readCodexKeychainCredentials(options?: {
   if (platform !== "darwin") {
     return null;
   }
-  const execSyncImpl = options?.execSync ?? execSync;
+  const execSyncImpl = options?.execSync;
 
   const codexHome = resolveCodexHomePath();
   const account = computeCodexKeychainAccount(codexHome);
 
   try {
-    const secret = execSyncImpl(
-      `security find-generic-password -s "Codex Auth" -a "${account}" -w`,
-      {
-        encoding: "utf8",
-        timeout: 5000,
-        stdio: ["pipe", "pipe", "pipe"],
-      },
-    ).trim();
+    const secret = runSecurityCommand({
+      file: "security",
+      args: ["find-generic-password", "-s", "Codex Auth", "-a", account, "-w"],
+      timeoutMs: 5_000,
+      execSyncImpl,
+    }).trim();
 
     const parsed = JSON.parse(secret) as Record<string, unknown>;
     const tokens = parsed.tokens as Record<string, unknown> | undefined;
@@ -244,14 +280,14 @@ function readMiniMaxCliCredentials(options?: { homeDir?: string }): MiniMaxCliCr
   };
 }
 
-function readClaudeCliKeychainCredentials(
-  execSyncImpl: ExecSyncFn = execSync,
-): ClaudeCliCredential | null {
+function readClaudeCliKeychainCredentials(execSyncImpl?: ExecSyncFn): ClaudeCliCredential | null {
   try {
-    const result = execSyncImpl(
-      `security find-generic-password -s "${CLAUDE_CLI_KEYCHAIN_SERVICE}" -w`,
-      { encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] },
-    );
+    const result = runSecurityCommand({
+      file: "security",
+      args: ["find-generic-password", "-s", CLAUDE_CLI_KEYCHAIN_SERVICE, "-w"],
+      timeoutMs: 5_000,
+      execSyncImpl,
+    });
 
     const data = JSON.parse(result.trim());
     const claudeOauth = data?.claudeAiOauth;
@@ -383,12 +419,15 @@ export function writeClaudeCliKeychainCredentials(
   newCredentials: OAuthCredentials,
   options?: { execSync?: ExecSyncFn },
 ): boolean {
-  const execSyncImpl = options?.execSync ?? execSync;
+  const execSyncImpl = options?.execSync;
   try {
-    const existingResult = execSyncImpl(
-      `security find-generic-password -s "${CLAUDE_CLI_KEYCHAIN_SERVICE}" -w 2>/dev/null`,
-      { encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] },
-    );
+    const existingResult = runSecurityCommand({
+      file: "security",
+      args: ["find-generic-password", "-s", CLAUDE_CLI_KEYCHAIN_SERVICE, "-w"],
+      timeoutMs: 5_000,
+      suppressStderr: true,
+      execSyncImpl,
+    });
 
     const existingData = JSON.parse(existingResult.trim());
     const existingOauth = existingData?.claudeAiOauth;
@@ -405,10 +444,21 @@ export function writeClaudeCliKeychainCredentials(
 
     const newValue = JSON.stringify(existingData);
 
-    execSyncImpl(
-      `security add-generic-password -U -s "${CLAUDE_CLI_KEYCHAIN_SERVICE}" -a "${CLAUDE_CLI_KEYCHAIN_ACCOUNT}" -w '${newValue.replace(/'/g, "'\"'\"'")}'`,
-      { encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] },
-    );
+    runSecurityCommand({
+      file: "security",
+      args: [
+        "add-generic-password",
+        "-U",
+        "-s",
+        CLAUDE_CLI_KEYCHAIN_SERVICE,
+        "-a",
+        CLAUDE_CLI_KEYCHAIN_ACCOUNT,
+        "-w",
+        newValue,
+      ],
+      timeoutMs: 5_000,
+      execSyncImpl,
+    });
 
     log.info("wrote refreshed credentials to claude cli keychain", {
       expires: new Date(newCredentials.expires).toISOString(),

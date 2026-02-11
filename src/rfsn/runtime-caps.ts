@@ -51,7 +51,8 @@ export function resolveRfsnRuntimeCapabilities(params: {
   if (hasToken(channelTokens, "search") || hasToken(channelTokens, "websearch")) {
     caps.add("net:search");
   }
-  if (envFlagEnabled("OPENCLAW_BROWSER_ALLOW_UNSAFE_EVAL")) {
+  const signedPolicyRequired = envFlagEnabled("OPENCLAW_RFSN_REQUIRE_SIGNED_POLICY");
+  if (!signedPolicyRequired && envFlagEnabled("OPENCLAW_BROWSER_ALLOW_UNSAFE_EVAL")) {
     caps.add("browser:unsafe_eval");
   }
 

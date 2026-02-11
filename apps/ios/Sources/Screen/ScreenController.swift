@@ -23,6 +23,24 @@ final class ScreenController {
     private var debugStatusTitle: String?
     private var debugStatusSubtitle: String?
 
+    private static func envFlagEnabled(_ key: String) -> Bool {
+        let raw = ProcessInfo.processInfo.environment[key] ?? ""
+        switch raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "1", "true", "yes", "on":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func isUiJsEvalAllowed() -> Bool {
+        let signedPolicyRequired = Self.envFlagEnabled("OPENCLAW_RFSN_REQUIRE_SIGNED_POLICY")
+        if !signedPolicyRequired {
+            return true
+        }
+        return Self.envFlagEnabled("OPENCLAW_UI_ALLOW_JS_EVAL")
+    }
+
     init() {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
@@ -109,6 +127,9 @@ final class ScreenController {
     }
 
     fileprivate func applyDebugStatusIfNeeded() {
+        if !self.isUiJsEvalAllowed() {
+            return
+        }
         let enabled = self.debugStatusEnabled
         let title = self.debugStatusTitle
         let subtitle = self.debugStatusSubtitle
@@ -154,6 +175,9 @@ final class ScreenController {
     }
 
     func eval(javaScript: String) async throws -> String {
+        guard self.isUiJsEvalAllowed() else {
+            throw NSError(domain: "ui_js_eval_disabled", code: 1)
+        }
         try await withCheckedThrowingContinuation { cont in
             self.webView.evaluateJavaScript(javaScript) { result, error in
                 if let error {

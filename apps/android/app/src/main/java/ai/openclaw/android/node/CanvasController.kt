@@ -34,6 +34,19 @@ class CanvasController {
 
   private val scaffoldAssetUrl = "file:///android_asset/CanvasScaffold/scaffold.html"
 
+  private fun envFlagEnabled(name: String): Boolean {
+    val normalized = System.getenv(name)?.trim()?.lowercase() ?: return false
+    return normalized == "1" || normalized == "true" || normalized == "yes" || normalized == "on"
+  }
+
+  private fun isUiJsEvalAllowed(): Boolean {
+    val signedPolicyRequired = envFlagEnabled("OPENCLAW_RFSN_REQUIRE_SIGNED_POLICY")
+    if (!signedPolicyRequired) {
+      return true
+    }
+    return envFlagEnabled("OPENCLAW_UI_ALLOW_JS_EVAL")
+  }
+
   private fun clampJpegQuality(quality: Double?): Int {
     val q = (quality ?: 0.82).coerceIn(0.1, 1.0)
     return (q * 100.0).toInt().coerceIn(1, 100)
@@ -97,6 +110,9 @@ class CanvasController {
   }
 
   private fun applyDebugStatus() {
+    if (!isUiJsEvalAllowed()) {
+      return
+    }
     val enabled = debugStatusEnabled
     val title = debugStatusTitle
     val subtitle = debugStatusSubtitle
@@ -124,6 +140,9 @@ class CanvasController {
 
   suspend fun eval(javaScript: String): String =
     withContext(Dispatchers.Main) {
+      if (!isUiJsEvalAllowed()) {
+        throw IllegalStateException("ui_js_eval_disabled")
+      }
       val wv = webView ?: throw IllegalStateException("no webview")
       suspendCancellableCoroutine { cont ->
         wv.evaluateJavascript(javaScript) { result ->

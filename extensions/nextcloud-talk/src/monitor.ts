@@ -15,12 +15,20 @@ const DEFAULT_WEBHOOK_PORT = 8788;
 const DEFAULT_WEBHOOK_HOST = "127.0.0.1";
 const DEFAULT_WEBHOOK_PATH = "/nextcloud-talk-webhook";
 const DEFAULT_WEBHOOK_MAX_BODY_BYTES = 1_000_000;
+const DEFAULT_WEBHOOK_BODY_TIMEOUT_MS = 30_000;
 const HEALTH_PATH = "/healthz";
 
 class BodyTooLargeError extends Error {
   constructor(public readonly maxBytes: number) {
     super(`request body exceeded ${maxBytes} bytes`);
     this.name = "BodyTooLargeError";
+  }
+}
+
+class BodyReadTimeoutError extends Error {
+  constructor(public readonly timeoutMs: number) {
+    super(`request body read timed out after ${timeoutMs}ms`);
+    this.name = "BodyReadTimeoutError";
   }
 }
 
@@ -91,32 +99,51 @@ function parseContentLength(req: IncomingMessage): number | null {
   return parsed;
 }
 
-function readBody(req: IncomingMessage, maxBytes: number): Promise<string> {
+function readBody(
+  req: IncomingMessage,
+  maxBytes: number,
+  timeoutMs = DEFAULT_WEBHOOK_BODY_TIMEOUT_MS,
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let total = 0;
     let settled = false;
+    const finish = (fn: () => void) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      fn();
+    };
+    const timer = setTimeout(() => {
+      finish(() => {
+        reject(new BodyReadTimeoutError(timeoutMs));
+        req.destroy();
+      });
+    }, timeoutMs);
     req.on("data", (chunk: Buffer) => {
       if (settled) {
         return;
       }
       total += chunk.length;
       if (total > maxBytes) {
-        settled = true;
-        reject(new BodyTooLargeError(maxBytes));
-        req.destroy();
+        finish(() => {
+          reject(new BodyTooLargeError(maxBytes));
+          req.destroy();
+        });
         return;
       }
       chunks.push(chunk);
     });
     req.on("end", () => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      resolve(Buffer.concat(chunks).toString("utf-8"));
+      finish(() => {
+        resolve(Buffer.concat(chunks).toString("utf-8"));
+      });
     });
-    req.on("error", reject);
+    req.on("error", (err) => {
+      finish(() => reject(err));
+    });
   });
 }
 
@@ -204,6 +231,13 @@ export function createNextcloudTalkWebhookServer(opts: NextcloudTalkWebhookServe
         }
         return;
       }
+      if (err instanceof BodyReadTimeoutError) {
+        if (!res.headersSent) {
+          res.writeHead(408, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Request body timeout" }));
+        }
+        return;
+      }
       const error = err instanceof Error ? err : new Error(formatError(err));
       onError?.(error);
       if (!res.headersSent) {
@@ -214,8 +248,18 @@ export function createNextcloudTalkWebhookServer(opts: NextcloudTalkWebhookServe
   });
 
   const start = (): Promise<void> => {
-    return new Promise((resolve) => {
-      server.listen(port, host, () => resolve());
+    return new Promise((resolve, reject) => {
+      const onError = (err: Error) => {
+        server.off("listening", onListening);
+        reject(err);
+      };
+      const onListening = () => {
+        server.off("error", onError);
+        resolve();
+      };
+      server.once("error", onError);
+      server.once("listening", onListening);
+      server.listen(port, host);
     });
   };
 

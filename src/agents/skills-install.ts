@@ -285,6 +285,24 @@ function parseArchiveListOutput(text: string): string[] {
     .filter(Boolean);
 }
 
+function parseTarTypeViolations(text: string): string[] {
+  const disallowed: string[] = [];
+  const lines = text.split("\n").map((line) => line.trimEnd());
+  for (const line of lines) {
+    const normalized = line.trimStart();
+    if (!normalized) {
+      continue;
+    }
+    const typePrefix = normalized[0];
+    // tar -tvf starts each line with a file type marker in the mode string:
+    // '-' file, 'd' dir, 'l' symlink, 'h' hard link, 'b' block device, etc.
+    if (typePrefix !== "-" && typePrefix !== "d") {
+      disallowed.push(normalized);
+    }
+  }
+  return disallowed;
+}
+
 async function listArchiveEntries(params: {
   archivePath: string;
   archiveType: string;
@@ -312,6 +330,31 @@ async function listArchiveEntries(params: {
   if (result.code !== 0) {
     return { error: { stdout: result.stdout, stderr: result.stderr, code: result.code } };
   }
+
+  const verboseResult = await runCommandWithTimeout(["tar", "tvf", archivePath], { timeoutMs });
+  if (verboseResult.code !== 0) {
+    return {
+      error: {
+        stdout: verboseResult.stdout,
+        stderr: verboseResult.stderr,
+        code: verboseResult.code,
+      },
+    };
+  }
+  const typeViolations = parseTarTypeViolations(verboseResult.stdout);
+  if (typeViolations.length > 0) {
+    return {
+      error: {
+        stdout: "",
+        stderr:
+          "blocked unsupported tar entry types: " +
+          typeViolations.slice(0, 3).join(" | ") +
+          (typeViolations.length > 3 ? " | ..." : ""),
+        code: 1,
+      },
+    };
+  }
+
   return { entries: parseArchiveListOutput(result.stdout) };
 }
 

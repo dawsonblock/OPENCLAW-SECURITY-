@@ -13,6 +13,14 @@ import { OpenAIRealtimeSTTProvider } from "./providers/stt-openai-realtime.js";
 
 const MAX_WEBHOOK_BODY_BYTES = 1024 * 1024;
 
+function isLoopbackHost(hostRaw: string): boolean {
+  const host = hostRaw
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "");
+  return host === "127.0.0.1" || host === "localhost" || host === "::1";
+}
+
 /**
  * HTTP server for receiving voice call webhooks from providers.
  * Supports WebSocket upgrades for media streams when streaming is enabled.
@@ -162,6 +170,12 @@ export class VoiceCallWebhookServer {
   async start(): Promise<string> {
     const { port, bind, path: webhookPath } = this.config.serve;
     const streamPath = this.config.streaming?.streamPath || "/voice/stream";
+    const allowLan = process.env.OPENCLAW_VOICE_CALL_WEBHOOK_ALLOW_LAN?.trim() === "1";
+    if (!isLoopbackHost(bind) && !allowLan) {
+      throw new Error(
+        `Voice-call webhook bind "${bind}" is not loopback. Set OPENCLAW_VOICE_CALL_WEBHOOK_ALLOW_LAN=1 to allow.`,
+      );
+    }
 
     return new Promise((resolve, reject) => {
       this.server = http.createServer((req, res) => {

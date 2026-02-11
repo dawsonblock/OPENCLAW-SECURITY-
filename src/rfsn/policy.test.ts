@@ -104,4 +104,9 @@ describe("createDefaultRfsnPolicy", () => {
     expect(policy.execSafeBins.size).toBe(0);
     expect(policy.grantedCapabilities.has("net:browser")).toBe(true);
   });
+
+  test("default policy never grants browser:unsafe_eval", () => {
+    const policy = createDefaultRfsnPolicy();
+    expect(policy.grantedCapabilities.has("browser:unsafe_eval")).toBe(false);
+  });
 });

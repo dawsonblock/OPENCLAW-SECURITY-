@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, test } from "vitest";
 
 const SRC_ROOT = path.resolve(process.cwd(), "src");
+const EXTENSIONS_ROOT = path.resolve(process.cwd(), "extensions");
 
 const ALLOWED_TOOL_EXECUTE_FILES = new Set([
   "src/rfsn/dispatch.ts",
@@ -281,6 +282,17 @@ describe("RFSN final authority", () => {
           );
         }
       }
+
+      if (/\bnew Function\(/.test(content) || /\beval\(/.test(content)) {
+        violations.push(
+          `${relPath}: runtime code contains dynamic JavaScript execution primitives (eval/new Function)`,
+        );
+      }
+      if (/\bexecSync\(/.test(content)) {
+        violations.push(
+          `${relPath}: runtime code contains execSync() (use execFileSync or wrappers)`,
+        );
+      }
     }
 
     for (const relPath of HIGH_RISK_EXTENSION_SPAWN_FILES) {
@@ -389,6 +401,22 @@ describe("RFSN final authority", () => {
         if (!content.includes(marker)) {
           violations.push(`${entry.file}: missing RFSN gated factory marker "${marker}"`);
         }
+      }
+    }
+
+    // Extension runtime code should never use dynamic JS execution primitives or execSync.
+    // Keep this narrow to avoid blocking legitimate subprocess wrappers that use spawn guards.
+    const extensionRuntimeFiles = await listRuntimeTsFiles(EXTENSIONS_ROOT);
+    for (const absPath of extensionRuntimeFiles) {
+      const relPath = toPosixRelative(absPath);
+      const content = await fs.readFile(absPath, "utf8");
+      if (/\bnew Function\(/.test(content) || /\beval\(/.test(content)) {
+        violations.push(
+          `${relPath}: extension runtime code contains dynamic JavaScript execution primitives (eval/new Function)`,
+        );
+      }
+      if (/\bexecSync\(/.test(content)) {
+        violations.push(`${relPath}: extension runtime code contains execSync()`);
       }
     }
 

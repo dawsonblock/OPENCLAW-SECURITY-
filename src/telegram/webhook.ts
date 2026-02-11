@@ -135,7 +135,19 @@ export async function startTelegramWebhook(opts: {
       }),
   });
 
-  await new Promise<void>((resolve) => server.listen(port, host, resolve));
+  await new Promise<void>((resolve, reject) => {
+    const onError = (err: Error) => {
+      server.off("listening", onListening);
+      reject(err);
+    };
+    const onListening = () => {
+      server.off("error", onError);
+      resolve();
+    };
+    server.once("error", onError);
+    server.once("listening", onListening);
+    server.listen(port, host);
+  });
   runtime.log?.(`webhook listening on ${publicUrl}`);
 
   const shutdown = () => {

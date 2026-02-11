@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import type { RuntimeEnv } from "../runtime.js";
-import { runCommandWithTimeout } from "../process/exec.js";
+import { extractArchive, resolveArchiveKind } from "../infra/archive.js";
 import { CONFIG_DIR } from "../utils.js";
 
 type ReleaseAsset = {
@@ -156,17 +156,14 @@ export async function installSignalCli(runtime: RuntimeEnv): Promise<SignalInsta
   const installRoot = path.join(CONFIG_DIR, "tools", "signal-cli", version);
   await fs.mkdir(installRoot, { recursive: true });
 
-  if (assetName.endsWith(".zip")) {
-    await runCommandWithTimeout(["unzip", "-q", archivePath, "-d", installRoot], {
-      timeoutMs: 60_000,
-    });
-  } else if (assetName.endsWith(".tar.gz") || assetName.endsWith(".tgz")) {
-    await runCommandWithTimeout(["tar", "-xzf", archivePath, "-C", installRoot], {
-      timeoutMs: 60_000,
-    });
-  } else {
+  if (!resolveArchiveKind(assetName)) {
     return { ok: false, error: `Unsupported archive type: ${assetName}` };
   }
+  await extractArchive({
+    archivePath,
+    destDir: installRoot,
+    timeoutMs: 60_000,
+  });
 
   const cliPath = await findSignalCliBinary(installRoot);
   if (!cliPath) {

@@ -256,6 +256,49 @@ describe("installSkill code safety scanning", () => {
     }
   });
 
+  it("blocks tar link/device entry types before extraction", async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-skills-install-"));
+    try {
+      await writeInstallableSkill(
+        workspaceDir,
+        "archive-tar-skill",
+        '[{"id":"fetch","kind":"download","url":"https://example.com/archive.tar.gz","extract":true,"archive":"tar.gz"}]',
+      );
+      runCommandWithTimeoutMock
+        .mockResolvedValueOnce({
+          code: 0,
+          stdout: "safe/file.txt\n",
+          stderr: "",
+          signal: null,
+          killed: false,
+        })
+        .mockResolvedValueOnce({
+          code: 0,
+          stdout: "lrwxrwxrwx user/group 0 2025-01-01 00:00 safe/link -> ../escape\n",
+          stderr: "",
+          signal: null,
+          killed: false,
+        });
+
+      const result = await installSkill({
+        workspaceDir,
+        skillName: "archive-tar-skill",
+        installId: "fetch",
+      });
+
+      expect(result.ok).toBe(false);
+      expect(result.stderr).toContain("blocked unsupported tar entry types");
+      expect(
+        runCommandWithTimeoutMock.mock.calls.some((call) => {
+          const argv = call[0] as string[];
+          return Array.isArray(argv) && argv[0] === "tar" && argv.includes("xf");
+        }),
+      ).toBe(false);
+    } finally {
+      await fs.rm(workspaceDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  });
+
   it("enforces skill download byte caps", async () => {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-skills-install-"));
     try {

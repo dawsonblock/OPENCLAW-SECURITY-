@@ -214,10 +214,12 @@ async function monitorWebhook({
       const rawLength = req.headers["content-length"];
       const firstLength = Array.isArray(rawLength) ? rawLength[0] : rawLength;
       const declaredLength = Number.parseInt(firstLength ?? "", 10);
-      if (
-        Number.isFinite(declaredLength) &&
-        declaredLength > DEFAULT_FEISHU_WEBHOOK_MAX_BODY_BYTES
-      ) {
+      if (!Number.isFinite(declaredLength) || declaredLength < 0) {
+        res.writeHead(411);
+        res.end();
+        return;
+      }
+      if (declaredLength > DEFAULT_FEISHU_WEBHOOK_MAX_BODY_BYTES) {
         res.writeHead(413);
         res.end();
         return;

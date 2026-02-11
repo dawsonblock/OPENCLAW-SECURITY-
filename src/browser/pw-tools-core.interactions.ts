@@ -232,45 +232,9 @@ export async function evaluateViaPlaywright(opts: {
       "Unsafe browser evaluation is disabled. Set OPENCLAW_BROWSER_ALLOW_UNSAFE_EVAL=1 and use a non-Chrome-extension profile.",
     );
   }
-  const page = await getPageForTargetId(opts);
-  ensurePageState(page);
-  restoreRoleRefsForTarget({ cdpUrl: opts.cdpUrl, targetId: opts.targetId, page });
-  if (opts.ref) {
-    const locator = refLocator(page, opts.ref);
-    // Use Function constructor at runtime to avoid esbuild adding __name helper
-    // which doesn't exist in the browser context
-    // eslint-disable-next-line @typescript-eslint/no-implied-eval -- required for browser-context eval
-    const elementEvaluator = new Function(
-      "el",
-      "fnBody",
-      `
-      "use strict";
-      try {
-        var candidate = eval("(" + fnBody + ")");
-        return typeof candidate === "function" ? candidate(el) : candidate;
-      } catch (err) {
-        throw new Error("Invalid evaluate function: " + (err && err.message ? err.message : String(err)));
-      }
-      `,
-    ) as (el: Element, fnBody: string) => unknown;
-    return await locator.evaluate(elementEvaluator, fnText);
-  }
-  // Use Function constructor at runtime to avoid esbuild adding __name helper
-  // which doesn't exist in the browser context
-  // eslint-disable-next-line @typescript-eslint/no-implied-eval -- required for browser-context eval
-  const browserEvaluator = new Function(
-    "fnBody",
-    `
-    "use strict";
-    try {
-      var candidate = eval("(" + fnBody + ")");
-      return typeof candidate === "function" ? candidate() : candidate;
-    } catch (err) {
-      throw new Error("Invalid evaluate function: " + (err && err.message ? err.message : String(err)));
-    }
-    `,
-  ) as (fnBody: string) => unknown;
-  return await page.evaluate(browserEvaluator, fnText);
+  throw new Error(
+    "browser_string_eval_disabled: string-based browser evaluation is disabled for security hardening.",
+  );
 }
 
 export async function scrollIntoViewViaPlaywright(opts: {
@@ -348,7 +312,7 @@ export async function waitForViaPlaywright(opts: {
           "wait.fn is disabled unless OPENCLAW_BROWSER_ALLOW_UNSAFE_EVAL=1 is explicitly enabled.",
         );
       }
-      await page.waitForFunction(fn, { timeout });
+      throw new Error("browser_string_eval_disabled: wait.fn is disabled for security hardening.");
     }
   }
 }

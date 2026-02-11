@@ -87,7 +87,7 @@ async function promptTelegramAllowFrom(params: {
     const username = stripped.startsWith("@") ? stripped : `@${stripped}`;
     const url = `https://api.telegram.org/bot${token}/getChat?chat_id=${encodeURIComponent(username)}`;
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
       if (!res.ok) {
         return null;
       }
