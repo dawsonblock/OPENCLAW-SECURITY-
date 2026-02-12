@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
 import type { RfsnLedgerEntry } from "./types.js";
 import {
   appendLedgerEntry,
@@ -11,8 +11,16 @@ import {
 } from "./ledger.js";
 
 async function createTmpDir(): Promise<string> {
-  return fs.mkdtemp(path.join(os.tmpdir(), "openclaw-rfsn-ledger-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-rfsn-ledger-"));
+  // Override the ledger root so resolveLedgerRoot uses this dir instead of
+  // the shared vitest fallback path, preventing cross-run contamination.
+  process.env.OPENCLAW_LEDGER_DIR = dir;
+  return dir;
 }
+
+afterEach(() => {
+  delete process.env.OPENCLAW_LEDGER_DIR;
+});
 
 function entry(index: number): RfsnLedgerEntry {
   return {
