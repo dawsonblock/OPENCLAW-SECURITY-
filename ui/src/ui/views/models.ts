@@ -369,6 +369,122 @@ function renderAddProvider(
   `;
 }
 
+// ─── Gateway Network ─────────────────────────────────────────────────────────
+
+type BindMode = "auto" | "lan" | "loopback" | "custom" | "tailnet";
+
+const BIND_MODES: { value: BindMode; label: string; desc: string; color: string }[] = [
+  {
+    value: "loopback",
+    label: "Loopback",
+    desc: "127.0.0.1 — local only (most secure)",
+    color: "#22c55e",
+  },
+  {
+    value: "lan",
+    label: "LAN",
+    desc: "0.0.0.0 — all interfaces (phone/tablet access)",
+    color: "#eab308",
+  },
+  { value: "auto", label: "Auto", desc: "Automatic binding", color: "#3b82f6" },
+  { value: "tailnet", label: "Tailscale", desc: "Tailscale network only", color: "#8b5cf6" },
+  { value: "custom", label: "Custom", desc: "User-specified address", color: "#6b7280" },
+];
+
+function resolveBindMode(config: Record<string, unknown> | null): BindMode {
+  if (!config) {
+    return "auto";
+  }
+  const gateway = config.gateway as Record<string, unknown> | undefined;
+  if (!gateway || typeof gateway !== "object") {
+    return "auto";
+  }
+  const bind = gateway.bind as string | undefined;
+  if (bind && BIND_MODES.some((m) => m.value === bind)) {
+    return bind as BindMode;
+  }
+  return "auto";
+}
+
+function renderGatewayNetwork(props: ModelsProps) {
+  const current = resolveBindMode(props.configForm);
+  const mode = BIND_MODES.find((m) => m.value === current) ?? BIND_MODES[0];
+  const isExposed = current === "lan" || current === "custom";
+
+  return html`
+    <div class="card" style="margin-bottom: 24px; padding: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <div style="font-weight: 600; font-size: 16px;">🛡️ Gateway Network</div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span
+            style="width: 8px; height: 8px; border-radius: 50%; background: ${mode.color}; display: inline-block;"
+          ></span>
+          <span style="font-size: 13px; font-weight: 500;">${mode.label}</span>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 12px;">
+        <label class="label" style="display: block; margin-bottom: 4px;">Bind Mode</label>
+        <select
+          style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: var(--bg);"
+          @change=${(e: Event) => {
+            const target = e.target as HTMLSelectElement;
+            props.onConfigPatch(["gateway", "bind"], target.value);
+            props.onConfigSave();
+          }}
+        >
+          ${BIND_MODES.map(
+            (m) => html`
+              <option value=${m.value} ?selected=${current === m.value}>
+                ${m.label} — ${m.desc}
+              </option>
+            `,
+          )}
+        </select>
+      </div>
+
+      ${
+        isExposed
+          ? html`
+              <div
+                style="
+                  padding: 10px 14px;
+                  border-radius: 6px;
+                  font-size: 13px;
+                  line-height: 1.5;
+                  background: rgba(234, 179, 8, 0.1);
+                  border: 1px solid rgba(234, 179, 8, 0.3);
+                  color: var(--text);
+                "
+              >
+                ⚠️ <strong>Security:</strong> Any device on your network can reach the gateway. Use a strong token
+                and switch back to <strong>Loopback</strong> when done.
+              </div>
+            `
+          : html`
+              <div
+                style="
+                  padding: 10px 14px;
+                  border-radius: 6px;
+                  font-size: 13px;
+                  line-height: 1.5;
+                  background: rgba(34, 197, 94, 0.1);
+                  border: 1px solid rgba(34, 197, 94, 0.3);
+                  color: var(--text);
+                "
+              >
+                ✅ Gateway is only reachable from this machine.
+              </div>
+            `
+      }
+
+      <div class="muted" style="font-size: 12px; margin-top: 8px;">
+        Changes take effect after gateway restart.
+      </div>
+    </div>
+  `;
+}
+
 // ─── Module-scope form state ─────────────────────────────────────────────────
 // Lit re-renders blow away local variables, so we keep form state at module scope.
 
@@ -384,6 +500,8 @@ export function renderModels(props: ModelsProps) {
 
   return html`
     <div style="max-width: 720px;">
+      ${renderGatewayNetwork(props)}
+
       ${
         entries.length === 0 && !_addingPreset
           ? html`
