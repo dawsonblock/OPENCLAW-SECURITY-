@@ -72,6 +72,7 @@ import { renderExecApprovalPrompt } from "./views/exec-approval.ts";
 import { renderGatewayUrlConfirmation } from "./views/gateway-url-confirmation.ts";
 import { renderInstances } from "./views/instances.ts";
 import { renderLogs } from "./views/logs.ts";
+import { renderModels } from "./views/models.ts";
 import { renderNodes } from "./views/nodes.ts";
 import { renderOverview } from "./views/overview.ts";
 import { renderSessions } from "./views/sessions.ts";
@@ -1167,6 +1168,24 @@ export function renderApp(state: AppViewState) {
                 onSave: () => saveConfig(state),
                 onApply: () => applyConfig(state),
                 onUpdate: () => runUpdate(state),
+              })
+            : nothing
+        }
+
+        ${
+          state.tab === "models"
+            ? renderModels({
+                configForm:
+                  state.configForm ??
+                  (state.configSnapshot?.config as Record<string, unknown> | null),
+                configLoading: state.configLoading,
+                configSaving: state.configSaving,
+                configDirty: state.configFormDirty,
+                connected: state.connected,
+                onConfigPatch: (path, value) => updateConfigFormValue(state, path, value),
+                onConfigRemove: (path) => removeConfigFormValue(state, path),
+                onConfigSave: () => saveConfig(state),
+                onConfigReload: () => loadConfig(state),
               })
             : nothing
         }
