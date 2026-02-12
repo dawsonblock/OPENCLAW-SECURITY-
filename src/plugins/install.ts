@@ -10,6 +10,7 @@ import {
   resolvePackedRootDir,
 } from "../infra/archive.js";
 import { runCommandWithTimeout } from "../process/exec.js";
+import { verifyPluginArtifact } from "../security/plugin-verify.js";
 import { scanDirectoryWithSummary } from "../security/skill-scanner.js";
 import { buildScrubbedEnv } from "../security/subprocess.js";
 import { CONFIG_DIR, resolveUserPath } from "../utils.js";
@@ -78,6 +79,41 @@ function isPathInside(basePath: string, candidatePath: string): boolean {
   return rel === "" || (!rel.startsWith(`..${path.sep}`) && rel !== ".." && !path.isAbsolute(rel));
 }
 
+async function validatePluginPackageTree(packageDir: string): Promise<string | undefined> {
+  const rootDir = path.resolve(packageDir);
+  const stack = [rootDir];
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) {
+      continue;
+    }
+
+    const entries = await fs.readdir(current, { withFileTypes: true });
+    for (const entry of entries) {
+      const absolutePath = path.join(current, entry.name);
+      const stat = await fs.lstat(absolutePath);
+      const relativePath = path.relative(rootDir, absolutePath) || ".";
+
+      if (stat.isSymbolicLink()) {
+        return `plugin package contains symbolic link: ${relativePath}`;
+      }
+      if (stat.isDirectory()) {
+        stack.push(absolutePath);
+        continue;
+      }
+      if (!stat.isFile()) {
+        return `plugin package contains unsupported entry type: ${relativePath}`;
+      }
+      if (stat.nlink > 1) {
+        return `plugin package contains hard-linked file: ${relativePath}`;
+      }
+    }
+  }
+
+  return undefined;
+}
+
 function extensionUsesSkippedScannerPath(entry: string): boolean {
   const segments = entry.split(/[\\/]+/).filter(Boolean);
   return segments.some(
@@ -89,6 +125,41 @@ function extensionUsesSkippedScannerPath(entry: string): boolean {
 
 function shouldAllowNpmScripts(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.OPENCLAW_ALLOW_NPM_SCRIPTS === "1";
+}
+
+function requireSignedPlugins(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.OPENCLAW_REQUIRE_SIGNED_PLUGINS === "1";
+}
+
+async function validatePluginArtifactSignatureIfRequired(params: {
+  artifactPath: string;
+  env?: NodeJS.ProcessEnv;
+}): Promise<string | undefined> {
+  const env = params.env ?? process.env;
+  if (!requireSignedPlugins(env)) {
+    return undefined;
+  }
+  const publicKeyPem = env.OPENCLAW_PLUGIN_PUBKEY?.trim();
+  if (!publicKeyPem) {
+    return "signed plugin mode requires OPENCLAW_PLUGIN_PUBKEY";
+  }
+  const signaturePath = `${params.artifactPath}.sig`;
+  if (!(await fileExists(signaturePath))) {
+    return `signed plugin mode requires detached signature: ${signaturePath}`;
+  }
+  try {
+    const verified = verifyPluginArtifact({
+      artifactPath: params.artifactPath,
+      signaturePath,
+      publicKeyPem,
+    });
+    if (!verified) {
+      return `plugin signature invalid for ${params.artifactPath}`;
+    }
+  } catch (error) {
+    return `failed to verify plugin signature: ${String(error)}`;
+  }
+  return undefined;
 }
 
 function buildSecureNpmEnv(params?: {
@@ -204,6 +275,10 @@ async function installPluginFromPackageDir(params: {
   }
 
   const packageDir = path.resolve(params.packageDir);
+  const packageTreeError = await validatePluginPackageTree(packageDir);
+  if (packageTreeError) {
+    return { ok: false, error: packageTreeError };
+  }
   const forcedScanEntries: string[] = [];
   for (const entry of extensions) {
     const resolvedEntry = path.resolve(packageDir, entry);
@@ -375,6 +450,12 @@ export async function installPluginFromArchive(params: {
   if (!(await fileExists(archivePath))) {
     return { ok: false, error: `archive not found: ${archivePath}` };
   }
+  const signatureError = await validatePluginArtifactSignatureIfRequired({
+    artifactPath: archivePath,
+  });
+  if (signatureError) {
+    return { ok: false, error: signatureError };
+  }
 
   if (!resolveArchiveKind(archivePath)) {
     return { ok: false, error: `unsupported archive: ${archivePath}` };
@@ -431,6 +512,13 @@ export async function installPluginFromDir(params: {
   if (!stat.isDirectory()) {
     return { ok: false, error: `not a directory: ${dirPath}` };
   }
+  if (requireSignedPlugins()) {
+    return {
+      ok: false,
+      error:
+        "signed plugin mode does not support directory installs; use a signed archive or signed file install instead",
+    };
+  }
 
   return await installPluginFromPackageDir({
     packageDir: dirPath,
@@ -457,6 +545,12 @@ export async function installPluginFromFile(params: {
   const filePath = resolveUserPath(params.filePath);
   if (!(await fileExists(filePath))) {
     return { ok: false, error: `file not found: ${filePath}` };
+  }
+  const signatureError = await validatePluginArtifactSignatureIfRequired({
+    artifactPath: filePath,
+  });
+  if (signatureError) {
+    return { ok: false, error: signatureError };
   }
 
   const extensionsDir = params.extensionsDir
@@ -517,6 +611,13 @@ export async function installPluginFromNpmSpec(params: {
   const spec = params.spec.trim();
   if (!spec) {
     return { ok: false, error: "missing npm spec" };
+  }
+  if (requireSignedPlugins()) {
+    return {
+      ok: false,
+      error:
+        "signed plugin mode does not support npm registry installs; provide a signed archive or file artifact",
+    };
   }
 
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-npm-pack-"));

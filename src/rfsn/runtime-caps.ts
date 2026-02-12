@@ -52,7 +52,14 @@ export function resolveRfsnRuntimeCapabilities(params: {
     caps.add("net:search");
   }
   const signedPolicyRequired = envFlagEnabled("OPENCLAW_RFSN_REQUIRE_SIGNED_POLICY");
-  if (!signedPolicyRequired && envFlagEnabled("OPENCLAW_BROWSER_ALLOW_UNSAFE_EVAL")) {
+  const allowUnsafeEvalCapFromEnv = envFlagEnabled(
+    "OPENCLAW_RFSN_ALLOW_UNSAFE_BROWSER_EVAL_CAP_FROM_ENV",
+  );
+  if (
+    !signedPolicyRequired &&
+    allowUnsafeEvalCapFromEnv &&
+    envFlagEnabled("OPENCLAW_BROWSER_ALLOW_UNSAFE_EVAL")
+  ) {
     caps.add("browser:unsafe_eval");
   }
 

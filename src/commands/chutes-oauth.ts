@@ -14,6 +14,29 @@ type OAuthPrompt = {
   placeholder?: string;
 };
 
+function isLoopbackHost(hostRaw: string): boolean {
+  const host = hostRaw
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "");
+  return host === "127.0.0.1" || host === "localhost" || host === "::1";
+}
+
+function assertLocalCallbackHostAllowed(redirectUri: string): void {
+  const redirectUrl = new URL(redirectUri);
+  if (redirectUrl.protocol !== "http:") {
+    throw new Error(`Chutes OAuth redirect URI must be http:// (got ${redirectUri})`);
+  }
+  const hostname = redirectUrl.hostname || "127.0.0.1";
+  const allowNonLoopback = process.env.OPENCLAW_CHUTES_OAUTH_ALLOW_NON_LOOPBACK?.trim() === "1";
+  if (!isLoopbackHost(hostname) && !allowNonLoopback) {
+    throw new Error(
+      `Chutes OAuth redirect URI host "${hostname}" must be loopback. ` +
+        `Set OPENCLAW_CHUTES_OAUTH_ALLOW_NON_LOOPBACK=1 to allow.`,
+    );
+  }
+}
+
 function buildAuthorizeUrl(params: {
   clientId: string;
   redirectUri: string;
@@ -40,9 +63,7 @@ async function waitForLocalCallback(params: {
   onProgress?: (message: string) => void;
 }): Promise<{ code: string; state: string }> {
   const redirectUrl = new URL(params.redirectUri);
-  if (redirectUrl.protocol !== "http:") {
-    throw new Error(`Chutes OAuth redirect URI must be http:// (got ${params.redirectUri})`);
-  }
+  assertLocalCallbackHostAllowed(params.redirectUri);
   const hostname = redirectUrl.hostname || "127.0.0.1";
   const port = redirectUrl.port ? Number.parseInt(redirectUrl.port, 10) : 80;
   const expectedPath = redirectUrl.pathname || "/";
@@ -162,6 +183,7 @@ export async function loginChutes(params: {
     }
     codeAndState = parsed;
   } else {
+    assertLocalCallbackHostAllowed(params.app.redirectUri);
     const callback = waitForLocalCallback({
       redirectUri: params.app.redirectUri,
       expectedState: state,

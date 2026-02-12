@@ -231,4 +231,47 @@ describe("validateProviderConfig", () => {
       expect(result.errors).toEqual([]);
     });
   });
+
+  describe("webhook security invariants", () => {
+    it("fails when skipSignatureVerification is enabled with public webhook exposure", () => {
+      const config = createBaseConfig("twilio");
+      config.twilio = { accountSid: "AC123", authToken: "secret" };
+      config.skipSignatureVerification = true;
+      config.publicUrl = "https://example.com/voice/webhook";
+
+      const result = validateProviderConfig(config);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain(
+        "plugins.entries.voice-call.config.skipSignatureVerification cannot be enabled when webhook is externally reachable (publicUrl/tunnel/tailscale/non-loopback bind)",
+      );
+    });
+
+    it("fails when telnyx webhook is externally reachable without publicKey", () => {
+      const config = createBaseConfig("telnyx");
+      config.telnyx = { apiKey: "KEY123", connectionId: "CONN456" };
+      config.publicUrl = "https://example.com/voice/webhook";
+
+      const result = validateProviderConfig(config);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain(
+        "plugins.entries.voice-call.config.telnyx.publicKey is required when webhook is externally reachable (publicUrl/tunnel/tailscale/non-loopback bind)",
+      );
+    });
+
+    it("allows skipSignatureVerification when webhook is strictly local", () => {
+      const config = createBaseConfig("twilio");
+      config.twilio = { accountSid: "AC123", authToken: "secret" };
+      config.skipSignatureVerification = true;
+      config.serve.bind = "127.0.0.1";
+      config.tunnel = { provider: "none", allowNgrokFreeTierLoopbackBypass: false };
+      config.tailscale = { mode: "off", path: "/voice/webhook" };
+
+      const result = validateProviderConfig(config);
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toEqual([]);
+    });
+  });
 });

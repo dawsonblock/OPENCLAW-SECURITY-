@@ -43,8 +43,8 @@ export async function promptGatewayConfig(
         },
         {
           value: "auto",
-          label: "Auto (Loopback → LAN)",
-          hint: "Prefer loopback; fall back to all interfaces if unavailable",
+          label: "Auto (Loopback)",
+          hint: "Bind to loopback securely (equivalent to loopback mode)",
         },
         {
           value: "lan",
@@ -54,7 +54,7 @@ export async function promptGatewayConfig(
         {
           value: "custom",
           label: "Custom IP",
-          hint: "Specify a specific IP address, with 0.0.0.0 fallback if unavailable",
+          hint: "Specify a specific IP address, with loopback fallback if unavailable",
         },
       ],
     }),

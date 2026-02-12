@@ -142,11 +142,11 @@ export function isLocalGatewayAddress(ip: string | undefined): boolean {
  * Resolves gateway bind host with fallback strategy.
  *
  * Modes:
- * - loopback: 127.0.0.1 (rarely fails, but handled gracefully)
- * - lan: always 0.0.0.0 (no fallback)
+ * - loopback: 127.0.0.1
+ * - lan: always 0.0.0.0 (explicit operator opt-in)
  * - tailnet: Tailnet IPv4 if available, else loopback
- * - auto: Loopback if available, else 0.0.0.0
- * - custom: User-specified IP, fallback to 0.0.0.0 if unavailable
+ * - auto: loopback
+ * - custom: User-specified IP, fallback to loopback if unavailable/invalid
  *
  * @returns The bind address to use (never null)
  */
@@ -157,11 +157,7 @@ export async function resolveGatewayBindHost(
   const mode = bind ?? "loopback";
 
   if (mode === "loopback") {
-    // 127.0.0.1 rarely fails, but handle gracefully
-    if (await canBindToHost("127.0.0.1")) {
-      return "127.0.0.1";
-    }
-    return "0.0.0.0"; // extreme fallback
+    return "127.0.0.1";
   }
 
   if (mode === "tailnet") {
@@ -169,10 +165,7 @@ export async function resolveGatewayBindHost(
     if (tailnetIP && (await canBindToHost(tailnetIP))) {
       return tailnetIP;
     }
-    if (await canBindToHost("127.0.0.1")) {
-      return "127.0.0.1";
-    }
-    return "0.0.0.0";
+    return "127.0.0.1";
   }
 
   if (mode === "lan") {
@@ -182,24 +175,21 @@ export async function resolveGatewayBindHost(
   if (mode === "custom") {
     const host = customHost?.trim();
     if (!host) {
-      return "0.0.0.0";
-    } // invalid config → fall back to all
+      return "127.0.0.1";
+    } // invalid config -> fail closed to loopback
 
     if (isValidIPv4(host) && (await canBindToHost(host))) {
       return host;
     }
-    // Custom IP failed → fall back to LAN
-    return "0.0.0.0";
+    // Custom IP failed -> fail closed to loopback
+    return "127.0.0.1";
   }
 
   if (mode === "auto") {
-    if (await canBindToHost("127.0.0.1")) {
-      return "127.0.0.1";
-    }
-    return "0.0.0.0";
+    return "127.0.0.1";
   }
 
-  return "0.0.0.0";
+  return "127.0.0.1";
 }
 
 /**

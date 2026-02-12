@@ -1,4 +1,5 @@
 import type { RfsnRisk } from "./types.js";
+import { validateCapabilities } from "./capability-validate.js";
 import {
   type RfsnPolicyConstraints,
   type RfsnPolicyToolRuleConstraints,
@@ -175,6 +176,7 @@ export function bootstrapRfsnPolicy(params: {
     if (verify) {
       throw new Error("policy_verify_enabled_but_no_policy_path");
     }
+    validateCapabilities(params.basePolicy.grantedCapabilities);
     return {
       policy: params.basePolicy,
       policySha256: "default",
@@ -199,8 +201,11 @@ export function bootstrapRfsnPolicy(params: {
     }
   }
 
+  const constrainedPolicy = applyPolicyConstraints(params.basePolicy, loaded.constraints);
+  validateCapabilities(constrainedPolicy.grantedCapabilities);
+
   return {
-    policy: applyPolicyConstraints(params.basePolicy, loaded.constraints),
+    policy: constrainedPolicy,
     policySha256: sha256Hex(loaded.bytes),
     source: "file",
   };

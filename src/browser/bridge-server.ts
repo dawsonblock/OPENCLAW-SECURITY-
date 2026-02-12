@@ -18,6 +18,14 @@ export type BrowserBridge = {
   state: BrowserServerState;
 };
 
+function isLoopbackHost(hostRaw: string): boolean {
+  const host = hostRaw
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "");
+  return host === "127.0.0.1" || host === "localhost" || host === "::1";
+}
+
 function safeEqualToken(expected: string, provided: string): boolean {
   const left = Buffer.from(expected);
   const right = Buffer.from(provided);
@@ -41,6 +49,17 @@ export async function startBrowserBridgeServer(params: {
   app.use(express.json({ limit: "1mb" }));
 
   const authToken = params.authToken?.trim();
+  const allowLan = process.env.OPENCLAW_BROWSER_BRIDGE_ALLOW_LAN?.trim() === "1";
+  if (!isLoopbackHost(host) && !allowLan) {
+    throw new Error(
+      `browser bridge host "${host}" is not loopback. Set OPENCLAW_BROWSER_BRIDGE_ALLOW_LAN=1 to allow.`,
+    );
+  }
+  if (!isLoopbackHost(host) && !authToken) {
+    throw new Error(
+      `browser bridge host "${host}" requires authToken when binding non-loopback interfaces.`,
+    );
+  }
   if (authToken) {
     app.use((req, res, next) => {
       const auth = String(req.headers.authorization ?? "").trim();

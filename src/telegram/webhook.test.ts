@@ -131,12 +131,22 @@ describe("startTelegramWebhook", () => {
     ).rejects.toThrow("OPENCLAW_TELEGRAM_WEBHOOK_ALLOW_LAN=1");
 
     process.env.OPENCLAW_TELEGRAM_WEBHOOK_ALLOW_LAN = "1";
+    await expect(
+      startTelegramWebhook({
+        token: "tok",
+        config: { bindings: [] },
+        host: "0.0.0.0",
+        port: 0,
+      }),
+    ).rejects.toThrow("requires a secret token");
+
     const abort = new AbortController();
     const { stop } = await startTelegramWebhook({
       token: "tok",
       config: { bindings: [] },
       host: "0.0.0.0",
       port: 0,
+      secret: "lan-secret",
       abortSignal: abort.signal,
     });
     stop();

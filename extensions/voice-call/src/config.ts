@@ -460,12 +460,41 @@ export function validateProviderConfig(config: VoiceCallConfig): {
 } {
   const errors: string[] = [];
 
+  const normalizeHost = (hostRaw: string | undefined): string => {
+    return (hostRaw ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/^\[|\]$/g, "");
+  };
+  const isLoopbackBind = (hostRaw: string | undefined): boolean => {
+    const host = normalizeHost(hostRaw);
+    return host === "127.0.0.1" || host === "localhost" || host === "::1";
+  };
+  const hasPublicWebhookExposure = (() => {
+    if (config.publicUrl?.trim()) {
+      return true;
+    }
+    if ((config.tunnel?.provider ?? "none") !== "none") {
+      return true;
+    }
+    if ((config.tailscale?.mode ?? "off") !== "off") {
+      return true;
+    }
+    return !isLoopbackBind(config.serve?.bind);
+  })();
+
   if (!config.enabled) {
     return { valid: true, errors: [] };
   }
 
   if (!config.provider) {
     errors.push("plugins.entries.voice-call.config.provider is required");
+  }
+
+  if (config.skipSignatureVerification && hasPublicWebhookExposure) {
+    errors.push(
+      "plugins.entries.voice-call.config.skipSignatureVerification cannot be enabled when webhook is externally reachable (publicUrl/tunnel/tailscale/non-loopback bind)",
+    );
   }
 
   if (!config.fromNumber && config.provider !== "mock") {
@@ -489,6 +518,11 @@ export function validateProviderConfig(config: VoiceCallConfig): {
     ) {
       errors.push(
         "plugins.entries.voice-call.config.telnyx.publicKey is required for inboundPolicy allowlist/pairing",
+      );
+    }
+    if (hasPublicWebhookExposure && !config.telnyx?.publicKey) {
+      errors.push(
+        "plugins.entries.voice-call.config.telnyx.publicKey is required when webhook is externally reachable (publicUrl/tunnel/tailscale/non-loopback bind)",
       );
     }
   }

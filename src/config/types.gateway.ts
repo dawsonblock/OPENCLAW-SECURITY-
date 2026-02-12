@@ -221,15 +221,15 @@ export type GatewayConfig = {
   mode?: "local" | "remote";
   /**
    * Bind address policy for the Gateway WebSocket + Control UI HTTP server.
-   * - auto: Loopback (127.0.0.1) if available, else 0.0.0.0 (fallback to all interfaces)
+   * - auto: Loopback (127.0.0.1)
    * - lan: 0.0.0.0 (all interfaces, no fallback)
    * - loopback: 127.0.0.1 (local-only)
    * - tailnet: Tailnet IPv4 if available (100.64.0.0/10), else loopback
-   * - custom: User-specified IP, fallback to 0.0.0.0 if unavailable (requires customBindHost)
+   * - custom: User-specified IP, fallback to loopback if unavailable (requires customBindHost)
    * Default: loopback (127.0.0.1).
    */
   bind?: GatewayBindMode;
-  /** Custom IP address for bind="custom" mode. Fallback: 0.0.0.0. */
+  /** Custom IP address for bind="custom" mode. Fallback: loopback. */
   customBindHost?: string;
   controlUi?: GatewayControlUiConfig;
   auth?: GatewayAuthConfig;

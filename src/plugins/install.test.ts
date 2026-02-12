@@ -411,6 +411,86 @@ describe("installPluginFromArchive", () => {
     expect(warnings.some((w) => w.includes("dangerous code pattern"))).toBe(true);
   });
 
+  it("blocks install when plugin package contains symbolic links", async () => {
+    const tmpDir = makeTempDir();
+    const pluginDir = path.join(tmpDir, "plugin-src");
+    fs.mkdirSync(pluginDir, { recursive: true });
+
+    fs.writeFileSync(
+      path.join(pluginDir, "package.json"),
+      JSON.stringify({
+        name: "symlink-plugin",
+        version: "1.0.0",
+        openclaw: { extensions: ["index.js"] },
+      }),
+    );
+    fs.writeFileSync(path.join(pluginDir, "index.js"), "export {};\n");
+
+    const outsideTarget = path.join(tmpDir, "outside.js");
+    fs.writeFileSync(outsideTarget, "export const outside = true;\n");
+    try {
+      fs.symlinkSync(outsideTarget, path.join(pluginDir, "linked-outside.js"));
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === "EPERM" || code === "EACCES") {
+        // Some environments disallow symlink creation; skip in that case.
+        return;
+      }
+      throw err;
+    }
+
+    const { installPluginFromDir } = await import("./install.js");
+    const result = await installPluginFromDir({
+      dirPath: pluginDir,
+      extensionsDir: path.join(tmpDir, "extensions"),
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error).toContain("symbolic link");
+  });
+
+  it("blocks install when plugin package contains hard-linked files", async () => {
+    const tmpDir = makeTempDir();
+    const pluginDir = path.join(tmpDir, "plugin-src");
+    fs.mkdirSync(pluginDir, { recursive: true });
+
+    const indexPath = path.join(pluginDir, "index.js");
+    fs.writeFileSync(
+      path.join(pluginDir, "package.json"),
+      JSON.stringify({
+        name: "hardlink-plugin",
+        version: "1.0.0",
+        openclaw: { extensions: ["index.js"] },
+      }),
+    );
+    fs.writeFileSync(indexPath, "export {};\n");
+
+    try {
+      fs.linkSync(indexPath, path.join(pluginDir, "linked.js"));
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === "EPERM" || code === "EACCES" || code === "EXDEV") {
+        return;
+      }
+      throw err;
+    }
+
+    const { installPluginFromDir } = await import("./install.js");
+    const result = await installPluginFromDir({
+      dirPath: pluginDir,
+      extensionsDir: path.join(tmpDir, "extensions"),
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error).toContain("hard-linked file");
+  });
+
   it("allows critical findings only with explicit override", async () => {
     const tmpDir = makeTempDir();
     const pluginDir = path.join(tmpDir, "plugin-src");

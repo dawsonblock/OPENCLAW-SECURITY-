@@ -4,8 +4,14 @@ import { resolveBrowserConfig } from "./config.js";
 
 describe("browser bridge auth", () => {
   const servers: Array<{ close: () => Promise<void> }> = [];
+  const originalAllowLan = process.env.OPENCLAW_BROWSER_BRIDGE_ALLOW_LAN;
 
   afterEach(async () => {
+    if (typeof originalAllowLan === "string") {
+      process.env.OPENCLAW_BROWSER_BRIDGE_ALLOW_LAN = originalAllowLan;
+    } else {
+      delete process.env.OPENCLAW_BROWSER_BRIDGE_ALLOW_LAN;
+    }
     while (servers.length > 0) {
       const next = servers.pop();
       if (!next) {
@@ -33,5 +39,25 @@ describe("browser bridge auth", () => {
       },
     });
     expect(authenticated.status).not.toBe(401);
+  });
+
+  it("rejects non-loopback binding unless explicitly allowed", async () => {
+    delete process.env.OPENCLAW_BROWSER_BRIDGE_ALLOW_LAN;
+    await expect(
+      startBrowserBridgeServer({
+        resolved: resolveBrowserConfig({ enabled: true }),
+        host: "0.0.0.0",
+      }),
+    ).rejects.toThrow("OPENCLAW_BROWSER_BRIDGE_ALLOW_LAN=1");
+  });
+
+  it("requires authToken when binding non-loopback", async () => {
+    process.env.OPENCLAW_BROWSER_BRIDGE_ALLOW_LAN = "1";
+    await expect(
+      startBrowserBridgeServer({
+        resolved: resolveBrowserConfig({ enabled: true }),
+        host: "0.0.0.0",
+      }),
+    ).rejects.toThrow("requires authToken");
   });
 });

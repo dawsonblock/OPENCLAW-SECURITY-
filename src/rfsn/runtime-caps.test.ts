@@ -3,6 +3,8 @@ import { resolveRfsnRuntimeCapabilities } from "./runtime-caps.js";
 
 describe("resolveRfsnRuntimeCapabilities", () => {
   const originalUnsafeEvalFlag = process.env.OPENCLAW_BROWSER_ALLOW_UNSAFE_EVAL;
+  const originalAllowUnsafeEvalCapFromEnv =
+    process.env.OPENCLAW_RFSN_ALLOW_UNSAFE_BROWSER_EVAL_CAP_FROM_ENV;
   const originalRequireSignedPolicy = process.env.OPENCLAW_RFSN_REQUIRE_SIGNED_POLICY;
 
   function restoreUnsafeEvalFlag() {
@@ -10,6 +12,12 @@ describe("resolveRfsnRuntimeCapabilities", () => {
       process.env.OPENCLAW_BROWSER_ALLOW_UNSAFE_EVAL = originalUnsafeEvalFlag;
     } else {
       delete process.env.OPENCLAW_BROWSER_ALLOW_UNSAFE_EVAL;
+    }
+    if (typeof originalAllowUnsafeEvalCapFromEnv === "string") {
+      process.env.OPENCLAW_RFSN_ALLOW_UNSAFE_BROWSER_EVAL_CAP_FROM_ENV =
+        originalAllowUnsafeEvalCapFromEnv;
+    } else {
+      delete process.env.OPENCLAW_RFSN_ALLOW_UNSAFE_BROWSER_EVAL_CAP_FROM_ENV;
     }
     if (typeof originalRequireSignedPolicy === "string") {
       process.env.OPENCLAW_RFSN_REQUIRE_SIGNED_POLICY = originalRequireSignedPolicy;
@@ -47,14 +55,19 @@ describe("resolveRfsnRuntimeCapabilities", () => {
     expect(caps).toContain("net:messaging:inlinebuttons");
   });
 
-  test("grants browser:unsafe_eval only when explicit env flag is enabled", () => {
+  test("grants browser:unsafe_eval only with explicit dual env opt-in", () => {
     delete process.env.OPENCLAW_RFSN_REQUIRE_SIGNED_POLICY;
+    delete process.env.OPENCLAW_RFSN_ALLOW_UNSAFE_BROWSER_EVAL_CAP_FROM_ENV;
     delete process.env.OPENCLAW_BROWSER_ALLOW_UNSAFE_EVAL;
     expect(resolveRfsnRuntimeCapabilities({ sandboxed: false })).not.toContain(
       "browser:unsafe_eval",
     );
 
     process.env.OPENCLAW_BROWSER_ALLOW_UNSAFE_EVAL = "1";
+    expect(resolveRfsnRuntimeCapabilities({ sandboxed: false })).not.toContain(
+      "browser:unsafe_eval",
+    );
+    process.env.OPENCLAW_RFSN_ALLOW_UNSAFE_BROWSER_EVAL_CAP_FROM_ENV = "1";
     expect(resolveRfsnRuntimeCapabilities({ sandboxed: false })).toContain("browser:unsafe_eval");
     restoreUnsafeEvalFlag();
   });

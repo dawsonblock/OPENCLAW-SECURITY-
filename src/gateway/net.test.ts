@@ -1,6 +1,6 @@
 import os from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { pickPrimaryLanIPv4, resolveGatewayListenHosts } from "./net.js";
+import { pickPrimaryLanIPv4, resolveGatewayBindHost, resolveGatewayListenHosts } from "./net.js";
 
 describe("resolveGatewayListenHosts", () => {
   it("returns the input host when not loopback", async () => {
@@ -24,6 +24,28 @@ describe("resolveGatewayListenHosts", () => {
       canBindToHost: async () => false,
     });
     expect(hosts).toEqual(["127.0.0.1"]);
+  });
+});
+
+describe("resolveGatewayBindHost", () => {
+  it("keeps loopback mode loopback", async () => {
+    await expect(resolveGatewayBindHost("loopback")).resolves.toBe("127.0.0.1");
+  });
+
+  it("uses explicit LAN mode only when requested", async () => {
+    await expect(resolveGatewayBindHost("lan")).resolves.toBe("0.0.0.0");
+  });
+
+  it("falls back to loopback for invalid custom host", async () => {
+    await expect(resolveGatewayBindHost("custom", "192.168.001.100")).resolves.toBe("127.0.0.1");
+  });
+
+  it("falls back to loopback for missing custom host", async () => {
+    await expect(resolveGatewayBindHost("custom", "")).resolves.toBe("127.0.0.1");
+  });
+
+  it("keeps auto mode loopback-only", async () => {
+    await expect(resolveGatewayBindHost("auto")).resolves.toBe("127.0.0.1");
   });
 });
 

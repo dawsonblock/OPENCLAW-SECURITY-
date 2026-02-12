@@ -45,11 +45,15 @@ export async function startTelegramWebhook(opts: {
   const healthPath = opts.healthPath ?? "/healthz";
   const port = opts.port ?? 8787;
   const host = opts.host ?? "127.0.0.1";
+  const secret = typeof opts.secret === "string" ? opts.secret.trim() : "";
   const allowLan = process.env.OPENCLAW_TELEGRAM_WEBHOOK_ALLOW_LAN?.trim() === "1";
   if (!isLoopbackHost(host) && !allowLan) {
     throw new Error(
       `Telegram webhook host "${host}" is not loopback. Set OPENCLAW_TELEGRAM_WEBHOOK_ALLOW_LAN=1 to allow.`,
     );
+  }
+  if (!isLoopbackHost(host) && !secret) {
+    throw new Error(`Telegram webhook host "${host}" is non-loopback and requires a secret token.`);
   }
   const runtime = opts.runtime ?? defaultRuntime;
   const maxBodyBytes = Math.max(1, opts.maxBodyBytes ?? DEFAULT_WEBHOOK_MAX_BODY_BYTES);
@@ -62,7 +66,7 @@ export async function startTelegramWebhook(opts: {
     accountId: opts.accountId,
   });
   const handler = webhookCallback(bot, "http", {
-    secretToken: opts.secret,
+    secretToken: secret || undefined,
   });
 
   if (diagnosticsEnabled) {
@@ -130,7 +134,7 @@ export async function startTelegramWebhook(opts: {
     runtime,
     fn: () =>
       bot.api.setWebhook(publicUrl, {
-        secret_token: opts.secret,
+        secret_token: secret || undefined,
         allowed_updates: resolveTelegramAllowedUpdates(),
       }),
   });

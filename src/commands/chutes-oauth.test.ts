@@ -180,4 +180,26 @@ describe("loginChutes", () => {
       }),
     ).rejects.toThrow("Missing 'state' parameter");
   });
+
+  it("rejects non-loopback redirect URI host for local callback mode", async () => {
+    const onAuth = vi.fn(async () => {});
+    const onPrompt = vi.fn(async () => "http://127.0.0.1:1456/oauth-callback?code=x&state=y");
+    const fetchFn: typeof fetch = async () => new Response("not found", { status: 404 });
+
+    await expect(
+      loginChutes({
+        app: {
+          clientId: "cid_test",
+          redirectUri: "http://0.0.0.0:1456/oauth-callback",
+          scopes: ["openid"],
+        },
+        onAuth,
+        onPrompt,
+        fetchFn,
+      }),
+    ).rejects.toThrow("must be loopback");
+
+    expect(onAuth).not.toHaveBeenCalled();
+    expect(onPrompt).not.toHaveBeenCalled();
+  });
 });
