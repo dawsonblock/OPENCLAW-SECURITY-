@@ -45,7 +45,7 @@ describe("tailscale helpers", () => {
       }) as (code: number) => never,
     };
     await ensureGoInstalled(exec as never, prompt, runtime);
-    expect(exec).toHaveBeenCalledWith("brew", ["install", "go"]);
+    expect(exec).toHaveBeenCalledWith("brew", ["install", "go"], expect.any(Object));
   });
 
   it("ensureTailscaledInstalled installs when missing and user agrees", async () => {
@@ -59,7 +59,7 @@ describe("tailscale helpers", () => {
       }) as (code: number) => never,
     };
     await ensureTailscaledInstalled(exec as never, prompt, runtime);
-    expect(exec).toHaveBeenCalledWith("brew", ["install", "tailscale"]);
+    expect(exec).toHaveBeenCalledWith("brew", ["install", "tailscale"], expect.any(Object));
   });
 
   it("enableTailscaleServe attempts normal first, then sudo", async () => {
@@ -146,6 +146,7 @@ describe("tailscale helpers", () => {
       1,
       tailscaleBin,
       expect.arrayContaining(["funnel", "status", "--json"]),
+      expect.any(Object),
     );
 
     // 2. enable normal

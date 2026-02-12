@@ -127,7 +127,7 @@ describe("pw-tools-core", () => {
     expect(dismiss).toHaveBeenCalled();
     expect(accept).not.toHaveBeenCalled();
   });
-  it("waits for selector, url, load state, and function", async () => {
+  it("waits for selector, url, load state, and rejects fn for security", async () => {
     const waitForSelector = vi.fn(async () => {});
     const waitForURL = vi.fn(async () => {});
     const waitForLoadState = vi.fn(async () => {});
@@ -146,13 +146,23 @@ describe("pw-tools-core", () => {
     };
 
     const mod = await importModule();
+
+    // fn is disabled for security hardening — verify the error
+    await expect(
+      mod.waitForViaPlaywright({
+        cdpUrl: "http://127.0.0.1:18792",
+        fn: "window.ready===true",
+        allowUnsafeEval: true,
+        timeoutMs: 1234,
+      }),
+    ).rejects.toThrow("browser_string_eval_disabled");
+
+    // Non-fn waits should still work
     await mod.waitForViaPlaywright({
       cdpUrl: "http://127.0.0.1:18792",
       selector: "#main",
       url: "**/dash",
       loadState: "networkidle",
-      fn: "window.ready===true",
-      allowUnsafeEval: true,
       timeoutMs: 1234,
       timeMs: 50,
     });
@@ -165,9 +175,6 @@ describe("pw-tools-core", () => {
     });
     expect(waitForURL).toHaveBeenCalledWith("**/dash", { timeout: 1234 });
     expect(waitForLoadState).toHaveBeenCalledWith("networkidle", {
-      timeout: 1234,
-    });
-    expect(waitForFunction).toHaveBeenCalledWith("window.ready===true", {
       timeout: 1234,
     });
   });

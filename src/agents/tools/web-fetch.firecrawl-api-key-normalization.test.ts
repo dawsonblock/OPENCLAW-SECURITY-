@@ -1,9 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+let fetchGuardCallCount = 0;
 vi.mock("../../infra/net/fetch-guard.js", () => {
   return {
-    fetchWithSsrFGuard: vi.fn(async () => {
-      throw new Error("network down");
+    fetchWithSsrFGuard: vi.fn(async (params: { url: string; init?: RequestInit }) => {
+      fetchGuardCallCount += 1;
+      if (fetchGuardCallCount === 1) {
+        throw new Error("network down");
+      }
+      // Firecrawl fallback: delegate to global.fetch so the test spy intercepts
+      const response = await globalThis.fetch(params.url, params.init);
+      return { response, finalUrl: params.url, release: async () => {} };
     }),
   };
 });
@@ -14,6 +21,7 @@ describe("web_fetch firecrawl apiKey normalization", () => {
   afterEach(() => {
     // @ts-expect-error restore
     global.fetch = priorFetch;
+    fetchGuardCallCount = 0;
     vi.restoreAllMocks();
   });
 

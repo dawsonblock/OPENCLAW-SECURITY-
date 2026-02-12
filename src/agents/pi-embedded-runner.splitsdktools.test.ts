@@ -100,13 +100,16 @@ const _readSessionMessages = async (sessionFile: string) => {
 };
 
 function createStubTool(name: string): AgentTool<unknown, unknown> {
-  return {
+  const tool = {
     name,
     label: name,
     description: "",
     parameters: {},
     execute: async () => ({}) as AgentToolResult<unknown>,
   };
+  // Mark as RFSN-wrapped so it passes the final-authority check
+  (tool as Record<string | symbol, unknown>)[Symbol.for("openclaw.rfsn.wrapped")] = true;
+  return tool;
 }
 
 describe("splitSdkTools", () => {
