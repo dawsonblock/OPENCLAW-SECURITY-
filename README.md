@@ -128,6 +128,8 @@ Run `openclaw doctor` to surface risky/misconfigured DM policies.
 - **[First-class tools](https://docs.openclaw.ai/tools)** — browser, canvas, nodes, cron, sessions, and Discord/Slack actions.
 - **[Companion apps](https://docs.openclaw.ai/platforms/macos)** — macOS menu bar app + iOS/Android [nodes](https://docs.openclaw.ai/nodes).
 - **[Onboarding](https://docs.openclaw.ai/start/wizard) + [skills](https://docs.openclaw.ai/tools/skills)** — wizard-driven setup with bundled/managed/workspace skills.
+- **[Models Management](#-control-ui--models-tab)** — visual LLM provider configuration with multi-provider support (OpenAI, Anthropic, Google Gemini, DeepSeek, Groq, Together).
+- **[LAN / Mobile Access](#-lan--mobile-access)** — access the Control UI and chat from any device on your local network, including iPhone and Android.
 
 ## Star History
 
@@ -465,6 +467,118 @@ Every security module includes dedicated test files:
 - `src/imessage/client.allowed-bins.test.ts` — binary allowlist for iMessage
 - `src/browser/bridge-server.auth.test.ts` — browser auth proxy
 - `src/infra/node-pairing.test.ts` — pairing security
+
+## 🧠 Control UI — Models Tab
+
+The Control UI now includes a dedicated **Models** tab for configuring LLM providers and API keys directly from the dashboard — no config file editing required.
+
+### Supported Provider Presets
+
+| Provider          | API Type               | Example Models                    |
+| ----------------- | ---------------------- | --------------------------------- |
+| OpenAI            | `openai-responses`     | GPT-4o, GPT-4o Mini, o3-mini      |
+| Anthropic         | `anthropic-messages`   | Claude Sonnet 4, Claude 3.5 Haiku |
+| Google Gemini     | `google-generative-ai` | Gemini 2.5 Pro, Gemini 2.5 Flash  |
+| OpenAI-Compatible | `openai-completions`   | DeepSeek, Groq, Together, Ollama  |
+| GitHub Copilot    | `openai-completions`   | Copilot models                    |
+| AWS Bedrock       | `anthropic-messages`   | Bedrock Claude models             |
+
+### Multi-Provider Config Example
+
+Add multiple providers to `~/.openclaw/openclaw.json` (or `~/.openclaw-dev/openclaw.json` for dev mode):
+
+```json5
+{
+  models: {
+    providers: {
+      openai: {
+        baseUrl: "https://api.openai.com/v1",
+        api: "openai-responses",
+        apiKey: "sk-...",
+        models: ["gpt-4o", "gpt-4o-mini", "o3-mini"],
+      },
+      anthropic: {
+        baseUrl: "https://api.anthropic.com",
+        api: "anthropic-messages",
+        apiKey: "sk-ant-...",
+        models: ["claude-sonnet-4-20250514", "claude-3-5-haiku-20241022"],
+      },
+      "google-gemini": {
+        baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+        api: "google-generative-ai",
+        apiKey: "AIza...",
+        models: ["gemini-2.5-pro", "gemini-2.5-flash"],
+      },
+    },
+  },
+}
+```
+
+Set the agent model in `agents.defaults.model`:
+
+```json5
+{
+  agents: {
+    defaults: {
+      model: { primary: "google-gemini/gemini-2.5-flash" },
+    },
+  },
+}
+```
+
+### Files Changed
+
+- `ui/src/ui/views/models.ts` — new Models view with provider presets, Add Provider form, and per-provider model listing
+- `ui/src/ui/navigation.ts` — added `models` tab to the sidebar navigation
+- `ui/src/ui/app-render.ts` — wired the Models view into the router
+- `ui/src/ui/navigation.test.ts` — test coverage for the new tab
+
+## 📱 LAN / Mobile Access
+
+Access the OpenClaw Control UI from your iPhone, Android device, or any other device on your local network.
+
+### Setup
+
+1. **Set gateway bind to LAN** in your config (`~/.openclaw-dev/openclaw.json` for dev mode):
+
+```json5
+{
+  gateway: {
+    bind: "lan", // binds to 0.0.0.0 instead of 127.0.0.1
+  },
+}
+```
+
+2. **Start the UI dev server with `--host`** (exposes Vite on all interfaces):
+
+```bash
+node scripts/ui.js dev --host
+```
+
+3. **Start the gateway with a token**:
+
+```bash
+OPENCLAW_GATEWAY_TOKEN=your-token pnpm gateway:dev
+```
+
+4. **Open the URL on your device** (replace `YOUR_MAC_IP` with your Mac's local IP, e.g. `192.168.1.x`):
+
+```
+http://YOUR_MAC_IP:5173/?gatewayUrl=ws://YOUR_MAC_IP:19001&token=your-token
+```
+
+Find your Mac's IP with: `ipconfig getifaddr en0`
+
+### Bind Modes
+
+| Mode       | Bind Address   | Use Case                                      |
+| ---------- | -------------- | --------------------------------------------- |
+| `loopback` | `127.0.0.1`    | Local-only (default, most secure)             |
+| `lan`      | `0.0.0.0`      | All interfaces (LAN access from phone/tablet) |
+| `tailnet`  | Tailscale IP   | Tailscale network access                      |
+| `custom`   | User-specified | Custom IP binding                             |
+
+> ⚠️ **Security note:** When using `lan` bind mode, any device on your local network can reach the gateway. Always use a strong gateway token and consider switching back to `loopback` when LAN access is not needed.
 
 ### [WhatsApp](https://docs.openclaw.ai/channels/whatsapp)
 
