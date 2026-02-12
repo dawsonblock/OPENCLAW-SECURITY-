@@ -233,6 +233,8 @@ export async function openUrl(url: string): Promise<boolean> {
     await runCommandWithTimeout(command, {
       timeoutMs: 5_000,
       windowsVerbatimArguments: quoteUrl,
+      allowedBins: [command[0] ?? ""],
+      allowAbsolutePath: path.isAbsolute(command[0] ?? ""),
     });
     return true;
   } catch {
@@ -254,7 +256,10 @@ export async function openUrlInBackground(url: string): Promise<boolean> {
   }
   const command = ["open", "-g", url];
   try {
-    await runCommandWithTimeout(command, { timeoutMs: 5_000 });
+    await runCommandWithTimeout(command, {
+      timeoutMs: 5_000,
+      allowedBins: ["open"],
+    });
     return true;
   } catch {
     return false;
@@ -297,7 +302,10 @@ export async function moveToTrash(pathname: string, runtime: RuntimeEnv): Promis
     return;
   }
   try {
-    await runCommandWithTimeout(["trash", pathname], { timeoutMs: 5000 });
+    await runCommandWithTimeout(["trash", pathname], {
+      timeoutMs: 5000,
+      allowedBins: ["trash"],
+    });
     runtime.log(`Moved to Trash: ${shortenHomePath(pathname)}`);
   } catch {
     runtime.log(`Failed to move to Trash (manual delete): ${shortenHomePath(pathname)}`);
@@ -340,7 +348,11 @@ export async function detectBinary(name: string): Promise<boolean> {
 
   const command = process.platform === "win32" ? ["where", name] : ["/usr/bin/env", "which", name];
   try {
-    const result = await runCommandWithTimeout(command, { timeoutMs: 2000 });
+    const result = await runCommandWithTimeout(command, {
+      timeoutMs: 2000,
+      allowedBins: [command[0] ?? ""],
+      allowAbsolutePath: path.isAbsolute(command[0] ?? ""),
+    });
     return result.code === 0 && result.stdout.trim().length > 0;
   } catch {
     return false;

@@ -85,6 +85,7 @@ async function detectPackageManager(root: string): Promise<PackageManager> {
 async function detectGitRoot(root: string): Promise<string | null> {
   const res = await runCommandWithTimeout(["git", "-C", root, "rev-parse", "--show-toplevel"], {
     timeoutMs: 4000,
+    allowedBins: ["git"],
   }).catch(() => null);
   if (!res || res.code !== 0) {
     return null;
@@ -115,7 +116,7 @@ export async function checkGitUpdateStatus(params: {
 
   const branchRes = await runCommandWithTimeout(
     ["git", "-C", root, "rev-parse", "--abbrev-ref", "HEAD"],
-    { timeoutMs },
+    { timeoutMs, allowedBins: ["git"] },
   ).catch(() => null);
   if (!branchRes || branchRes.code !== 0) {
     return { ...base, error: branchRes?.stderr?.trim() || "git unavailable" };
@@ -124,29 +125,33 @@ export async function checkGitUpdateStatus(params: {
 
   const shaRes = await runCommandWithTimeout(["git", "-C", root, "rev-parse", "HEAD"], {
     timeoutMs,
+    allowedBins: ["git"],
   }).catch(() => null);
   const sha = shaRes && shaRes.code === 0 ? shaRes.stdout.trim() : null;
 
   const tagRes = await runCommandWithTimeout(
     ["git", "-C", root, "describe", "--tags", "--exact-match"],
-    { timeoutMs },
+    { timeoutMs, allowedBins: ["git"] },
   ).catch(() => null);
   const tag = tagRes && tagRes.code === 0 ? tagRes.stdout.trim() : null;
 
   const upstreamRes = await runCommandWithTimeout(
     ["git", "-C", root, "rev-parse", "--abbrev-ref", "@{upstream}"],
-    { timeoutMs },
+    { timeoutMs, allowedBins: ["git"] },
   ).catch(() => null);
   const upstream = upstreamRes && upstreamRes.code === 0 ? upstreamRes.stdout.trim() : null;
 
   const dirtyRes = await runCommandWithTimeout(
     ["git", "-C", root, "status", "--porcelain", "--", ":!dist/control-ui/"],
-    { timeoutMs },
+    { timeoutMs, allowedBins: ["git"] },
   ).catch(() => null);
   const dirty = dirtyRes && dirtyRes.code === 0 ? dirtyRes.stdout.trim().length > 0 : null;
 
   const fetchOk = params.fetch
-    ? await runCommandWithTimeout(["git", "-C", root, "fetch", "--quiet", "--prune"], { timeoutMs })
+    ? await runCommandWithTimeout(["git", "-C", root, "fetch", "--quiet", "--prune"], {
+        timeoutMs,
+        allowedBins: ["git"],
+      })
         .then((r) => r.code === 0)
         .catch(() => false)
     : null;
@@ -155,7 +160,7 @@ export async function checkGitUpdateStatus(params: {
     upstream && upstream.length > 0
       ? await runCommandWithTimeout(
           ["git", "-C", root, "rev-list", "--left-right", "--count", `HEAD...${upstream}`],
-          { timeoutMs },
+          { timeoutMs, allowedBins: ["git"] },
         ).catch(() => null)
       : null;
 

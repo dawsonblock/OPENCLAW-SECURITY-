@@ -1,11 +1,8 @@
-import { execFile, spawn } from "node:child_process";
 import path from "node:path";
-import { promisify } from "node:util";
 import { danger, shouldLogVerbose } from "../globals.js";
 import { logDebug, logError } from "../logger.js";
+import { runAllowedCommand, spawnAllowed } from "../security/subprocess.js";
 import { resolveCommandStdio } from "./spawn-utils.js";
-
-const execFileAsync = promisify(execFile);
 
 /**
  * Resolves a command for Windows compatibility.
@@ -29,22 +26,62 @@ function resolveCommand(command: string): string {
   return command;
 }
 
-// Simple promise-wrapped execFile with optional verbosity logging.
+export type RunExecOptions = {
+  timeoutMs?: number;
+  maxBuffer?: number;
+  allowedBins: string[];
+  allowAbsolutePath?: boolean;
+  inheritEnv?: boolean;
+  allowEnv?: Iterable<string>;
+  envOverrides?: Record<string, string | undefined>;
+};
+
+// Run a command with scrubbed environment + executable allowlist.
 export async function runExec(
   command: string,
   args: string[],
-  opts: number | { timeoutMs?: number; maxBuffer?: number } = 10_000,
+  opts: number | RunExecOptions = 10_000,
 ): Promise<{ stdout: string; stderr: string }> {
-  const options =
+  const options: RunExecOptions =
     typeof opts === "number"
-      ? { timeout: opts, encoding: "utf8" as const }
-      : {
-          timeout: opts.timeoutMs,
-          maxBuffer: opts.maxBuffer,
-          encoding: "utf8" as const,
-        };
+      ? {
+          timeoutMs: opts,
+          allowedBins: [path.basename(command)],
+        }
+      : opts;
+  if (!Array.isArray(options.allowedBins) || options.allowedBins.length === 0) {
+    throw new Error("runExec: allowedBins is required");
+  }
+  const resolvedCommand = resolveCommand(command);
+  const allowAbsolutePath = options.allowAbsolutePath === true;
   try {
-    const { stdout, stderr } = await execFileAsync(resolveCommand(command), args, options);
+    const { code, signal, stdout, stderr } = await runAllowedCommand({
+      command: resolvedCommand,
+      args,
+      allowedBins: options.allowedBins,
+      allowAbsolutePath,
+      timeoutMs: options.timeoutMs,
+      maxStdoutBytes: options.maxBuffer,
+      maxStderrBytes: options.maxBuffer,
+      inheritEnv: options.inheritEnv,
+      allowEnv: options.allowEnv,
+      envOverrides: options.envOverrides,
+    });
+    if (code !== 0) {
+      const err = new Error(
+        `Command failed: ${resolvedCommand} ${args.join(" ")} (code=${code ?? "null"}, signal=${signal ?? "null"})`,
+      ) as Error & {
+        code?: number | null;
+        signal?: NodeJS.Signals | null;
+        stdout?: string;
+        stderr?: string;
+      };
+      err.code = code;
+      err.signal = signal;
+      err.stdout = stdout;
+      err.stderr = stderr;
+      throw err;
+    }
     if (shouldLogVerbose()) {
       if (stdout.trim()) {
         logDebug(stdout.trim());
@@ -74,8 +111,15 @@ export type CommandOptions = {
   timeoutMs: number;
   cwd?: string;
   input?: string;
+  // Backward-compatible alias for envOverrides.
   env?: NodeJS.ProcessEnv;
+  // Backward-compatible alias for inheritEnv.
   inheritProcessEnv?: boolean;
+  allowedBins: string[];
+  allowAbsolutePath?: boolean;
+  inheritEnv?: boolean;
+  allowEnv?: Iterable<string>;
+  envOverrides?: Record<string, string | undefined>;
   windowsVerbatimArguments?: boolean;
 };
 
@@ -83,11 +127,20 @@ export async function runCommandWithTimeout(
   argv: string[],
   optionsOrTimeout: number | CommandOptions,
 ): Promise<SpawnResult> {
+  if (!argv?.length || !argv[0]?.trim()) {
+    throw new Error("runCommandWithTimeout: empty argv");
+  }
+
   const options: CommandOptions =
-    typeof optionsOrTimeout === "number" ? { timeoutMs: optionsOrTimeout } : optionsOrTimeout;
-  const { timeoutMs, cwd, input, env, inheritProcessEnv } = options;
+    typeof optionsOrTimeout === "number"
+      ? ({ timeoutMs: optionsOrTimeout, allowedBins: [] } as CommandOptions)
+      : optionsOrTimeout;
+  const { timeoutMs, cwd, input, env, inheritProcessEnv, allowEnv, envOverrides } = options;
   const { windowsVerbatimArguments } = options;
   const hasInput = input !== undefined;
+  if (!Array.isArray(options.allowedBins) || options.allowedBins.length === 0) {
+    throw new Error("runCommandWithTimeout: allowedBins is required");
+  }
 
   const shouldSuppressNpmFund = (() => {
     const cmd = path.basename(argv[0] ?? "");
@@ -101,23 +154,33 @@ export async function runCommandWithTimeout(
     return false;
   })();
 
-  const baseEnv = inheritProcessEnv === false ? {} : process.env;
-  const resolvedEnv = env ? { ...baseEnv, ...env } : { ...baseEnv };
+  const mergedEnvOverrides: Record<string, string | undefined> = {
+    ...envOverrides,
+    ...(env as Record<string, string | undefined> | undefined),
+  };
   if (shouldSuppressNpmFund) {
-    if (resolvedEnv.NPM_CONFIG_FUND == null) {
-      resolvedEnv.NPM_CONFIG_FUND = "false";
+    if (mergedEnvOverrides.NPM_CONFIG_FUND == null) {
+      mergedEnvOverrides.NPM_CONFIG_FUND = "false";
     }
-    if (resolvedEnv.npm_config_fund == null) {
-      resolvedEnv.npm_config_fund = "false";
+    if (mergedEnvOverrides.npm_config_fund == null) {
+      mergedEnvOverrides.npm_config_fund = "false";
     }
   }
 
   const stdio = resolveCommandStdio({ hasInput, preferInherit: true });
-  const child = spawn(resolveCommand(argv[0]), argv.slice(1), {
-    stdio,
+  const command = resolveCommand(argv[0]);
+  const child = spawnAllowed({
+    command,
+    args: argv.slice(1),
+    allowedBins: options.allowedBins,
+    allowAbsolutePath: options.allowAbsolutePath === true,
     cwd,
-    env: resolvedEnv,
+    stdio,
+    windowsHide: true,
     windowsVerbatimArguments,
+    inheritEnv: options.inheritEnv ?? inheritProcessEnv !== false,
+    allowEnv,
+    envOverrides: mergedEnvOverrides,
   });
   // Spawn with inherited stdin (TTY) so tools like `pi` stay interactive when needed.
   return await new Promise((resolve, reject) => {

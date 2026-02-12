@@ -35,7 +35,11 @@ export async function findTailscaleBinary(): Promise<string | null> {
     try {
       // Use Promise.race with runExec to implement timeout
       await Promise.race([
-        runExec(path, ["--version"], { timeoutMs: 3000 }),
+        runExec(path, ["--version"], {
+          timeoutMs: 3000,
+          allowedBins: [path],
+          allowAbsolutePath: true,
+        }),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 3000)),
       ]);
       return true;
@@ -46,7 +50,7 @@ export async function findTailscaleBinary(): Promise<string | null> {
 
   // Strategy 1: which command
   try {
-    const { stdout } = await runExec("which", ["tailscale"]);
+    const { stdout } = await runExec("which", ["tailscale"], { allowedBins: ["which"] });
     const fromPath = stdout.trim();
     if (fromPath && (await checkBinary(fromPath))) {
       return fromPath;
@@ -74,7 +78,7 @@ export async function findTailscaleBinary(): Promise<string | null> {
         "-path",
         "*/Tailscale.app/Contents/MacOS/Tailscale",
       ],
-      { timeoutMs: 5000 },
+      { timeoutMs: 5000, allowedBins: ["find"] },
     );
     const found = stdout.trim().split("\n")[0];
     if (found && (await checkBinary(found))) {
@@ -86,7 +90,7 @@ export async function findTailscaleBinary(): Promise<string | null> {
 
   // Strategy 4: locate command
   try {
-    const { stdout } = await runExec("locate", ["Tailscale.app"]);
+    const { stdout } = await runExec("locate", ["Tailscale.app"], { allowedBins: ["locate"] });
     const candidates = stdout
       .trim()
       .split("\n")
@@ -118,6 +122,8 @@ export async function getTailnetHostname(exec: typeof runExec = runExec, detecte
       const { stdout } = await exec(candidate, ["status", "--json"], {
         timeoutMs: 5000,
         maxBuffer: 400_000,
+        allowedBins: [candidate],
+        allowAbsolutePath: true,
       });
       const parsed = stdout ? parsePossiblyNoisyJsonObject(stdout) : {};
       const self =
@@ -165,6 +171,8 @@ export async function readTailscaleStatusJson(
   const { stdout } = await exec(tailscaleBin, ["status", "--json"], {
     timeoutMs: opts?.timeoutMs ?? 5000,
     maxBuffer: 400_000,
+    allowedBins: [tailscaleBin],
+    allowAbsolutePath: true,
   });
   return stdout ? parsePossiblyNoisyJsonObject(stdout) : {};
 }
@@ -175,7 +183,7 @@ export async function ensureGoInstalled(
   runtime: RuntimeEnv = defaultRuntime,
 ) {
   // Ensure Go toolchain is present; offer Homebrew install if missing.
-  const hasGo = await exec("go", ["version"]).then(
+  const hasGo = await exec("go", ["version"], { allowedBins: ["go"] }).then(
     () => true,
     () => false,
   );
@@ -191,7 +199,7 @@ export async function ensureGoInstalled(
     runtime.exit(1);
   }
   logVerbose("Installing Go via Homebrew…");
-  await exec("brew", ["install", "go"]);
+  await exec("brew", ["install", "go"], { allowedBins: ["brew"] });
 }
 
 export async function ensureTailscaledInstalled(
@@ -200,7 +208,9 @@ export async function ensureTailscaledInstalled(
   runtime: RuntimeEnv = defaultRuntime,
 ) {
   // Ensure tailscaled binary exists; install via Homebrew tailscale if missing.
-  const hasTailscaled = await exec("tailscaled", ["--version"]).then(
+  const hasTailscaled = await exec("tailscaled", ["--version"], {
+    allowedBins: ["tailscaled"],
+  }).then(
     () => true,
     () => false,
   );
@@ -217,7 +227,7 @@ export async function ensureTailscaledInstalled(
     runtime.exit(1);
   }
   logVerbose("Installing tailscaled via Homebrew…");
-  await exec("brew", ["install", "tailscale"]);
+  await exec("brew", ["install", "tailscale"], { allowedBins: ["brew"] });
 }
 
 type ExecErrorDetails = {
@@ -275,14 +285,21 @@ async function execWithSudoFallback(
   opts: { maxBuffer?: number; timeoutMs?: number },
 ): Promise<{ stdout: string; stderr: string }> {
   try {
-    return await exec(bin, args, opts);
+    return await exec(bin, args, {
+      ...opts,
+      allowedBins: [bin],
+      allowAbsolutePath: true,
+    });
   } catch (err) {
     if (!isPermissionDeniedError(err)) {
       throw err;
     }
     logVerbose(`Command failed, retrying with sudo: ${bin} ${args.join(" ")}`);
     try {
-      return await exec("sudo", ["-n", bin, ...args], opts);
+      return await exec("sudo", ["-n", bin, ...args], {
+        ...opts,
+        allowedBins: ["sudo"],
+      });
     } catch (sudoErr) {
       const { stderr, message } = extractExecErrorText(sudoErr);
       const detail = (stderr || message).trim();
@@ -303,7 +320,12 @@ export async function ensureFunnel(
   // Ensure Funnel is enabled and publish the webhook port.
   try {
     const tailscaleBin = await getTailscaleBinary();
-    const statusOut = (await exec(tailscaleBin, ["funnel", "status", "--json"])).stdout.trim();
+    const statusOut = (
+      await exec(tailscaleBin, ["funnel", "status", "--json"], {
+        allowedBins: [tailscaleBin],
+        allowAbsolutePath: true,
+      })
+    ).stdout.trim();
     const parsed = statusOut ? (JSON.parse(statusOut) as Record<string, unknown>) : {};
     if (!parsed || Object.keys(parsed).length === 0) {
       runtime.error(danger("Tailscale Funnel is not enabled on this tailnet/device."));
@@ -483,6 +505,8 @@ export async function readTailscaleWhoisIdentity(
     const { stdout } = await exec(tailscaleBin, ["whois", "--json", normalized], {
       timeoutMs: opts?.timeoutMs ?? 5_000,
       maxBuffer: 200_000,
+      allowedBins: [tailscaleBin],
+      allowAbsolutePath: true,
     });
     const parsed = stdout ? parsePossiblyNoisyJsonObject(stdout) : {};
     const identity = parseWhoisIdentity(parsed);

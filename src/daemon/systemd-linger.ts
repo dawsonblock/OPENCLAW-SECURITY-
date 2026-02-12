@@ -28,6 +28,7 @@ export async function readSystemdUserLingerStatus(
   try {
     const { stdout } = await runExec("loginctl", ["show-user", user, "-p", "Linger"], {
       timeoutMs: 5_000,
+      allowedBins: ["loginctl"],
     });
     const line = stdout
       .split("\n")
@@ -59,7 +60,10 @@ export async function enableSystemdUserLinger(params: {
       : [];
   const argv = [...sudoArgs, "loginctl", "enable-linger", user];
   try {
-    const result = await runCommandWithTimeout(argv, { timeoutMs: 30_000 });
+    const result = await runCommandWithTimeout(argv, {
+      timeoutMs: 30_000,
+      allowedBins: ["sudo", "loginctl"],
+    });
     return {
       ok: result.code === 0,
       stdout: result.stdout,

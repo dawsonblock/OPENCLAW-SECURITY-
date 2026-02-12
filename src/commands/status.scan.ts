@@ -85,7 +85,12 @@ export async function scanStatus(
         tailscaleMode === "off"
           ? null
           : await getTailnetHostname((cmd, args) =>
-              runExec(cmd, args, { timeoutMs: 1200, maxBuffer: 200_000 }),
+              runExec(cmd, args, {
+                timeoutMs: 1200,
+                maxBuffer: 200_000,
+                allowedBins: [cmd],
+                allowAbsolutePath: true,
+              }),
             ).catch(() => null);
       const tailscaleHttpsUrl =
         tailscaleMode !== "off" && tailscaleDns

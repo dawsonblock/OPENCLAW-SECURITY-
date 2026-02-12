@@ -48,6 +48,7 @@ async function runSandboxScript(scriptRel: string, runtime: RuntimeEnv): Promise
   const result = await runCommandWithTimeout(["bash", script.scriptPath], {
     timeoutMs: 20 * 60 * 1000,
     cwd: script.cwd,
+    allowedBins: ["bash"],
   });
   if (result.code !== 0) {
     runtime.error(
@@ -66,6 +67,7 @@ async function isDockerAvailable(): Promise<boolean> {
   try {
     await runExec("docker", ["version", "--format", "{{.Server.Version}}"], {
       timeoutMs: 5_000,
+      allowedBins: ["docker"],
     });
     return true;
   } catch {
@@ -75,7 +77,10 @@ async function isDockerAvailable(): Promise<boolean> {
 
 async function dockerImageExists(image: string): Promise<boolean> {
   try {
-    await runExec("docker", ["image", "inspect", image], { timeoutMs: 5_000 });
+    await runExec("docker", ["image", "inspect", image], {
+      timeoutMs: 5_000,
+      allowedBins: ["docker"],
+    });
     return true;
   } catch (error) {
     const stderr =

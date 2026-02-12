@@ -5,7 +5,7 @@ import { runExec } from "../process/exec.js";
 
 export async function movePathToTrash(targetPath: string): Promise<string> {
   try {
-    await runExec("trash", [targetPath], { timeoutMs: 10_000 });
+    await runExec("trash", [targetPath], { timeoutMs: 10_000, allowedBins: ["trash"] });
     return targetPath;
   } catch {
     const trashDir = path.join(os.homedir(), ".Trash");

@@ -47,7 +47,7 @@ export async function cleanupResumeProcesses(
   }
 
   try {
-    await runExec("pkill", ["-f", pattern]);
+    await runExec("pkill", ["-f", pattern], { allowedBins: ["pkill"] });
   } catch {
     // ignore missing pkill or no matches
   }
@@ -115,7 +115,9 @@ export async function cleanupSuspendedCliProcesses(
   }
 
   try {
-    const { stdout } = await runExec("ps", ["-ax", "-o", "pid=,stat=,command="]);
+    const { stdout } = await runExec("ps", ["-ax", "-o", "pid=,stat=,command="], {
+      allowedBins: ["ps"],
+    });
     const suspended: number[] = [];
     for (const line of stdout.split("\n")) {
       const trimmed = line.trim();
@@ -143,7 +145,9 @@ export async function cleanupSuspendedCliProcesses(
 
     if (suspended.length > threshold) {
       // Verified locally: stopped (T) processes ignore SIGTERM, so use SIGKILL.
-      await runExec("kill", ["-9", ...suspended.map((pid) => String(pid))]);
+      await runExec("kill", ["-9", ...suspended.map((pid) => String(pid))], {
+        allowedBins: ["kill"],
+      });
     }
   } catch {
     // ignore errors - best effort cleanup

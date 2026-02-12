@@ -341,6 +341,7 @@ async function installHookPackageFromDir(params: {
       cwd: targetDir,
       env: buildSecureNpmEnv({ allowScripts }),
       inheritProcessEnv: false,
+      allowedBins: ["npm"],
     });
     if (npmRes.code !== 0) {
       if (backupDir) {
@@ -526,6 +527,7 @@ export async function installHooksFromNpmSpec(params: {
       extra: { COREPACK_ENABLE_DOWNLOAD_PROMPT: "0" },
     }),
     inheritProcessEnv: false,
+    allowedBins: ["npm"],
   });
   if (res.code !== 0) {
     return { ok: false, error: `npm pack failed: ${res.stderr.trim() || res.stdout.trim()}` };

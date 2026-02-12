@@ -68,6 +68,8 @@ async function runCliEntry(params: {
   const { stdout } = await runExec(argv[0], argv.slice(1), {
     timeoutMs,
     maxBuffer: CLI_OUTPUT_MAX_BUFFER,
+    allowedBins: [argv[0]],
+    allowAbsolutePath: true,
   });
   const trimmed = stdout.trim();
   return trimmed || null;

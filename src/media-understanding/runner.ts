@@ -270,6 +270,7 @@ async function probeGeminiCli(): Promise<boolean> {
     try {
       const { stdout } = await runExec("gemini", ["--output-format", "json", "ok"], {
         timeoutMs: 8000,
+        allowedBins: ["gemini"],
       });
       return Boolean(extractGeminiResponse(stdout) ?? stdout.toLowerCase().includes("ok"));
     } catch {
@@ -1039,6 +1040,8 @@ async function runCliEntry(params: {
     const { stdout } = await runExec(argv[0], argv.slice(1), {
       timeoutMs,
       maxBuffer: CLI_OUTPUT_MAX_BUFFER,
+      allowedBins: [argv[0]],
+      allowAbsolutePath: true,
     });
     const resolved = await resolveCliOutput({
       command,

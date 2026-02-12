@@ -1,3 +1,4 @@
+import path from "node:path";
 import { runCommandWithTimeout } from "../process/exec.js";
 import { resolveWideAreaDiscoveryDomain } from "./widearea-dns.js";
 
@@ -281,12 +282,14 @@ async function discoverViaDnsSd(
 ): Promise<GatewayBonjourBeacon[]> {
   const browse = await run(["dns-sd", "-B", GATEWAY_SERVICE_TYPE, domain], {
     timeoutMs,
+    allowedBins: ["dns-sd"],
   });
   const instances = parseDnsSdBrowse(browse.stdout);
   const results: GatewayBonjourBeacon[] = [];
   for (const instance of instances) {
     const resolved = await run(["dns-sd", "-L", instance, GATEWAY_SERVICE_TYPE, domain], {
       timeoutMs,
+      allowedBins: ["dns-sd"],
     });
     const parsed = parseDnsSdResolve(resolved.stdout, instance);
     if (parsed) {
@@ -313,6 +316,8 @@ async function discoverWideAreaViaTailnetDns(
     try {
       const res = await run([candidate, "status", "--json"], {
         timeoutMs: Math.max(1, Math.min(700, remainingMs())),
+        allowedBins: [path.basename(candidate)],
+        allowAbsolutePath: path.isAbsolute(candidate),
       });
       ips = parseTailscaleStatusIPv4s(res.stdout);
       if (ips.length > 0) {
@@ -357,7 +362,10 @@ async function discoverWideAreaViaTailnetDns(
       try {
         const probe = await run(
           ["dig", "+short", "+time=1", "+tries=1", `@${ip}`, probeName, "PTR"],
-          { timeoutMs: Math.max(1, Math.min(250, budget)) },
+          {
+            timeoutMs: Math.max(1, Math.min(250, budget)),
+            allowedBins: ["dig"],
+          },
         );
         const lines = parseDigShortLines(probe.stdout);
         if (lines.length === 0) {
@@ -396,6 +404,7 @@ async function discoverWideAreaViaTailnetDns(
 
     const srv = await run(["dig", "+short", "+time=1", "+tries=1", nameserverArg, ptrName, "SRV"], {
       timeoutMs: Math.max(1, Math.min(350, budget)),
+      allowedBins: ["dig"],
     }).catch(() => null);
     const srvParsed = srv ? parseDigSrv(srv.stdout) : null;
     if (!srvParsed) {
@@ -416,6 +425,7 @@ async function discoverWideAreaViaTailnetDns(
 
     const txt = await run(["dig", "+short", "+time=1", "+tries=1", nameserverArg, ptrName, "TXT"], {
       timeoutMs: Math.max(1, Math.min(350, txtBudget)),
+      allowedBins: ["dig"],
     }).catch(() => null);
     const txtTokens = txt ? parseDigTxt(txt.stdout) : [];
     const txtMap = txtTokens.length > 0 ? parseTxtTokens(txtTokens) : {};
@@ -548,7 +558,7 @@ async function discoverViaAvahi(
     // avahi-browse wants a plain domain (no trailing dot)
     args.push("-d", domain.replace(/\.$/, ""));
   }
-  const browse = await run(args, { timeoutMs });
+  const browse = await run(args, { timeoutMs, allowedBins: ["avahi-browse"] });
   return parseAvahiBrowse(browse.stdout).map((beacon) => ({
     ...beacon,
     domain,

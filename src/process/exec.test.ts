@@ -8,6 +8,8 @@ describe("runCommandWithTimeout", () => {
       {
         timeoutMs: 5_000,
         env: { OPENCLAW_TEST_ENV: "ok" },
+        allowedBins: ["node"],
+        allowAbsolutePath: true,
       },
     );
 
@@ -15,7 +17,7 @@ describe("runCommandWithTimeout", () => {
     expect(result.stdout).toBe("ok");
   });
 
-  it("merges custom env with process.env", async () => {
+  it("does not inherit non-allowlisted process env keys by default", async () => {
     const previous = process.env.OPENCLAW_BASE_ENV;
     process.env.OPENCLAW_BASE_ENV = "base";
     try {
@@ -28,6 +30,38 @@ describe("runCommandWithTimeout", () => {
         {
           timeoutMs: 5_000,
           env: { OPENCLAW_TEST_ENV: "ok" },
+          allowedBins: ["node"],
+          allowAbsolutePath: true,
+        },
+      );
+
+      expect(result.code).toBe(0);
+      expect(result.stdout).toBe("|ok");
+    } finally {
+      if (previous === undefined) {
+        delete process.env.OPENCLAW_BASE_ENV;
+      } else {
+        process.env.OPENCLAW_BASE_ENV = previous;
+      }
+    }
+  });
+
+  it("inherits explicitly allowlisted process env keys", async () => {
+    const previous = process.env.OPENCLAW_BASE_ENV;
+    process.env.OPENCLAW_BASE_ENV = "base";
+    try {
+      const result = await runCommandWithTimeout(
+        [
+          process.execPath,
+          "-e",
+          'process.stdout.write((process.env.OPENCLAW_BASE_ENV ?? "") + "|" + (process.env.OPENCLAW_TEST_ENV ?? ""))',
+        ],
+        {
+          timeoutMs: 5_000,
+          env: { OPENCLAW_TEST_ENV: "ok" },
+          allowEnv: ["OPENCLAW_BASE_ENV"],
+          allowedBins: ["node"],
+          allowAbsolutePath: true,
         },
       );
 
@@ -56,6 +90,8 @@ describe("runCommandWithTimeout", () => {
           timeoutMs: 5_000,
           env: { OPENCLAW_TEST_ENV: "ok" },
           inheritProcessEnv: false,
+          allowedBins: ["node"],
+          allowAbsolutePath: true,
         },
       );
 

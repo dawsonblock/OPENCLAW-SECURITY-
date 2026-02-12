@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import path from "node:path";
 import { isTruthyEnvValue } from "./env.js";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -8,7 +9,12 @@ let cachedShellPath: string | null | undefined;
 
 function resolveShell(env: NodeJS.ProcessEnv): string {
   const shell = env.SHELL?.trim();
-  return shell && shell.length > 0 ? shell : "/bin/sh";
+  if (shell && shell.length > 0) {
+    if (path.isAbsolute(shell) && !/\s/.test(shell)) {
+      return shell;
+    }
+  }
+  return "/bin/sh";
 }
 
 function parseShellEnv(stdout: Buffer): Map<string, string> {

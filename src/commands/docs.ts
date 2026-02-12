@@ -41,6 +41,7 @@ async function runNodeTool(tool: string, toolArgs: string[], options: ToolRunOpt
   return await runCommandWithTimeout(argv, {
     timeoutMs: options.timeoutMs ?? SEARCH_TIMEOUT_MS,
     input: options.input,
+    allowedBins: [runner.cmd],
   });
 }
 
@@ -49,6 +50,7 @@ async function runTool(tool: string, toolArgs: string[], options: ToolRunOptions
     return await runCommandWithTimeout([tool, ...toolArgs], {
       timeoutMs: options.timeoutMs ?? SEARCH_TIMEOUT_MS,
       input: options.input,
+      allowedBins: [tool],
     });
   }
   return await runNodeTool(tool, toolArgs, options);

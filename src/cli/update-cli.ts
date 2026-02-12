@@ -343,6 +343,7 @@ async function runUpdateStep(params: {
   });
   const started = Date.now();
   const scrubNpmInstall = isNpmInstallCommand(params.argv);
+  const commandBin = params.argv[0] ?? "";
   const res = await runCommandWithTimeout(params.argv, {
     cwd: params.cwd,
     timeoutMs: params.timeoutMs,
@@ -361,6 +362,8 @@ async function runUpdateStep(params: {
         })
       : undefined,
     inheritProcessEnv: scrubNpmInstall ? false : undefined,
+    allowedBins: [path.basename(commandBin)],
+    allowAbsolutePath: path.isAbsolute(commandBin),
   });
   const durationMs = Date.now() - started;
   const stderrTail = trimLogTail(res.stderr, MAX_LOG_CHARS);
@@ -428,7 +431,12 @@ async function resolveGlobalManager(params: {
   timeoutMs: number;
 }): Promise<GlobalInstallManager> {
   const runCommand = async (argv: string[], options: { timeoutMs: number }) => {
-    const res = await runCommandWithTimeout(argv, options);
+    const command = argv[0] ?? "";
+    const res = await runCommandWithTimeout(argv, {
+      ...options,
+      allowedBins: [path.basename(command)],
+      allowAbsolutePath: path.isAbsolute(command),
+    });
     return { stdout: res.stdout, stderr: res.stderr, code: res.code };
   };
   if (params.installKind === "package") {
@@ -835,7 +843,12 @@ export async function updateCommand(opts: UpdateCommandOptions): Promise<void> {
       timeoutMs: timeoutMs ?? 20 * 60_000,
     });
     const runCommand = async (argv: string[], options: { timeoutMs: number }) => {
-      const res = await runCommandWithTimeout(argv, options);
+      const command = argv[0] ?? "";
+      const res = await runCommandWithTimeout(argv, {
+        ...options,
+        allowedBins: [path.basename(command)],
+        allowAbsolutePath: path.isAbsolute(command),
+      });
       return { stdout: res.stdout, stderr: res.stderr, code: res.code };
     };
     const pkgRoot = await resolveGlobalPackageRoot(manager, runCommand, timeoutMs ?? 20 * 60_000);

@@ -88,8 +88,8 @@ export function spawnAllowed(params: {
   allowAbsolutePath?: boolean;
   cwd?: string;
   stdio?: SpawnOptions["stdio"];
-  shell?: boolean;
   windowsHide?: boolean;
+  windowsVerbatimArguments?: boolean;
   detached?: boolean;
   inheritEnv?: boolean;
   allowEnv?: Iterable<string>;
@@ -118,8 +118,9 @@ export function spawnAllowed(params: {
   return spawn(command, params.args, {
     cwd: params.cwd,
     stdio: params.stdio,
-    shell: params.shell,
+    shell: false,
     windowsHide: params.windowsHide,
+    windowsVerbatimArguments: params.windowsVerbatimArguments,
     detached: params.detached,
     env,
   });

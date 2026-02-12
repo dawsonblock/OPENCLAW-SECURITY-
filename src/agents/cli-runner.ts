@@ -238,6 +238,8 @@ export async function runCliAgent(params: {
         cwd: workspaceDir,
         env,
         input: stdinPayload,
+        allowedBins: [backend.command],
+        allowAbsolutePath: true,
       });
 
       const stdout = result.stdout.trim();

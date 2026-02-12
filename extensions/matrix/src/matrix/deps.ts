@@ -90,6 +90,7 @@ export async function ensureMatrixSdkInstalled(params: {
       ? buildScrubbedInstallEnv(allowNpmScripts)
       : { COREPACK_ENABLE_DOWNLOAD_PROMPT: "0" },
     inheritProcessEnv: scrubEnv ? false : undefined,
+    allowedBins: [command[0] ?? ""],
   });
   if (result.code !== 0) {
     throw new Error(

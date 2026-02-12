@@ -1,4 +1,5 @@
 import net from "node:net";
+import path from "node:path";
 import type { PortListener, PortUsage, PortUsageStatus } from "./ports-types.js";
 import { runCommandWithTimeout } from "../process/exec.js";
 import { isErrno } from "./errors.js";
@@ -14,7 +15,12 @@ type CommandResult = {
 
 async function runCommandSafe(argv: string[], timeoutMs = 5_000): Promise<CommandResult> {
   try {
-    const res = await runCommandWithTimeout(argv, { timeoutMs });
+    const command = argv[0] ?? "";
+    const res = await runCommandWithTimeout(argv, {
+      timeoutMs,
+      allowedBins: [path.basename(command)],
+      allowAbsolutePath: path.isAbsolute(command),
+    });
     return {
       stdout: res.stdout,
       stderr: res.stderr,

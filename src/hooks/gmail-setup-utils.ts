@@ -125,7 +125,11 @@ export async function resolvePythonExecutablePath(): Promise<string | undefined>
   for (const candidate of candidates) {
     const res = await runCommandWithTimeout(
       [candidate, "-c", "import os, sys; print(os.path.realpath(sys.executable))"],
-      { timeoutMs: 2_000 },
+      {
+        timeoutMs: 2_000,
+        allowedBins: [candidate],
+        allowAbsolutePath: path.isAbsolute(candidate),
+      },
     );
     if (res.code !== 0) {
       continue;
@@ -164,6 +168,7 @@ async function runGcloudCommand(
   return await runCommandWithTimeout(["gcloud", ...args], {
     timeoutMs,
     env: await gcloudEnv(),
+    allowedBins: ["gcloud"],
   });
 }
 
@@ -184,6 +189,7 @@ export async function ensureDependency(bin: string, brewArgs: string[]) {
   const result = await runCommandWithTimeout(["brew", "install", ...brewArgs], {
     timeoutMs: 600_000,
     env: brewEnv,
+    allowedBins: ["brew"],
   });
   if (result.code !== 0) {
     throw new Error(`brew install failed for ${bin}: ${result.stderr || result.stdout}`);
@@ -278,6 +284,7 @@ export async function ensureTailscaleEndpoint(params: {
   const statusCommand = formatCommand("tailscale", statusArgs);
   const status = await runCommandWithTimeout(["tailscale", ...statusArgs], {
     timeoutMs: 30_000,
+    allowedBins: ["tailscale"],
   });
   if (status.code !== 0) {
     throw new Error(formatCommandFailure(statusCommand, status));
@@ -307,6 +314,7 @@ export async function ensureTailscaleEndpoint(params: {
   const funnelCommand = formatCommand("tailscale", funnelArgs);
   const funnelResult = await runCommandWithTimeout(["tailscale", ...funnelArgs], {
     timeoutMs: 30_000,
+    allowedBins: ["tailscale"],
   });
   if (funnelResult.code !== 0) {
     throw new Error(formatCommandFailure(funnelCommand, funnelResult));

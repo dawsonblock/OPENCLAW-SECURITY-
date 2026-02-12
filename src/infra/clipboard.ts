@@ -13,6 +13,7 @@ export async function copyToClipboard(value: string): Promise<boolean> {
       const result = await runCommandWithTimeout(attempt.argv, {
         timeoutMs: 3_000,
         input: value,
+        allowedBins: [attempt.argv[0] ?? ""],
       });
       if (result.code === 0 && !result.killed) {
         return true;

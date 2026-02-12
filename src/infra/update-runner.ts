@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { type CommandOptions, runCommandWithTimeout } from "../process/exec.js";
+import { runCommandWithTimeout } from "../process/exec.js";
 import { buildScrubbedEnv } from "../security/subprocess.js";
 import {
   resolveControlUiDistIndexHealth,
@@ -46,7 +46,19 @@ export type UpdateRunResult = {
 
 type CommandRunner = (
   argv: string[],
-  options: CommandOptions,
+  options: {
+    timeoutMs: number;
+    cwd?: string;
+    input?: string;
+    env?: NodeJS.ProcessEnv;
+    inheritProcessEnv?: boolean;
+    allowedBins?: string[];
+    allowAbsolutePath?: boolean;
+    inheritEnv?: boolean;
+    allowEnv?: Iterable<string>;
+    envOverrides?: Record<string, string | undefined>;
+    windowsVerbatimArguments?: boolean;
+  },
 ) => Promise<{ stdout: string; stderr: string; code: number | null }>;
 
 export type UpdateStepInfo = {
@@ -403,7 +415,15 @@ export async function runGatewayUpdate(opts: UpdateRunnerOptions = {}): Promise<
   const runCommand =
     opts.runCommand ??
     (async (argv, options) => {
-      const res = await runCommandWithTimeout(argv, options);
+      const command = argv[0] ?? "";
+      const res = await runCommandWithTimeout(argv, {
+        ...options,
+        allowedBins:
+          options.allowedBins && options.allowedBins.length > 0
+            ? options.allowedBins
+            : [path.basename(command)],
+        allowAbsolutePath: options.allowAbsolutePath ?? path.isAbsolute(command),
+      });
       return { stdout: res.stdout, stderr: res.stderr, code: res.code };
     });
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;

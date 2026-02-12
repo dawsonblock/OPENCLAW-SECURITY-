@@ -9,6 +9,7 @@ import { note } from "../terminal/note.js";
 async function detectOpenClawGitCheckout(root: string): Promise<"git" | "not-git" | "unknown"> {
   const res = await runCommandWithTimeout(["git", "-C", root, "rev-parse", "--show-toplevel"], {
     timeoutMs: 5000,
+    allowedBins: ["git"],
   }).catch(() => null);
   if (!res) {
     return "unknown";

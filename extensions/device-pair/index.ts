@@ -1,5 +1,6 @@
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import os from "node:os";
+import path from "node:path";
 import { approveDevicePairing, listDevicePairing } from "openclaw/plugin-sdk";
 
 const DEFAULT_GATEWAY_PORT = 18789;
@@ -178,6 +179,8 @@ async function resolveTailnetHost(api: OpenClawPluginApi): Promise<string | null
         [candidate, "status", "--json"],
         {
           timeoutMs: 5000,
+          allowedBins: [path.basename(candidate)],
+          allowAbsolutePath: path.isAbsolute(candidate),
         },
       );
       if (result.code !== 0) {

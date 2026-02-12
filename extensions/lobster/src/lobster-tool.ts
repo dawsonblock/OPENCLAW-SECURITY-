@@ -84,28 +84,13 @@ function resolveCwd(cwdRaw: unknown): string {
   return resolved;
 }
 
-function isWindowsSpawnErrorThatCanUseShell(err: unknown) {
-  if (!err || typeof err !== "object") {
-    return false;
-  }
-  const code = (err as { code?: unknown }).code;
-
-  // On Windows, spawning scripts discovered on PATH (e.g. lobster.cmd) can fail
-  // with EINVAL, and PATH discovery itself can fail with ENOENT when the binary
-  // is only available via PATHEXT/script wrappers.
-  return code === "EINVAL" || code === "ENOENT";
-}
-
-async function runLobsterSubprocessOnce(
-  params: {
-    execPath: string;
-    argv: string[];
-    cwd: string;
-    timeoutMs: number;
-    maxStdoutBytes: number;
-  },
-  useShell: boolean,
-) {
+async function runLobsterSubprocessOnce(params: {
+  execPath: string;
+  argv: string[];
+  cwd: string;
+  timeoutMs: number;
+  maxStdoutBytes: number;
+}) {
   const { execPath, argv, cwd } = params;
   const timeoutMs = Math.max(200, params.timeoutMs);
   const maxStdoutBytes = Math.max(1024, params.maxStdoutBytes);
@@ -118,8 +103,7 @@ async function runLobsterSubprocessOnce(
       allowAbsolutePath: true,
       cwd,
       stdio: ["ignore", "pipe", "pipe"],
-      shell: useShell,
-      windowsHide: useShell ? true : undefined,
+      windowsHide: true,
       envOverrides: { LOBSTER_MODE: "tool" },
     });
 
@@ -179,14 +163,7 @@ async function runLobsterSubprocess(params: {
   timeoutMs: number;
   maxStdoutBytes: number;
 }) {
-  try {
-    return await runLobsterSubprocessOnce(params, false);
-  } catch (err) {
-    if (process.platform === "win32" && isWindowsSpawnErrorThatCanUseShell(err)) {
-      return await runLobsterSubprocessOnce(params, true);
-    }
-    throw err;
-  }
+  return await runLobsterSubprocessOnce(params);
 }
 
 function parseEnvelope(stdout: string): LobsterEnvelope {

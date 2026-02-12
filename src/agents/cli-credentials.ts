@@ -109,6 +109,9 @@ function runSecurityCommand(params: {
     ? ["pipe", "pipe", "ignore"]
     : ["pipe", "pipe", "pipe"];
   if (params.execSyncImpl) {
+    if (process.env.NODE_ENV !== "test") {
+      throw new Error("execSyncImpl override is test-only");
+    }
     const command = [params.file, ...params.args.map((arg) => quoteShellArg(arg))].join(" ");
     return String(
       params.execSyncImpl(command, {

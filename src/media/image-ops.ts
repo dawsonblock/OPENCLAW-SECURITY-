@@ -143,6 +143,8 @@ async function sipsMetadataFromBuffer(buffer: Buffer): Promise<ImageMetadata | n
       {
         timeoutMs: 10_000,
         maxBuffer: 512 * 1024,
+        allowedBins: ["sips"],
+        allowAbsolutePath: true,
       },
     );
     const w = stdout.match(/pixelWidth:\s*([0-9]+)/);
@@ -186,7 +188,12 @@ async function sipsResizeToJpeg(params: {
         "--out",
         output,
       ],
-      { timeoutMs: 20_000, maxBuffer: 1024 * 1024 },
+      {
+        timeoutMs: 20_000,
+        maxBuffer: 1024 * 1024,
+        allowedBins: ["sips"],
+        allowAbsolutePath: true,
+      },
     );
     return await fs.readFile(output);
   });
@@ -200,6 +207,8 @@ async function sipsConvertToJpeg(buffer: Buffer): Promise<Buffer> {
     await runExec("/usr/bin/sips", ["-s", "format", "jpeg", input, "--out", output], {
       timeoutMs: 20_000,
       maxBuffer: 1024 * 1024,
+      allowedBins: ["sips"],
+      allowAbsolutePath: true,
     });
     return await fs.readFile(output);
   });
@@ -268,6 +277,8 @@ async function sipsApplyOrientation(buffer: Buffer, orientation: number): Promis
     await runExec("/usr/bin/sips", [...ops, input, "--out", output], {
       timeoutMs: 20_000,
       maxBuffer: 1024 * 1024,
+      allowedBins: ["sips"],
+      allowAbsolutePath: true,
     });
     return await fs.readFile(output);
   });

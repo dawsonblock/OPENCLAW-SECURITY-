@@ -316,7 +316,10 @@ async function listArchiveEntries(params: {
     if (!hasBinary("unzip")) {
       return { error: { stdout: "", stderr: "unzip not found on PATH", code: null } };
     }
-    const result = await runCommandWithTimeout(["unzip", "-Z1", archivePath], { timeoutMs });
+    const result = await runCommandWithTimeout(["unzip", "-Z1", archivePath], {
+      timeoutMs,
+      allowedBins: ["unzip"],
+    });
     if (result.code !== 0) {
       return { error: { stdout: result.stdout, stderr: result.stderr, code: result.code } };
     }
@@ -326,12 +329,18 @@ async function listArchiveEntries(params: {
   if (!hasBinary("tar")) {
     return { error: { stdout: "", stderr: "tar not found on PATH", code: null } };
   }
-  const result = await runCommandWithTimeout(["tar", "tf", archivePath], { timeoutMs });
+  const result = await runCommandWithTimeout(["tar", "tf", archivePath], {
+    timeoutMs,
+    allowedBins: ["tar"],
+  });
   if (result.code !== 0) {
     return { error: { stdout: result.stdout, stderr: result.stderr, code: result.code } };
   }
 
-  const verboseResult = await runCommandWithTimeout(["tar", "tvf", archivePath], { timeoutMs });
+  const verboseResult = await runCommandWithTimeout(["tar", "tvf", archivePath], {
+    timeoutMs,
+    allowedBins: ["tar"],
+  });
   if (verboseResult.code !== 0) {
     return {
       error: {
@@ -510,7 +519,10 @@ async function extractArchive(params: {
       }
       extractionResult = await runCommandWithTimeout(
         ["unzip", "-q", archivePath, "-d", stageExtractDir],
-        { timeoutMs },
+        {
+          timeoutMs,
+          allowedBins: ["unzip"],
+        },
       );
     } else {
       if (!hasBinary("tar")) {
@@ -520,7 +532,10 @@ async function extractArchive(params: {
       if (typeof stripComponents === "number" && Number.isFinite(stripComponents)) {
         argv.push("--strip-components", String(Math.max(0, Math.floor(stripComponents))));
       }
-      extractionResult = await runCommandWithTimeout(argv, { timeoutMs });
+      extractionResult = await runCommandWithTimeout(argv, {
+        timeoutMs,
+        allowedBins: ["tar"],
+      });
     }
 
     if (extractionResult.code !== 0) {
@@ -639,6 +654,8 @@ async function resolveBrewBinDir(timeoutMs: number, brewExe?: string): Promise<s
 
   const prefixResult = await runCommandWithTimeout([exe, "--prefix"], {
     timeoutMs: Math.min(timeoutMs, 30_000),
+    allowedBins: ["brew"],
+    allowAbsolutePath: true,
   });
   if (prefixResult.code === 0) {
     const prefix = prefixResult.stdout.trim();
@@ -762,6 +779,8 @@ export async function installSkill(params: SkillInstallRequest): Promise<SkillIn
     if (brewExe) {
       const brewResult = await runCommandWithTimeout([brewExe, "install", "uv"], {
         timeoutMs,
+        allowedBins: ["brew"],
+        allowAbsolutePath: true,
       });
       if (brewResult.code !== 0) {
         return withWarnings(
@@ -809,6 +828,8 @@ export async function installSkill(params: SkillInstallRequest): Promise<SkillIn
     if (brewExe) {
       const brewResult = await runCommandWithTimeout([brewExe, "install", "go"], {
         timeoutMs,
+        allowedBins: ["brew"],
+        allowAbsolutePath: true,
       });
       if (brewResult.code !== 0) {
         return withWarnings(
@@ -873,6 +894,8 @@ export async function installSkill(params: SkillInstallRequest): Promise<SkillIn
         timeoutMs,
         env,
         inheritProcessEnv,
+        allowedBins: [argv[0] ?? ""],
+        allowAbsolutePath: path.isAbsolute(argv[0] ?? ""),
       });
     } catch (err) {
       const stderr = err instanceof Error ? err.message : String(err);

@@ -50,7 +50,10 @@ async function startGmailWatch(
 ): Promise<boolean> {
   const args = ["gog", ...buildGogWatchStartArgs(cfg)];
   try {
-    const result = await runCommandWithTimeout(args, { timeoutMs: 120_000 });
+    const result = await runCommandWithTimeout(args, {
+      timeoutMs: 120_000,
+      allowedBins: ["gog"],
+    });
     if (result.code !== 0) {
       const message = result.stderr || result.stdout || "gog watch start failed";
       log.error(`watch start failed: ${redactSensitiveText(message, REDACT_TOOLS_MODE)}`);

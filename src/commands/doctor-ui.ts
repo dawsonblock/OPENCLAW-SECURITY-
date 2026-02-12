@@ -60,7 +60,9 @@ export async function maybeRepairUiProtocolFreshness(
         const buildResult = await runCommandWithTimeout([process.execPath, uiScriptPath, "build"], {
           cwd: root,
           timeoutMs: 120_000,
-          env: { ...process.env, FORCE_COLOR: "1" },
+          env: { FORCE_COLOR: "1" },
+          allowedBins: ["node"],
+          allowAbsolutePath: true,
         });
         if (buildResult.code === 0) {
           note("UI build complete.", "UI");
@@ -94,7 +96,7 @@ export async function maybeRepairUiProtocolFreshness(
           "--format=%h %s",
           "src/gateway/protocol/schema.ts",
         ],
-        { timeoutMs: 5000 },
+        { timeoutMs: 5000, allowedBins: ["git"] },
       ).catch(() => null);
 
       if (gitLog && gitLog.code === 0 && gitLog.stdout.trim()) {
@@ -129,7 +131,9 @@ export async function maybeRepairUiProtocolFreshness(
             {
               cwd: root,
               timeoutMs: 120_000,
-              env: { ...process.env, FORCE_COLOR: "1" },
+              env: { FORCE_COLOR: "1" },
+              allowedBins: ["node"],
+              allowAbsolutePath: true,
             },
           );
           if (buildResult.code === 0) {
