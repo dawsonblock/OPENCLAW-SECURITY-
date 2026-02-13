@@ -119,4 +119,97 @@ describe("invokeNodeCommandWithKernelGate", () => {
     expect(result.ok).toBe(true);
     expect(invoke).toHaveBeenCalledTimes(1);
   });
+
+  test("blocks dangerous commands when gateway exposure is unsafe", async () => {
+    const command = "system.run";
+    const node = buildNodeSession({ commands: [command], platform: "macos", deviceFamily: "Mac" });
+    const invoke = vi.fn<
+      [
+        {
+          nodeId: string;
+          command: string;
+          params?: unknown;
+          timeoutMs?: number;
+          idempotencyKey?: string;
+        },
+      ],
+      Promise<NodeInvokeResult>
+    >(async () => ({ ok: true, payload: { ok: true } }));
+
+    const cfg = {
+      gateway: {
+        bind: "lan",
+        nodes: {
+          allowCommands: [command],
+        },
+      },
+    } as OpenClawConfig;
+
+    const result = await invokeNodeCommandWithKernelGate({
+      cfg,
+      nodeRegistry: {
+        get: vi.fn(() => node),
+        invoke,
+      },
+      nodeId: node.nodeId,
+      command,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("NOT_ALLOWED");
+      expect(result.message).toContain("dangerous node commands require loopback exposure");
+    }
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  test("allows dangerous commands on exposed gateway with break-glass override", async () => {
+    const command = "system.run";
+    const node = buildNodeSession({ commands: [command], platform: "macos", deviceFamily: "Mac" });
+    const invoke = vi.fn<
+      [
+        {
+          nodeId: string;
+          command: string;
+          params?: unknown;
+          timeoutMs?: number;
+          idempotencyKey?: string;
+        },
+      ],
+      Promise<NodeInvokeResult>
+    >(async () => ({ ok: true, payload: { ok: true } }));
+
+    const cfg = {
+      gateway: {
+        bind: "lan",
+        nodes: {
+          allowCommands: [command],
+        },
+      },
+    } as OpenClawConfig;
+
+    const previous = process.env.OPENCLAW_ALLOW_DANGEROUS_EXPOSED;
+    process.env.OPENCLAW_ALLOW_DANGEROUS_EXPOSED = "1";
+
+    try {
+      const result = await invokeNodeCommandWithKernelGate({
+        cfg,
+        nodeRegistry: {
+          get: vi.fn(() => node),
+          invoke,
+        },
+        nodeId: node.nodeId,
+        command,
+      });
+
+      expect(result.ok).toBe(true);
+      expect(invoke).toHaveBeenCalledTimes(1);
+    } finally {
+      if (previous === undefined) {
+        delete process.env.OPENCLAW_ALLOW_DANGEROUS_EXPOSED;
+      } else {
+        process.env.OPENCLAW_ALLOW_DANGEROUS_EXPOSED = previous;
+      }
+    }
+  });
 });

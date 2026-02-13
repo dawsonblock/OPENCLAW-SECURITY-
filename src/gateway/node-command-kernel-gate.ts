@@ -1,8 +1,30 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { NodeInvokeResult, NodeRegistry, NodeSession } from "./node-registry.js";
-import { isNodeCommandAllowed, resolveNodeCommandAllowlist } from "./node-command-policy.js";
+import {
+  DEFAULT_DANGEROUS_NODE_COMMANDS,
+  isNodeCommandAllowed,
+  resolveNodeCommandAllowlist,
+} from "./node-command-policy.js";
 
 type NodeRegistryLike = Pick<NodeRegistry, "get" | "invoke">;
+
+function dangerousExposureOverrideEnabled(): boolean {
+  const value = process.env.OPENCLAW_ALLOW_DANGEROUS_EXPOSED?.trim().toLowerCase();
+  return value === "1" || value === "true";
+}
+
+function isSafeExposure(cfg: OpenClawConfig): boolean {
+  const bind = String(cfg.gateway?.bind ?? "loopback")
+    .trim()
+    .toLowerCase();
+  if (bind === "loopback") {
+    return true;
+  }
+  const tailscaleMode = String(cfg.gateway?.tailscale?.mode ?? "off")
+    .trim()
+    .toLowerCase();
+  return tailscaleMode === "serve";
+}
 
 export type NodeCommandKernelGateResult =
   | {
@@ -51,6 +73,20 @@ export async function invokeNodeCommandWithKernelGate(params: {
       message: `node command not allowed: ${allowed.reason}`,
       details: {
         reason: allowed.reason,
+        command,
+      },
+    };
+  }
+
+  const dangerous = DEFAULT_DANGEROUS_NODE_COMMANDS.includes(command);
+  if (dangerous && !isSafeExposure(params.cfg) && !dangerousExposureOverrideEnabled()) {
+    return {
+      ok: false,
+      code: "NOT_ALLOWED",
+      message:
+        "node command not allowed: dangerous node commands require loopback exposure or gateway.tailscale.mode=serve (set OPENCLAW_ALLOW_DANGEROUS_EXPOSED=1 for break-glass)",
+      details: {
+        reason: "dangerous command blocked on exposed gateway",
         command,
       },
     };
