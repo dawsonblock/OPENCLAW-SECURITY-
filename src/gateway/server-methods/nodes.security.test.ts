@@ -111,6 +111,7 @@ describe("node.invoke security checks", () => {
         command: "system.run",
         params: {
           command: ["bash", "-c", "echo risky"],
+          sessionKey: "agent:main:test",
         },
         idempotencyKey: "k-4",
       },
@@ -118,5 +119,21 @@ describe("node.invoke security checks", () => {
     );
     expect(res.ok).toBe(false);
     expect(res.error?.message).toContain("shell -c execution is not allowed");
+  });
+
+  it("requires sessionKey for system.run", async () => {
+    const res = await invokeNode(
+      {
+        nodeId: "node-1",
+        command: "system.run",
+        params: {
+          command: ["echo", "ok"],
+        },
+        idempotencyKey: "k-5",
+      },
+      { connect: { role: "operator", scopes: ["operator.admin"] } },
+    );
+    expect(res.ok).toBe(false);
+    expect(res.error?.message).toContain("requires sessionKey");
   });
 });

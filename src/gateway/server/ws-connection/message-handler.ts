@@ -24,6 +24,7 @@ import { recordRemoteNodeInfo, refreshRemoteNodeBins } from "../../../infra/skil
 import { upsertPresence } from "../../../infra/system-presence.js";
 import { loadVoiceWakeConfig } from "../../../infra/voicewake.js";
 import { rawDataToString } from "../../../infra/ws.js";
+import { isSafeModeEnabled } from "../../../security/startup-validator.js";
 import { isGatewayCliClient, isWebchatClient } from "../../../utils/message-channel.js";
 import { authorizeGatewayConnect, isLocalDirectRequest } from "../../auth.js";
 import { buildDeviceAuthPayload } from "../../device-auth.js";
@@ -428,8 +429,10 @@ export function attachGatewayWsMessageHandler(params: {
           isControlUi && configSnapshot.gateway?.controlUi?.allowInsecureAuth === true;
         const disableControlUiDeviceAuth =
           isControlUi && configSnapshot.gateway?.controlUi?.dangerouslyDisableDeviceAuth === true;
-        const allowControlUiBypass = allowInsecureControlUi || disableControlUiDeviceAuth;
-        const device = disableControlUiDeviceAuth ? null : deviceRaw;
+        const safeMode = isSafeModeEnabled(process.env);
+        const allowControlUiBypass =
+          !safeMode && (allowInsecureControlUi || disableControlUiDeviceAuth);
+        const device = !safeMode && disableControlUiDeviceAuth ? null : deviceRaw;
 
         const authResult = await authorizeGatewayConnect({
           auth: resolvedAuth,

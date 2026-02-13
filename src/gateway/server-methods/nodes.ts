@@ -10,6 +10,11 @@ import {
   requestNodePairing,
   verifyNodeToken,
 } from "../../infra/node-pairing.js";
+import {
+  isBreakGlassEnvEnabled,
+  resolveNodeCommandCapabilityPolicy,
+} from "../../security/capability-registry.js";
+import { DangerousActionLimiter } from "../../security/dangerous-action-limiter.js";
 import { validateSystemRunCommand } from "../../security/system-run-constraints.js";
 import { invokeNodeCommandWithKernelGate } from "../node-command-kernel-gate.js";
 import {
@@ -34,6 +39,8 @@ import {
   uniqueSortedStrings,
 } from "./nodes.helpers.js";
 
+const dangerousActionLimiter = new DangerousActionLimiter();
+
 function isNodeEntry(entry: { role?: string; roles?: string[] }) {
   if (entry.role === "node") {
     return true;
@@ -53,14 +60,45 @@ function hasAdminScope(client: { connect?: { role?: string; scopes?: string[] } 
   return scopes.includes("operator.admin");
 }
 
-function policyMutationEnabled() {
-  const value = process.env.OPENCLAW_ALLOW_POLICY_MUTATION?.trim().toLowerCase();
-  return value === "1" || value === "true";
+function resolveDangerousSessionKey(params: unknown): string | null {
+  if (!params || typeof params !== "object") {
+    return null;
+  }
+  const sessionKey = (params as Record<string, unknown>).sessionKey;
+  if (typeof sessionKey !== "string" || !sessionKey.trim()) {
+    return null;
+  }
+  return sessionKey.trim();
 }
 
-function browserProxyEnabled() {
-  const value = process.env.OPENCLAW_ALLOW_BROWSER_PROXY?.trim().toLowerCase();
-  return value === "1" || value === "true";
+function resolveRateLimitKey(
+  command: string,
+  params: unknown,
+  client: { connect?: { client?: { id?: string }; device?: { id?: string } } } | null,
+): string {
+  const sessionKey = resolveDangerousSessionKey(params);
+  if (sessionKey) {
+    return `session:${sessionKey}`;
+  }
+  const clientId = client?.connect?.client?.id;
+  if (typeof clientId === "string" && clientId.trim()) {
+    return `client:${clientId}`;
+  }
+  const deviceId = client?.connect?.device?.id;
+  if (typeof deviceId === "string" && deviceId.trim()) {
+    return `device:${deviceId}`;
+  }
+  return `command:${command}`;
+}
+
+function breakGlassMessage(command: string, key: string): string {
+  if (command === "system.execApprovals.set") {
+    return `policy mutation is disabled; set ${key}=1`;
+  }
+  if (command === "browser.proxy") {
+    return `browser.proxy is disabled; set ${key}=1`;
+  }
+  return `${command} is disabled; set ${key}=1`;
 }
 
 function normalizeCommandEnv(env: unknown): Record<string, string> | null {
@@ -492,10 +530,19 @@ export const nodeHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    if (
-      (command === "system.execApprovals.get" || command === "system.execApprovals.set") &&
-      !hasAdminScope(client)
-    ) {
+    const capabilityPolicy = resolveNodeCommandCapabilityPolicy(command);
+    const rateLimitKey = resolveRateLimitKey(command, p.params, client);
+    if (capabilityPolicy.dangerous) {
+      const limiterResult = dangerousActionLimiter.checkAndConsume(rateLimitKey);
+      if (!limiterResult.ok) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, limiterResult.reason));
+        return;
+      }
+    }
+    if (capabilityPolicy.requiresAdmin && !hasAdminScope(client)) {
+      if (capabilityPolicy.dangerous) {
+        dangerousActionLimiter.noteDenial(rateLimitKey);
+      }
       respond(
         false,
         undefined,
@@ -503,32 +550,33 @@ export const nodeHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    if (command === "browser.proxy" && !hasAdminScope(client)) {
-      respond(
-        false,
-        undefined,
-        errorShape(ErrorCodes.INVALID_REQUEST, "missing scope: operator.admin"),
-      );
-      return;
+    if (capabilityPolicy.breakGlassEnv) {
+      const enabled = isBreakGlassEnvEnabled(process.env, capabilityPolicy.breakGlassEnv);
+      if (!enabled) {
+        if (capabilityPolicy.dangerous) {
+          dangerousActionLimiter.noteDenial(rateLimitKey);
+        }
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            breakGlassMessage(command, capabilityPolicy.breakGlassEnv),
+          ),
+        );
+        return;
+      }
     }
-    if (command === "browser.proxy" && !browserProxyEnabled()) {
+    if (capabilityPolicy.requiresSessionKey && !resolveDangerousSessionKey(p.params)) {
+      if (capabilityPolicy.dangerous) {
+        dangerousActionLimiter.noteDenial(rateLimitKey);
+      }
       respond(
         false,
         undefined,
         errorShape(
           ErrorCodes.INVALID_REQUEST,
-          "browser.proxy is disabled; set OPENCLAW_ALLOW_BROWSER_PROXY=1",
-        ),
-      );
-      return;
-    }
-    if (command === "system.execApprovals.set" && !policyMutationEnabled()) {
-      respond(
-        false,
-        undefined,
-        errorShape(
-          ErrorCodes.INVALID_REQUEST,
-          "policy mutation is disabled; set OPENCLAW_ALLOW_POLICY_MUTATION=1",
+          `${command} requires sessionKey for dangerous command approval binding`,
         ),
       );
       return;
@@ -540,6 +588,9 @@ export const nodeHandlers: GatewayRequestHandlers = {
         argv,
       });
       if (!constrained.ok) {
+        if (capabilityPolicy.dangerous) {
+          dangerousActionLimiter.noteDenial(rateLimitKey);
+        }
         respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, constrained.reason));
         return;
       }
@@ -559,6 +610,9 @@ export const nodeHandlers: GatewayRequestHandlers = {
         idempotencyKey: p.idempotencyKey,
       });
       if (!invokeResult.ok) {
+        if (capabilityPolicy.dangerous) {
+          dangerousActionLimiter.noteDenial(rateLimitKey);
+        }
         const code =
           invokeResult.code === "NOT_ALLOWED" ? ErrorCodes.INVALID_REQUEST : ErrorCodes.UNAVAILABLE;
         respond(
@@ -572,6 +626,9 @@ export const nodeHandlers: GatewayRequestHandlers = {
       }
       const res = invokeResult.result;
       if (!res.ok) {
+        if (capabilityPolicy.dangerous) {
+          dangerousActionLimiter.noteDenial(rateLimitKey);
+        }
         respond(
           false,
           undefined,
@@ -582,6 +639,9 @@ export const nodeHandlers: GatewayRequestHandlers = {
         return;
       }
       const payload = res.payloadJSON ? safeParseJson(res.payloadJSON) : res.payload;
+      if (capabilityPolicy.dangerous) {
+        dangerousActionLimiter.noteSuccess(rateLimitKey);
+      }
       respond(
         true,
         {
