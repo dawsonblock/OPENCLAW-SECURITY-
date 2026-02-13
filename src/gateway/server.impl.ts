@@ -45,6 +45,7 @@ import { runOnboardingWizard } from "../wizard/onboarding.js";
 import { startGatewayConfigReloader } from "./config-reload.js";
 import { ExecApprovalManager } from "./exec-approval-manager.js";
 import { isLoopbackHost } from "./net.js";
+import { DEFAULT_DANGEROUS_NODE_COMMANDS } from "./node-command-policy.js";
 import { NodeRegistry } from "./node-registry.js";
 import { createChannelManager } from "./server-channels.js";
 import { createAgentEventHandler } from "./server-chat.js";
@@ -276,6 +277,21 @@ export async function startGatewayServer(
   const controlUiDisableDeviceAuth =
     cfgAtStart.gateway?.controlUi?.dangerouslyDisableDeviceAuth === true;
   const safeExposure = isLoopbackHost(bindHost) || tailscaleMode === "serve";
+  const configuredDangerousCommands = (cfgAtStart.gateway?.nodes?.allowCommands ?? []).filter(
+    (cmd) => DEFAULT_DANGEROUS_NODE_COMMANDS.includes(cmd),
+  );
+  if (configuredDangerousCommands.length > 0 && !safeExposure) {
+    if (!allowUnsafeGatewayConfig()) {
+      throw new Error(
+        `Unsafe gateway exposure: dangerous node commands enabled (${configuredDangerousCommands.join(", ")}) ` +
+          `with bindHost=${bindHost} tailscale.mode=${tailscaleMode}. ` +
+          "Refusing startup. Set OPENCLAW_ALLOW_UNSAFE_CONFIG=1 for break-glass override.",
+      );
+    }
+    log.warn(
+      `gateway: OPENCLAW_ALLOW_UNSAFE_CONFIG override enabled with dangerous node commands on exposed bindHost=${bindHost}`,
+    );
+  }
   if ((controlUiAllowInsecureAuth || controlUiDisableDeviceAuth) && !safeExposure) {
     const unsafeFlag = controlUiAllowInsecureAuth
       ? "gateway.controlUi.allowInsecureAuth=true"

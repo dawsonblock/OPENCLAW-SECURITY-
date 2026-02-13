@@ -9,34 +9,66 @@ concurrency:
   group: workflow-sanity-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
+permissions: read-all
+
 jobs:
   no-tabs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Fail on tabs in workflow files
+      - name: Fail on tabs and unpinned actions in workflow files
         run: |
           python - <<'PY'
           from __future__ import annotations
 
           import pathlib
+          import re
           import sys
 
           root = pathlib.Path(".github/workflows")
-          bad: list[str] = []
+          bad_tabs: list[str] = []
+          unpinned_actions: list[str] = []
+          uses_re = re.compile(r"^\s*uses:\s*(\S+)")
+
+          def is_sha(ref: str) -> bool:
+            return bool(re.fullmatch(r"[0-9a-f]{40}", ref))
+
+          def inspect(path: pathlib.Path) -> None:
+            raw = path.read_bytes()
+            if b"\t" in raw:
+              bad_tabs.append(str(path))
+
+            for index, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+              match = uses_re.match(line)
+              if not match:
+                continue
+              uses = match.group(1)
+              if uses.startswith("./") or uses.startswith("docker://"):
+                continue
+              if "@" not in uses:
+                unpinned_actions.append(f"{path}:{index}: missing ref in uses: {uses}")
+                continue
+              ref = uses.rsplit("@", 1)[1]
+              if not is_sha(ref):
+                unpinned_actions.append(f"{path}:{index}: unpinned uses ref: {uses}")
+
           for path in sorted(root.rglob("*.yml")):
-            if b"\t" in path.read_bytes():
-              bad.append(str(path))
-
+            inspect(path)
           for path in sorted(root.rglob("*.yaml")):
-            if b"\t" in path.read_bytes():
-              bad.append(str(path))
+            inspect(path)
 
-          if bad:
+          if bad_tabs:
             print("Tabs found in workflow file(s):")
-            for path in bad:
+            for path in bad_tabs:
               print(f"- {path}")
+            sys.exit(1)
+
+          if unpinned_actions:
+            print("Unpinned GitHub Actions references detected:")
+            for issue in unpinned_actions:
+              print(f"- {issue}")
+            print("Pin external actions to a 40-char commit SHA.")
             sys.exit(1)
           PY
