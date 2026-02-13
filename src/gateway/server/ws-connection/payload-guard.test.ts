@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { guardInboundPayload } from "./payload-guard.js";
+import { guardInboundJsonText, guardInboundPayload } from "./payload-guard.js";
 
 describe("guardInboundPayload", () => {
   it("accepts a normal request payload", () => {
@@ -13,7 +13,9 @@ describe("guardInboundPayload", () => {
   });
 
   it("rejects __proto__ keys", () => {
-    const parsed = JSON.parse('{"type":"req","id":"1","params":{"__proto__":{"x":1}}}') as unknown;
+    const parsed = JSON.parse(
+      '{"type":"req","id":"1","method":"node.invoke","params":{"__proto__":{"x":1}}}',
+    ) as unknown;
     const result = guardInboundPayload(parsed);
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -21,25 +23,30 @@ describe("guardInboundPayload", () => {
     }
   });
 
-  it("rejects constructor.prototype pollution chains", () => {
+  it("rejects constructor keys", () => {
     const parsed = JSON.parse(
-      '{"type":"req","id":"1","params":{"constructor":{"prototype":{"x":1}}}}',
+      '{"type":"req","id":"1","method":"node.invoke","params":{"constructor":{"prototype":{"x":1}}}}',
     ) as unknown;
     const result = guardInboundPayload(parsed);
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.reason).toContain("constructor.prototype");
+      expect(result.reason).toContain("constructor");
     }
   });
 
   it("rejects overly deep payloads", () => {
-    const deep = { root: {} as Record<string, unknown> };
-    let cursor = deep.root;
-    for (let i = 0; i < 45; i += 1) {
+    const deep = { type: "req", id: "1", method: "node.invoke", params: { root: {} } } as {
+      type: string;
+      id: string;
+      method: string;
+      params: { root: Record<string, unknown> };
+    };
+    let cursor = deep.params.root;
+    for (let i = 0; i < 35; i += 1) {
       cursor.next = {};
       cursor = cursor.next as Record<string, unknown>;
     }
-    const result = guardInboundPayload(deep, { maxDepth: 40 });
+    const result = guardInboundPayload(deep, { maxDepth: 30 });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.reason).toContain("max depth");
@@ -51,10 +58,45 @@ describe("guardInboundPayload", () => {
     for (let i = 0; i < 10; i += 1) {
       payload[`k${i}`] = i;
     }
-    const result = guardInboundPayload({ params: payload }, { maxKeys: 5 });
+    const result = guardInboundPayload(
+      { type: "req", id: "1", method: "node.invoke", params: payload },
+      { maxKeys: 5 },
+    );
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.reason).toContain("key count");
+    }
+  });
+
+  it("rejects strings larger than the configured limit", () => {
+    const result = guardInboundPayload(
+      {
+        type: "req",
+        id: "1",
+        method: "node.invoke",
+        params: { large: "x".repeat(16) },
+      },
+      { maxStringBytes: 8 },
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toContain("string exceeds");
+    }
+  });
+
+  it("rejects oversized raw JSON messages", () => {
+    const result = guardInboundJsonText("x".repeat(16), { maxMessageBytes: 8 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toContain("max message size");
+    }
+  });
+
+  it("rejects unknown top-level payload shape", () => {
+    const result = guardInboundPayload({ type: "res", id: "1", ok: true });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toContain("top-level frame type");
     }
   });
 });

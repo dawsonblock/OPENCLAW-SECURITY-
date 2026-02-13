@@ -31,6 +31,20 @@ type BrowserProxyResult = {
   files?: BrowserProxyFile[];
 };
 
+function hasAdminScope(client: { connect?: { role?: string; scopes?: string[] } } | null): boolean {
+  const role = client?.connect?.role ?? "operator";
+  if (role !== "operator") {
+    return false;
+  }
+  const scopes = Array.isArray(client?.connect?.scopes) ? client.connect.scopes : [];
+  return scopes.includes("operator.admin");
+}
+
+function browserProxyEnabled() {
+  const value = process.env.OPENCLAW_ALLOW_BROWSER_PROXY?.trim().toLowerCase();
+  return value === "1" || value === "true";
+}
+
 function isBrowserNode(node: NodeSession) {
   const caps = Array.isArray(node.caps) ? node.caps : [];
   const commands = Array.isArray(node.commands) ? node.commands : [];
@@ -146,7 +160,7 @@ function applyProxyPaths(result: unknown, mapping: Map<string, string>) {
 }
 
 export const browserHandlers: GatewayRequestHandlers = {
-  "browser.request": async ({ params, respond, context }) => {
+  "browser.request": async ({ params, respond, context, client }) => {
     const typed = params as BrowserRequestParams;
     const methodRaw = typeof typed.method === "string" ? typed.method.trim().toUpperCase() : "";
     const path = typeof typed.path === "string" ? typed.path.trim() : "";
@@ -187,6 +201,25 @@ export const browserHandlers: GatewayRequestHandlers = {
     }
 
     if (nodeTarget) {
+      if (!hasAdminScope(client)) {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, "missing scope: operator.admin"),
+        );
+        return;
+      }
+      if (!browserProxyEnabled()) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            "browser proxy is disabled; set OPENCLAW_ALLOW_BROWSER_PROXY=1",
+          ),
+        );
+        return;
+      }
       const proxyParams = {
         method: methodRaw,
         path,

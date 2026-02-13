@@ -65,4 +65,29 @@ describe("resolveNodeCommandAllowlist", () => {
       expect(allow.has("system.notify")).toBe(true);
     }
   });
+
+  it("strips dangerous commands in safe mode even when explicitly allowlisted", () => {
+    const previous = process.env.OPENCLAW_SAFE_MODE;
+    process.env.OPENCLAW_SAFE_MODE = "1";
+    try {
+      const allow = resolveNodeCommandAllowlist(
+        {
+          gateway: {
+            nodes: {
+              allowCommands: ["system.run", "browser.proxy"],
+            },
+          },
+        },
+        { platform: "macos", deviceFamily: "Mac" },
+      );
+      expect(allow.has("system.run")).toBe(false);
+      expect(allow.has("browser.proxy")).toBe(false);
+    } finally {
+      if (previous === undefined) {
+        delete process.env.OPENCLAW_SAFE_MODE;
+      } else {
+        process.env.OPENCLAW_SAFE_MODE = previous;
+      }
+    }
+  });
 });

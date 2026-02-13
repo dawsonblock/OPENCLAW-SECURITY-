@@ -10,6 +10,7 @@ import {
   requestNodePairing,
   verifyNodeToken,
 } from "../../infra/node-pairing.js";
+import { validateSystemRunCommand } from "../../security/system-run-constraints.js";
 import { invokeNodeCommandWithKernelGate } from "../node-command-kernel-gate.js";
 import {
   ErrorCodes,
@@ -74,6 +75,24 @@ function normalizeCommandEnv(env: unknown): Record<string, string> | null {
     out[key] = value;
   }
   return Object.keys(out).length > 0 ? out : null;
+}
+
+function resolveSystemRunInputs(params: unknown): {
+  rawCommand: string | null;
+  argv: string[] | null;
+} {
+  if (!params || typeof params !== "object") {
+    return { rawCommand: null, argv: null };
+  }
+  const record = params as Record<string, unknown>;
+  const rawCommand =
+    typeof record.rawCommand === "string" && record.rawCommand.trim()
+      ? record.rawCommand
+      : typeof record.command === "string" && record.command.trim()
+        ? record.command
+        : null;
+  const argv = Array.isArray(record.command) ? record.command.map((entry) => String(entry)) : null;
+  return { rawCommand, argv };
 }
 
 function normalizeNodeInvokeResultParams(params: unknown): unknown {
@@ -484,6 +503,14 @@ export const nodeHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    if (command === "browser.proxy" && !hasAdminScope(client)) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, "missing scope: operator.admin"),
+      );
+      return;
+    }
     if (command === "browser.proxy" && !browserProxyEnabled()) {
       respond(
         false,
@@ -505,6 +532,17 @@ export const nodeHandlers: GatewayRequestHandlers = {
         ),
       );
       return;
+    }
+    if (command === "system.run") {
+      const { rawCommand, argv } = resolveSystemRunInputs(p.params);
+      const constrained = validateSystemRunCommand({
+        command: rawCommand,
+        argv,
+      });
+      if (!constrained.ok) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, constrained.reason));
+        return;
+      }
     }
 
     await respondUnavailableOnThrow(respond, async () => {

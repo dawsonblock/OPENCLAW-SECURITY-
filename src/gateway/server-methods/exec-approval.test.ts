@@ -49,6 +49,32 @@ describe("exec approval handlers", () => {
     });
   });
 
+  it("rejects approval request without sessionKey", async () => {
+    const manager = new ExecApprovalManager();
+    const handlers = createExecApprovalHandlers(manager);
+    const respond = vi.fn();
+
+    await handlers["exec.approval.request"]({
+      params: {
+        command: "echo ok",
+        commandArgv: ["echo", "ok"],
+      },
+      respond,
+      context: {
+        broadcast: () => {},
+      } as unknown as Parameters<(typeof handlers)["exec.approval.request"]>[0]["context"],
+      client: null,
+      req: { id: "req-1", type: "req", method: "exec.approval.request" },
+      isWebchatConnect: noop,
+    });
+
+    expect(respond).toHaveBeenCalledWith(
+      false,
+      undefined,
+      expect.objectContaining({ message: "sessionKey required for exec approvals" }),
+    );
+  });
+
   it("broadcasts request + resolve", async () => {
     const manager = new ExecApprovalManager();
     const handlers = createExecApprovalHandlers(manager);
@@ -66,6 +92,7 @@ describe("exec approval handlers", () => {
         command: "echo ok",
         cwd: "/tmp",
         host: "node",
+        sessionKey: "agent:main:test",
         timeoutMs: 2000,
       },
       respond,
@@ -143,6 +170,7 @@ describe("exec approval handlers", () => {
         command: "echo ok",
         cwd: "/tmp",
         host: "node",
+        sessionKey: "agent:main:test",
         timeoutMs: 2000,
       },
       respond,
@@ -180,6 +208,7 @@ describe("exec approval handlers", () => {
         command: "echo ok",
         cwd: "/tmp",
         host: "gateway",
+        sessionKey: "agent:main:test",
         timeoutMs: 2000,
       },
       respond,
@@ -235,6 +264,7 @@ describe("exec approval handlers", () => {
       params: {
         id: "dup-1",
         command: "echo ok",
+        sessionKey: "agent:main:test",
       },
       respond: respondA,
       context: context as unknown as Parameters<
@@ -249,6 +279,7 @@ describe("exec approval handlers", () => {
       params: {
         id: "dup-1",
         command: "echo again",
+        sessionKey: "agent:main:test",
       },
       respond: respondB,
       context: context as unknown as Parameters<

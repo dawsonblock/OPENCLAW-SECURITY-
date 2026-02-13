@@ -1,6 +1,11 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { NodeSession } from "./node-registry.js";
 
+function safeModeEnabled(): boolean {
+  const value = process.env.OPENCLAW_SAFE_MODE?.trim().toLowerCase();
+  return value === "1" || value === "true";
+}
+
 const CANVAS_COMMANDS = [
   "canvas.present",
   "canvas.hide",
@@ -154,6 +159,11 @@ export function resolveNodeCommandAllowlist(
     const trimmed = blocked.trim();
     if (trimmed) {
       allow.delete(trimmed);
+    }
+  }
+  if (safeModeEnabled()) {
+    for (const dangerous of DEFAULT_DANGEROUS_NODE_COMMANDS) {
+      allow.delete(dangerous);
     }
   }
   return allow;

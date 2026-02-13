@@ -2,6 +2,7 @@ import type { ExecApprovalForwarder } from "../../infra/exec-approval-forwarder.
 import type { ExecApprovalDecision } from "../../infra/exec-approvals.js";
 import type { ExecApprovalManager } from "../exec-approval-manager.js";
 import type { GatewayRequestHandlers } from "./types.js";
+import { validateSystemRunCommand } from "../../security/system-run-constraints.js";
 import {
   ErrorCodes,
   errorShape,
@@ -43,6 +44,28 @@ export function createExecApprovalHandlers(
         sessionKey?: string;
         timeoutMs?: number;
       };
+      const sessionKey =
+        typeof p.sessionKey === "string" && p.sessionKey.trim()
+          ? p.sessionKey.trim()
+          : typeof p.agentId === "string" && p.agentId.trim()
+            ? `agent:${p.agentId.trim()}:main`
+            : "";
+      if (!sessionKey) {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, "sessionKey required for exec approvals"),
+        );
+        return;
+      }
+      const commandConstraint = validateSystemRunCommand({
+        command: p.command,
+        argv: Array.isArray(p.commandArgv) ? p.commandArgv : null,
+      });
+      if (!commandConstraint.ok) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, commandConstraint.reason));
+        return;
+      }
       const timeoutMs = typeof p.timeoutMs === "number" ? p.timeoutMs : 120_000;
       const explicitId = typeof p.id === "string" && p.id.trim().length > 0 ? p.id.trim() : null;
       if (explicitId && manager.getSnapshot(explicitId)) {
@@ -65,7 +88,7 @@ export function createExecApprovalHandlers(
         ask: p.ask ?? null,
         agentId: p.agentId ?? null,
         resolvedPath: p.resolvedPath ?? null,
-        sessionKey: p.sessionKey ?? null,
+        sessionKey,
       };
       const record = manager.create(request, timeoutMs, explicitId);
       const decisionPromise = manager.waitForDecision(record, timeoutMs);

@@ -1,5 +1,7 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type { ExecApprovalDecision } from "../infra/exec-approvals.js";
+import { hashPayload } from "../security/stable-hash.js";
+import { isSafeModeEnabled } from "../security/startup-validator.js";
 
 export type ExecApprovalRequestPayload = {
   command: string;
@@ -44,24 +46,6 @@ export class ExecApprovalManager {
     }
   }
 
-  private stableStringify(value: unknown): string {
-    const normalize = (input: unknown): unknown => {
-      if (Array.isArray(input)) {
-        return input.map((entry) => normalize(entry));
-      }
-      if (!input || typeof input !== "object") {
-        return input;
-      }
-      const obj = input as Record<string, unknown>;
-      const sorted: Record<string, unknown> = {};
-      for (const key of Object.keys(obj).toSorted()) {
-        sorted[key] = normalize(obj[key]);
-      }
-      return sorted;
-    };
-    return JSON.stringify(normalize(value));
-  }
-
   private normalizeCommandEnv(env?: Record<string, string> | null): Record<string, string> | null {
     if (!env || typeof env !== "object") {
       return null;
@@ -96,16 +80,19 @@ export class ExecApprovalManager {
       resolvedPath: request.resolvedPath ?? null,
       sessionKey: request.sessionKey ?? null,
     };
-    return createHash("sha256").update(this.stableStringify(payload)).digest("hex");
+    return hashPayload(payload);
   }
 
   issueToken(bindHash: string): string {
     const now = Date.now();
     this.cleanupTokens(now);
+    const ttlMs = isSafeModeEnabled(process.env)
+      ? Math.min(this.tokenTtlMs, 30_000)
+      : this.tokenTtlMs;
     const token = randomUUID();
     this.tokens.set(token, {
       bindHash,
-      expiresAtMs: now + this.tokenTtlMs,
+      expiresAtMs: now + ttlMs,
     });
     return token;
   }

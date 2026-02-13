@@ -67,7 +67,7 @@ describe("node.invoke security checks", () => {
           params: {},
           idempotencyKey: "k-2",
         },
-        { connect: { role: "operator", scopes: ["operator.write"] } },
+        { connect: { role: "operator", scopes: ["operator.admin"] } },
       );
       expect(res.ok).toBe(false);
       expect(res.error?.message).toContain("OPENCLAW_ALLOW_BROWSER_PROXY=1");
@@ -78,5 +78,45 @@ describe("node.invoke security checks", () => {
         process.env.OPENCLAW_ALLOW_BROWSER_PROXY = previous;
       }
     }
+  });
+
+  it("requires operator.admin for browser.proxy", async () => {
+    const previous = process.env.OPENCLAW_ALLOW_BROWSER_PROXY;
+    process.env.OPENCLAW_ALLOW_BROWSER_PROXY = "1";
+    try {
+      const res = await invokeNode(
+        {
+          nodeId: "node-1",
+          command: "browser.proxy",
+          params: {},
+          idempotencyKey: "k-3",
+        },
+        { connect: { role: "operator", scopes: ["operator.write"] } },
+      );
+      expect(res.ok).toBe(false);
+      expect(res.error?.message).toContain("missing scope: operator.admin");
+    } finally {
+      if (previous === undefined) {
+        delete process.env.OPENCLAW_ALLOW_BROWSER_PROXY;
+      } else {
+        process.env.OPENCLAW_ALLOW_BROWSER_PROXY = previous;
+      }
+    }
+  });
+
+  it("blocks system.run deny-pattern commands", async () => {
+    const res = await invokeNode(
+      {
+        nodeId: "node-1",
+        command: "system.run",
+        params: {
+          command: ["bash", "-c", "echo risky"],
+        },
+        idempotencyKey: "k-4",
+      },
+      { connect: { role: "operator", scopes: ["operator.admin"] } },
+    );
+    expect(res.ok).toBe(false);
+    expect(res.error?.message).toContain("shell -c execution is not allowed");
   });
 });

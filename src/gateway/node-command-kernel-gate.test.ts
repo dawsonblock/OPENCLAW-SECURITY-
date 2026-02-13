@@ -212,4 +212,50 @@ describe("invokeNodeCommandWithKernelGate", () => {
       }
     }
   });
+
+  test("blocks dangerous commands when safe mode is enabled", async () => {
+    const command = "system.run";
+    const node = buildNodeSession({ commands: [command], platform: "macos", deviceFamily: "Mac" });
+    const invoke = vi.fn<
+      [
+        {
+          nodeId: string;
+          command: string;
+          params?: unknown;
+          timeoutMs?: number;
+          idempotencyKey?: string;
+        },
+      ],
+      Promise<NodeInvokeResult>
+    >(async () => ({ ok: true, payload: { ok: true } }));
+    const previous = process.env.OPENCLAW_SAFE_MODE;
+    process.env.OPENCLAW_SAFE_MODE = "1";
+    try {
+      const result = await invokeNodeCommandWithKernelGate({
+        cfg: {
+          gateway: {
+            bind: "loopback",
+            nodes: { allowCommands: [command] },
+          },
+        } as OpenClawConfig,
+        nodeRegistry: {
+          get: vi.fn(() => node),
+          invoke,
+        },
+        nodeId: node.nodeId,
+        command,
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.message).toContain("node command not allowed");
+      }
+      expect(invoke).not.toHaveBeenCalled();
+    } finally {
+      if (previous === undefined) {
+        delete process.env.OPENCLAW_SAFE_MODE;
+      } else {
+        process.env.OPENCLAW_SAFE_MODE = previous;
+      }
+    }
+  });
 });

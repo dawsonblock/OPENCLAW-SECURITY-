@@ -41,11 +41,15 @@ import {
 import { scheduleGatewayUpdateCheck } from "../infra/update-startup.js";
 import { startDiagnosticHeartbeat, stopDiagnosticHeartbeat } from "../logging/diagnostic.js";
 import { createSubsystemLogger, runtimeForLogger } from "../logging/subsystem.js";
+import {
+  allowUnsafeGatewayConfig,
+  isSafeModeEnabled,
+  resolveStartupBindOverride,
+  validateGatewayStartupSecurity,
+} from "../security/startup-validator.js";
 import { runOnboardingWizard } from "../wizard/onboarding.js";
 import { startGatewayConfigReloader } from "./config-reload.js";
 import { ExecApprovalManager } from "./exec-approval-manager.js";
-import { isLoopbackHost } from "./net.js";
-import { DEFAULT_DANGEROUS_NODE_COMMANDS } from "./node-command-policy.js";
 import { NodeRegistry } from "./node-registry.js";
 import { createChannelManager } from "./server-channels.js";
 import { createAgentEventHandler } from "./server-chat.js";
@@ -81,11 +85,6 @@ import {
 import { loadGatewayTlsRuntime } from "./server/tls.js";
 
 export { __resetModelCatalogCacheForTest } from "./server-model-catalog.js";
-
-function allowUnsafeGatewayConfig() {
-  const flag = process.env.OPENCLAW_ALLOW_UNSAFE_CONFIG?.trim().toLowerCase();
-  return flag === "1" || flag === "true";
-}
 
 ensureOpenClawCliOnPath();
 
@@ -250,11 +249,19 @@ export async function startGatewayServer(
   const channelMethods = listChannelPlugins().flatMap((plugin) => plugin.gatewayMethods ?? []);
   const gatewayMethods = Array.from(new Set([...baseGatewayMethods, ...channelMethods]));
   let pluginServices: PluginServicesHandle | null = null;
+  const startupBindOverride = resolveStartupBindOverride({
+    bind: opts.bind,
+    host: opts.host,
+    env: process.env,
+  });
+  if (isSafeModeEnabled(process.env) && (opts.bind !== startupBindOverride.bind || opts.host)) {
+    log.warn("gateway: OPENCLAW_SAFE_MODE=1 forcing loopback bind and disabling host override");
+  }
   const runtimeConfig = await resolveGatewayRuntimeConfig({
     cfg: cfgAtStart,
     port,
-    bind: opts.bind,
-    host: opts.host,
+    bind: startupBindOverride.bind,
+    host: startupBindOverride.host,
     controlUiEnabled: opts.controlUiEnabled,
     openAiChatCompletionsEnabled: opts.openAiChatCompletionsEnabled,
     openResponsesEnabled: opts.openResponsesEnabled,
@@ -273,37 +280,21 @@ export async function startGatewayServer(
     tailscaleConfig,
     tailscaleMode,
   } = runtimeConfig;
-  const controlUiAllowInsecureAuth = cfgAtStart.gateway?.controlUi?.allowInsecureAuth === true;
-  const controlUiDisableDeviceAuth =
-    cfgAtStart.gateway?.controlUi?.dangerouslyDisableDeviceAuth === true;
-  const safeExposure = isLoopbackHost(bindHost) || tailscaleMode === "serve";
-  const configuredDangerousCommands = (cfgAtStart.gateway?.nodes?.allowCommands ?? []).filter(
-    (cmd) => DEFAULT_DANGEROUS_NODE_COMMANDS.includes(cmd),
-  );
-  if (configuredDangerousCommands.length > 0 && !safeExposure) {
-    if (!allowUnsafeGatewayConfig()) {
+  const startupIssues = validateGatewayStartupSecurity({
+    cfg: cfgAtStart,
+    bindHost,
+    tailscaleMode,
+    env: process.env,
+  });
+  if (startupIssues.length > 0) {
+    if (!allowUnsafeGatewayConfig(process.env)) {
       throw new Error(
-        `Unsafe gateway exposure: dangerous node commands enabled (${configuredDangerousCommands.join(", ")}) ` +
-          `with bindHost=${bindHost} tailscale.mode=${tailscaleMode}. ` +
+        `Unsafe gateway startup configuration:\n- ${startupIssues.join("\n- ")}\n` +
           "Refusing startup. Set OPENCLAW_ALLOW_UNSAFE_CONFIG=1 for break-glass override.",
       );
     }
     log.warn(
-      `gateway: OPENCLAW_ALLOW_UNSAFE_CONFIG override enabled with dangerous node commands on exposed bindHost=${bindHost}`,
-    );
-  }
-  if ((controlUiAllowInsecureAuth || controlUiDisableDeviceAuth) && !safeExposure) {
-    const unsafeFlag = controlUiAllowInsecureAuth
-      ? "gateway.controlUi.allowInsecureAuth=true"
-      : "gateway.controlUi.dangerouslyDisableDeviceAuth=true";
-    if (!allowUnsafeGatewayConfig()) {
-      throw new Error(
-        `Unsafe Control UI auth config: ${unsafeFlag} with gateway exposure bindHost=${bindHost} tailscale.mode=${tailscaleMode}. ` +
-          "Refusing startup. Set OPENCLAW_ALLOW_UNSAFE_CONFIG=1 for break-glass override.",
-      );
-    }
-    log.warn(
-      `gateway: OPENCLAW_ALLOW_UNSAFE_CONFIG override enabled with ${unsafeFlag} on exposed bindHost=${bindHost}`,
+      `gateway: OPENCLAW_ALLOW_UNSAFE_CONFIG override enabled with unsafe startup config on bindHost=${bindHost} tailscale.mode=${tailscaleMode}: ${startupIssues.join("; ")}`,
     );
   }
   let hooksConfig = runtimeConfig.hooksConfig;

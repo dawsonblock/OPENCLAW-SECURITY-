@@ -53,7 +53,7 @@ import {
   incrementPresenceVersion,
   refreshGatewayHealthSnapshot,
 } from "../health-state.js";
-import { guardInboundPayload } from "./payload-guard.js";
+import { guardInboundJsonText, guardInboundPayload } from "./payload-guard.js";
 
 type SubsystemLogger = ReturnType<typeof createSubsystemLogger>;
 
@@ -238,10 +238,20 @@ export function attachGatewayWsMessageHandler(params: {
     }
     const text = rawDataToString(data);
     try {
+      const textGuard = guardInboundJsonText(text);
+      if (!textGuard.ok) {
+        const reason = `INVALID_MESSAGE_SHAPE: ${textGuard.reason}`;
+        if (!getClient()) {
+          setHandshakeState("failed");
+        }
+        setCloseCause("invalid-request-payload", { reason: textGuard.reason });
+        close(1009, truncateCloseReason(reason));
+        return;
+      }
       const parsed = JSON.parse(text);
       const payloadGuard = guardInboundPayload(parsed);
       if (!payloadGuard.ok) {
-        const reason = `invalid request payload: ${payloadGuard.reason}`;
+        const reason = `INVALID_MESSAGE_SHAPE: ${payloadGuard.reason}`;
         if (!getClient()) {
           setHandshakeState("failed");
         }

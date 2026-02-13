@@ -1,5 +1,6 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { NodeInvokeResult, NodeRegistry, NodeSession } from "./node-registry.js";
+import { isSafeModeEnabled } from "../security/startup-validator.js";
 import {
   DEFAULT_DANGEROUS_NODE_COMMANDS,
   isNodeCommandAllowed,
@@ -79,6 +80,17 @@ export async function invokeNodeCommandWithKernelGate(params: {
   }
 
   const dangerous = DEFAULT_DANGEROUS_NODE_COMMANDS.includes(command);
+  if (dangerous && isSafeModeEnabled(process.env)) {
+    return {
+      ok: false,
+      code: "NOT_ALLOWED",
+      message: "node command not allowed: OPENCLAW_SAFE_MODE=1 disables dangerous node commands",
+      details: {
+        reason: "dangerous command blocked by safe mode",
+        command,
+      },
+    };
+  }
   if (dangerous && !isSafeExposure(params.cfg) && !dangerousExposureOverrideEnabled()) {
     return {
       ok: false,
