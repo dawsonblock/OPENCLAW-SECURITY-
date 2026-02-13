@@ -57,6 +57,11 @@ function policyMutationEnabled() {
   return value === "1" || value === "true";
 }
 
+function browserProxyEnabled() {
+  const value = process.env.OPENCLAW_ALLOW_BROWSER_PROXY?.trim().toLowerCase();
+  return value === "1" || value === "true";
+}
+
 function normalizeCommandEnv(env: unknown): Record<string, string> | null {
   if (!env || typeof env !== "object") {
     return null;
@@ -468,11 +473,25 @@ export const nodeHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    if (command === "system.execApprovals.set" && !hasAdminScope(client)) {
+    if (
+      (command === "system.execApprovals.get" || command === "system.execApprovals.set") &&
+      !hasAdminScope(client)
+    ) {
       respond(
         false,
         undefined,
         errorShape(ErrorCodes.INVALID_REQUEST, "missing scope: operator.admin"),
+      );
+      return;
+    }
+    if (command === "browser.proxy" && !browserProxyEnabled()) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          "browser.proxy is disabled; set OPENCLAW_ALLOW_BROWSER_PROXY=1",
+        ),
       );
       return;
     }
