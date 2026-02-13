@@ -27,7 +27,16 @@ async function invokeNode(
     isWebchatConnect: () => false,
     respond,
     context: {
-      nodeRegistry: {} as never,
+      nodeRegistry: {
+        get: () => undefined,
+        invoke: vi.fn(),
+      } as never,
+      dedupe: new Map(),
+      cronStorePath: "/tmp/openclaw-cron.json",
+      logGateway: {
+        warn: vi.fn(),
+        debug: vi.fn(),
+      },
       execApprovalManager: {
         computeBindHash: () => "hash",
         consumeToken: () => false,
@@ -135,5 +144,91 @@ describe("node.invoke security checks", () => {
     );
     expect(res.ok).toBe(false);
     expect(res.error?.message).toContain("requires sessionKey");
+  });
+
+  it("rejects dangerous idempotency replay with mismatched payload", async () => {
+    const previous = process.env.OPENCLAW_ALLOW_BROWSER_PROXY;
+    process.env.OPENCLAW_ALLOW_BROWSER_PROXY = "1";
+    const respondA = vi.fn();
+    const respondB = vi.fn();
+    const sharedContext = {
+      nodeRegistry: {
+        get: () => undefined,
+        invoke: vi.fn(),
+      },
+      dedupe: new Map(),
+      cronStorePath: "/tmp/openclaw-cron.json",
+      logGateway: {
+        warn: vi.fn(),
+        debug: vi.fn(),
+      },
+      execApprovalManager: {
+        computeBindHash: () => "hash",
+        consumeToken: () => false,
+      },
+    } as never;
+
+    try {
+      await nodeHandlers["node.invoke"]({
+        req: { type: "req", id: "req-a", method: "node.invoke", params: {} } as never,
+        params: {
+          nodeId: "node-1",
+          command: "browser.proxy",
+          params: { method: "GET", path: "/tabs" },
+          idempotencyKey: "danger-replay-key",
+        },
+        client: { connect: { role: "operator", scopes: ["operator.admin"] } } as never,
+        isWebchatConnect: () => false,
+        respond: respondA,
+        context: sharedContext,
+      });
+
+      await nodeHandlers["node.invoke"]({
+        req: { type: "req", id: "req-b", method: "node.invoke", params: {} } as never,
+        params: {
+          nodeId: "node-1",
+          command: "browser.proxy",
+          params: { method: "GET", path: "/different" },
+          idempotencyKey: "danger-replay-key",
+        },
+        client: { connect: { role: "operator", scopes: ["operator.admin"] } } as never,
+        isWebchatConnect: () => false,
+        respond: respondB,
+        context: sharedContext,
+      });
+
+      const [ok] = respondB.mock.calls[0] ?? [];
+      const [, , error] = respondB.mock.calls[0] ?? [];
+      expect(ok).toBe(false);
+      expect(error?.message).toContain("idempotency key reused with different payload");
+    } finally {
+      if (previous === undefined) {
+        delete process.env.OPENCLAW_ALLOW_BROWSER_PROXY;
+      } else {
+        process.env.OPENCLAW_ALLOW_BROWSER_PROXY = previous;
+      }
+    }
+  });
+
+  it("blocks repeated dangerous denials with tripwire", async () => {
+    const denialResponses: Array<{ ok?: boolean; errorMessage?: string }> = [];
+    const sessionKey = "agent:test:tripwire";
+    for (let index = 0; index < 6; index += 1) {
+      const res = await invokeNode(
+        {
+          nodeId: "node-1",
+          command: "system.run",
+          params: {
+            command: ["echo", "ok"],
+            sessionKey,
+          },
+          idempotencyKey: `tripwire-${index}`,
+        },
+        { connect: { role: "operator", scopes: ["operator.admin"] } },
+      );
+      denialResponses.push({ ok: res.ok, errorMessage: res.error?.message });
+    }
+    expect(denialResponses[5]?.ok).toBe(false);
+    expect(denialResponses[5]?.errorMessage).toContain("temporarily blocked");
   });
 });

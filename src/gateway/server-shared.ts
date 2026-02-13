@@ -5,4 +5,5 @@ export type DedupeEntry = {
   ok: boolean;
   payload?: unknown;
   error?: ErrorShape;
+  payloadHash?: string;
 };

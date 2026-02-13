@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { ExecApprovalRequestPayload } from "../exec-approval-manager.js";
 import type { GatewayRequestHandlers } from "./types.js";
 import { loadConfig } from "../../config/config.js";
@@ -15,6 +16,8 @@ import {
   resolveNodeCommandCapabilityPolicy,
 } from "../../security/capability-registry.js";
 import { DangerousActionLimiter } from "../../security/dangerous-action-limiter.js";
+import { appendDangerousLedgerEntry } from "../../security/dangerous-ledger.js";
+import { hashPayload } from "../../security/stable-hash.js";
 import { validateSystemRunCommand } from "../../security/system-run-constraints.js";
 import { invokeNodeCommandWithKernelGate } from "../node-command-kernel-gate.js";
 import {
@@ -99,6 +102,45 @@ function breakGlassMessage(command: string, key: string): string {
     return `browser.proxy is disabled; set ${key}=1`;
   }
   return `${command} is disabled; set ${key}=1`;
+}
+
+function normalizeParamsForHash(params: unknown): unknown {
+  if (!params || typeof params !== "object") {
+    return params;
+  }
+  if (Array.isArray(params)) {
+    return params.map((entry) => normalizeParamsForHash(entry));
+  }
+  const record = params as Record<string, unknown>;
+  const normalized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (key === "approvalToken") {
+      continue;
+    }
+    normalized[key] = normalizeParamsForHash(value);
+  }
+  return normalized;
+}
+
+function resolveDangerousPayloadHash(nodeId: string, command: string, params: unknown): string {
+  return hashPayload({
+    nodeId,
+    command,
+    params: normalizeParamsForHash(params),
+  });
+}
+
+function resolveDangerousLedgerBaseDir(
+  context: Parameters<GatewayRequestHandlers["node.invoke"]>[0]["context"],
+): string {
+  return path.resolve(path.dirname(context.cronStorePath), "security");
+}
+
+function hashSessionKeyForLedger(sessionKey: string | null): string | null {
+  if (!sessionKey) {
+    return null;
+  }
+  return hashPayload({ sessionKey });
 }
 
 function normalizeCommandEnv(env: unknown): Record<string, string> | null {
@@ -532,18 +574,113 @@ export const nodeHandlers: GatewayRequestHandlers = {
     }
     const capabilityPolicy = resolveNodeCommandCapabilityPolicy(command);
     const rateLimitKey = resolveRateLimitKey(command, p.params, client);
+    const dangerousSessionKey = capabilityPolicy.dangerous
+      ? resolveDangerousSessionKey(p.params)
+      : null;
+    const dangerousSessionKeyHash = hashSessionKeyForLedger(dangerousSessionKey);
+    const dangerousLedgerBaseDir = capabilityPolicy.dangerous
+      ? resolveDangerousLedgerBaseDir(context)
+      : null;
+    let dangerousPayloadHash: string | null = null;
+    let dangerousDedupeKey: string | null = null;
+
+    const writeDangerousLedger = (event: string, payload: Record<string, unknown>) => {
+      if (!capabilityPolicy.dangerous || !dangerousLedgerBaseDir) {
+        return;
+      }
+      void appendDangerousLedgerEntry({
+        baseDir: dangerousLedgerBaseDir,
+        event,
+        payload: {
+          nodeId,
+          command,
+          idempotencyKey: p.idempotencyKey,
+          sessionKeyHash: dangerousSessionKeyHash,
+          payloadHash: dangerousPayloadHash,
+          ...payload,
+        },
+      }).catch((err) => {
+        context.logGateway.warn(`dangerous ledger append failed: ${String(err)}`);
+      });
+    };
+
+    const respondDangerous = (
+      ok: boolean,
+      payload?: unknown,
+      error?: { code?: string; message?: string },
+    ) => {
+      if (capabilityPolicy.dangerous && dangerousDedupeKey && dangerousPayloadHash) {
+        context.dedupe.set(dangerousDedupeKey, {
+          ts: Date.now(),
+          ok,
+          payload,
+          error: error as never,
+          payloadHash: dangerousPayloadHash,
+        });
+      }
+      respond(ok, payload, error as never);
+    };
+
+    if (capabilityPolicy.dangerous) {
+      try {
+        dangerousPayloadHash = resolveDangerousPayloadHash(nodeId, command, p.params);
+      } catch (err) {
+        dangerousActionLimiter.noteDenial(rateLimitKey);
+        writeDangerousLedger("dangerous.invoke.denied", {
+          reason: "payload hash failed",
+          error: String(err),
+        });
+        respondDangerous(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, "unable to hash dangerous payload"),
+        );
+        return;
+      }
+      dangerousDedupeKey = `node-danger:${rateLimitKey}:${p.idempotencyKey}`;
+      const cached = context.dedupe.get(dangerousDedupeKey);
+      if (cached) {
+        if (cached.payloadHash && cached.payloadHash !== dangerousPayloadHash) {
+          dangerousActionLimiter.noteDenial(rateLimitKey);
+          writeDangerousLedger("dangerous.invoke.denied", {
+            reason: "idempotency key reused with different payload",
+          });
+          respondDangerous(
+            false,
+            undefined,
+            errorShape(
+              ErrorCodes.INVALID_REQUEST,
+              "idempotency key reused with different payload for dangerous command",
+            ),
+          );
+          return;
+        }
+        if (cached.ok) {
+          dangerousActionLimiter.noteSuccess(rateLimitKey);
+        }
+        respond(cached.ok, cached.payload, cached.error);
+        return;
+      }
+    }
+
     if (capabilityPolicy.dangerous) {
       const limiterResult = dangerousActionLimiter.checkAndConsume(rateLimitKey);
       if (!limiterResult.ok) {
-        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, limiterResult.reason));
+        writeDangerousLedger("dangerous.invoke.denied", { reason: limiterResult.reason });
+        respondDangerous(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, limiterResult.reason),
+        );
         return;
       }
     }
     if (capabilityPolicy.requiresAdmin && !hasAdminScope(client)) {
       if (capabilityPolicy.dangerous) {
         dangerousActionLimiter.noteDenial(rateLimitKey);
+        writeDangerousLedger("dangerous.invoke.denied", { reason: "missing admin scope" });
       }
-      respond(
+      respondDangerous(
         false,
         undefined,
         errorShape(ErrorCodes.INVALID_REQUEST, "missing scope: operator.admin"),
@@ -555,8 +692,11 @@ export const nodeHandlers: GatewayRequestHandlers = {
       if (!enabled) {
         if (capabilityPolicy.dangerous) {
           dangerousActionLimiter.noteDenial(rateLimitKey);
+          writeDangerousLedger("dangerous.invoke.denied", {
+            reason: `missing break-glass env ${capabilityPolicy.breakGlassEnv}`,
+          });
         }
-        respond(
+        respondDangerous(
           false,
           undefined,
           errorShape(
@@ -570,8 +710,9 @@ export const nodeHandlers: GatewayRequestHandlers = {
     if (capabilityPolicy.requiresSessionKey && !resolveDangerousSessionKey(p.params)) {
       if (capabilityPolicy.dangerous) {
         dangerousActionLimiter.noteDenial(rateLimitKey);
+        writeDangerousLedger("dangerous.invoke.denied", { reason: "missing sessionKey" });
       }
-      respond(
+      respondDangerous(
         false,
         undefined,
         errorShape(
@@ -590,8 +731,13 @@ export const nodeHandlers: GatewayRequestHandlers = {
       if (!constrained.ok) {
         if (capabilityPolicy.dangerous) {
           dangerousActionLimiter.noteDenial(rateLimitKey);
+          writeDangerousLedger("dangerous.invoke.denied", { reason: constrained.reason });
         }
-        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, constrained.reason));
+        respondDangerous(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, constrained.reason),
+        );
         return;
       }
     }
@@ -612,10 +758,14 @@ export const nodeHandlers: GatewayRequestHandlers = {
       if (!invokeResult.ok) {
         if (capabilityPolicy.dangerous) {
           dangerousActionLimiter.noteDenial(rateLimitKey);
+          writeDangerousLedger("dangerous.invoke.denied", {
+            reason: invokeResult.message,
+            gateCode: invokeResult.code,
+          });
         }
         const code =
           invokeResult.code === "NOT_ALLOWED" ? ErrorCodes.INVALID_REQUEST : ErrorCodes.UNAVAILABLE;
-        respond(
+        respondDangerous(
           false,
           undefined,
           errorShape(code, invokeResult.message, {
@@ -628,8 +778,12 @@ export const nodeHandlers: GatewayRequestHandlers = {
       if (!res.ok) {
         if (capabilityPolicy.dangerous) {
           dangerousActionLimiter.noteDenial(rateLimitKey);
+          writeDangerousLedger("dangerous.invoke.denied", {
+            reason: res.error?.message ?? "node invoke failed",
+            nodeErrorCode: res.error?.code,
+          });
         }
-        respond(
+        respondDangerous(
           false,
           undefined,
           errorShape(ErrorCodes.UNAVAILABLE, res.error?.message ?? "node invoke failed", {
@@ -641,8 +795,9 @@ export const nodeHandlers: GatewayRequestHandlers = {
       const payload = res.payloadJSON ? safeParseJson(res.payloadJSON) : res.payload;
       if (capabilityPolicy.dangerous) {
         dangerousActionLimiter.noteSuccess(rateLimitKey);
+        writeDangerousLedger("dangerous.invoke.allowed", { ok: true });
       }
-      respond(
+      respondDangerous(
         true,
         {
           ok: true,
