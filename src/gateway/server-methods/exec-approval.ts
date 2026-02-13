@@ -2,19 +2,92 @@ import type { ExecApprovalForwarder } from "../../infra/exec-approval-forwarder.
 import type { ExecApprovalDecision } from "../../infra/exec-approvals.js";
 import type { ExecApprovalManager } from "../exec-approval-manager.js";
 import type { GatewayRequestHandlers } from "./types.js";
+import { computeCapabilityApprovalBindHash } from "../../security/capability-approval.js";
 import { validateSystemRunCommand } from "../../security/system-run-constraints.js";
 import {
   ErrorCodes,
   errorShape,
   formatValidationErrors,
+  validateCapabilityApprovalRequestParams,
   validateExecApprovalRequestParams,
   validateExecApprovalResolveParams,
 } from "../protocol/index.js";
+
+function resolveApprovalSessionKey(params: {
+  sessionKey?: string | null;
+  agentId?: string | null;
+}): string {
+  if (typeof params.sessionKey === "string" && params.sessionKey.trim()) {
+    return params.sessionKey.trim();
+  }
+  if (typeof params.agentId === "string" && params.agentId.trim()) {
+    return `agent:${params.agentId.trim()}:main`;
+  }
+  return "";
+}
 
 export function createExecApprovalHandlers(
   manager: ExecApprovalManager,
   opts?: { forwarder?: ExecApprovalForwarder },
 ): GatewayRequestHandlers {
+  const requestAndAwaitApproval = async (params: {
+    explicitId: string | null;
+    timeoutMs: number;
+    request: Parameters<ExecApprovalManager["create"]>[0];
+    bindHash: string;
+    context: Parameters<GatewayRequestHandlers["exec.approval.request"]>[0]["context"];
+    respond: Parameters<GatewayRequestHandlers["exec.approval.request"]>[0]["respond"];
+  }) => {
+    if (params.explicitId && manager.getSnapshot(params.explicitId)) {
+      params.respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, "approval id already pending"),
+      );
+      return;
+    }
+    const record = manager.create(params.request, params.timeoutMs, params.explicitId);
+    const decisionPromise = manager.waitForDecision(record, params.timeoutMs);
+    params.context.broadcast(
+      "exec.approval.requested",
+      {
+        id: record.id,
+        request: record.request,
+        createdAtMs: record.createdAtMs,
+        expiresAtMs: record.expiresAtMs,
+      },
+      { dropIfSlow: true },
+    );
+    void opts?.forwarder
+      ?.handleRequested({
+        id: record.id,
+        request: record.request,
+        createdAtMs: record.createdAtMs,
+        expiresAtMs: record.expiresAtMs,
+      })
+      .catch((err) => {
+        params.context.logGateway?.error?.(
+          `exec approvals: forward request failed: ${String(err)}`,
+        );
+      });
+    const decision = await decisionPromise;
+    const approvalToken =
+      decision === "allow-once" || decision === "allow-always"
+        ? manager.issueToken(params.bindHash)
+        : null;
+    params.respond(
+      true,
+      {
+        id: record.id,
+        decision,
+        approvalToken,
+        createdAtMs: record.createdAtMs,
+        expiresAtMs: record.expiresAtMs,
+      },
+      undefined,
+    );
+  };
+
   return {
     "exec.approval.request": async ({ params, respond, context }) => {
       if (!validateExecApprovalRequestParams(params)) {
@@ -44,12 +117,10 @@ export function createExecApprovalHandlers(
         sessionKey?: string;
         timeoutMs?: number;
       };
-      const sessionKey =
-        typeof p.sessionKey === "string" && p.sessionKey.trim()
-          ? p.sessionKey.trim()
-          : typeof p.agentId === "string" && p.agentId.trim()
-            ? `agent:${p.agentId.trim()}:main`
-            : "";
+      const sessionKey = resolveApprovalSessionKey({
+        sessionKey: p.sessionKey,
+        agentId: p.agentId,
+      });
       if (!sessionKey) {
         respond(
           false,
@@ -68,14 +139,6 @@ export function createExecApprovalHandlers(
       }
       const timeoutMs = typeof p.timeoutMs === "number" ? p.timeoutMs : 120_000;
       const explicitId = typeof p.id === "string" && p.id.trim().length > 0 ? p.id.trim() : null;
-      if (explicitId && manager.getSnapshot(explicitId)) {
-        respond(
-          false,
-          undefined,
-          errorShape(ErrorCodes.INVALID_REQUEST, "approval id already pending"),
-        );
-        return;
-      }
       const request = {
         command: p.command,
         commandArgv: Array.isArray(p.commandArgv)
@@ -90,45 +153,78 @@ export function createExecApprovalHandlers(
         resolvedPath: p.resolvedPath ?? null,
         sessionKey,
       };
-      const record = manager.create(request, timeoutMs, explicitId);
-      const decisionPromise = manager.waitForDecision(record, timeoutMs);
-      context.broadcast(
-        "exec.approval.requested",
-        {
-          id: record.id,
-          request: record.request,
-          createdAtMs: record.createdAtMs,
-          expiresAtMs: record.expiresAtMs,
-        },
-        { dropIfSlow: true },
-      );
-      void opts?.forwarder
-        ?.handleRequested({
-          id: record.id,
-          request: record.request,
-          createdAtMs: record.createdAtMs,
-          expiresAtMs: record.expiresAtMs,
-        })
-        .catch((err) => {
-          context.logGateway?.error?.(`exec approvals: forward request failed: ${String(err)}`);
-        });
-      const decision = await decisionPromise;
-      const bindHash = manager.computeBindHash(request);
-      const approvalToken =
-        decision === "allow-once" || decision === "allow-always"
-          ? manager.issueToken(bindHash)
-          : null;
-      respond(
-        true,
-        {
-          id: record.id,
-          decision,
-          approvalToken,
-          createdAtMs: record.createdAtMs,
-          expiresAtMs: record.expiresAtMs,
-        },
-        undefined,
-      );
+      await requestAndAwaitApproval({
+        explicitId,
+        timeoutMs,
+        request,
+        bindHash: manager.computeBindHash(request),
+        context,
+        respond,
+      });
+    },
+    "capability.approval.request": async ({ params, respond, context }) => {
+      if (!validateCapabilityApprovalRequestParams(params)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid capability.approval.request params: ${formatValidationErrors(
+              validateCapabilityApprovalRequestParams.errors,
+            )}`,
+          ),
+        );
+        return;
+      }
+      const p = params as {
+        id?: string;
+        capability: string;
+        subject: string;
+        payloadHash: string;
+        agentId?: string | null;
+        sessionKey?: string | null;
+        timeoutMs?: number;
+      };
+      const sessionKey = resolveApprovalSessionKey({
+        sessionKey: p.sessionKey ?? null,
+        agentId: p.agentId ?? null,
+      });
+      if (!sessionKey) {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, "sessionKey required for capability approvals"),
+        );
+        return;
+      }
+      const timeoutMs = typeof p.timeoutMs === "number" ? p.timeoutMs : 120_000;
+      const explicitId = typeof p.id === "string" && p.id.trim().length > 0 ? p.id.trim() : null;
+      const request = {
+        command: `capability:${p.capability}`,
+        commandArgv: [p.subject],
+        commandEnv: null,
+        cwd: `subject:${p.subject}`,
+        host: "capability",
+        security: null,
+        ask: null,
+        agentId: p.agentId ?? null,
+        resolvedPath: p.payloadHash,
+        sessionKey,
+      };
+      await requestAndAwaitApproval({
+        explicitId,
+        timeoutMs,
+        request,
+        bindHash: computeCapabilityApprovalBindHash({
+          capability: p.capability,
+          subject: p.subject,
+          payloadHash: p.payloadHash,
+          agentId: p.agentId ?? null,
+          sessionKey,
+        }),
+        context,
+        respond,
+      });
     },
     "exec.approval.resolve": async ({ params, respond, client, context }) => {
       if (!validateExecApprovalResolveParams(params)) {

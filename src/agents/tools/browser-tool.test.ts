@@ -45,10 +45,14 @@ vi.mock("./nodes-utils.js", async () => {
 });
 
 const gatewayMocks = vi.hoisted(() => ({
-  callGatewayTool: vi.fn(async () => ({
-    ok: true,
-    payload: { result: { ok: true, running: true } },
-  })),
+  callGatewayTool: vi.fn(async (method: string) =>
+    method === "capability.approval.request"
+      ? { decision: "allow-once", approvalToken: "cap-token-1" }
+      : {
+          ok: true,
+          payload: { result: { ok: true, running: true } },
+        },
+  ),
 }));
 vi.mock("./gateway.js", () => gatewayMocks);
 
@@ -193,6 +197,14 @@ describe("browser tool snapshot maxChars", () => {
     const tool = createBrowserTool();
     await tool.execute?.(null, { action: "status", target: "node" });
 
+    expect(gatewayMocks.callGatewayTool).toHaveBeenCalledWith(
+      "capability.approval.request",
+      { timeoutMs: 30000 },
+      expect.objectContaining({
+        capability: "node.browser.proxy",
+        subject: "node-1",
+      }),
+    );
     expect(gatewayMocks.callGatewayTool).toHaveBeenCalledWith(
       "node.invoke",
       { timeoutMs: 20000 },

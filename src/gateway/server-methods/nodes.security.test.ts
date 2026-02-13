@@ -113,6 +113,83 @@ describe("node.invoke security checks", () => {
     }
   });
 
+  it("requires capability approval token for browser.proxy", async () => {
+    const previous = process.env.OPENCLAW_ALLOW_BROWSER_PROXY;
+    process.env.OPENCLAW_ALLOW_BROWSER_PROXY = "1";
+    try {
+      const res = await invokeNode(
+        {
+          nodeId: "node-1",
+          command: "browser.proxy",
+          params: {
+            method: "GET",
+            path: "/tabs",
+          },
+          idempotencyKey: "k-proxy-token",
+        },
+        { connect: { role: "operator", scopes: ["operator.admin"] } },
+      );
+      expect(res.ok).toBe(false);
+      expect(res.error?.message).toContain("requires capability approval token");
+    } finally {
+      if (previous === undefined) {
+        delete process.env.OPENCLAW_ALLOW_BROWSER_PROXY;
+      } else {
+        process.env.OPENCLAW_ALLOW_BROWSER_PROXY = previous;
+      }
+    }
+  });
+
+  it("accepts valid capability token and reaches kernel gate", async () => {
+    const previous = process.env.OPENCLAW_ALLOW_BROWSER_PROXY;
+    process.env.OPENCLAW_ALLOW_BROWSER_PROXY = "1";
+    const respond = vi.fn();
+    try {
+      await nodeHandlers["node.invoke"]({
+        req: { type: "req", id: "req-token", method: "node.invoke", params: {} } as never,
+        params: {
+          nodeId: "node-1",
+          command: "browser.proxy",
+          params: {
+            method: "GET",
+            path: "/tabs",
+            capabilityApprovalToken: "token-1",
+          },
+          idempotencyKey: "k-proxy-token-valid",
+        },
+        client: { connect: { role: "operator", scopes: ["operator.admin"] } } as never,
+        isWebchatConnect: () => false,
+        respond,
+        context: {
+          nodeRegistry: {
+            get: () => undefined,
+            invoke: vi.fn(),
+          },
+          dedupe: new Map(),
+          cronStorePath: "/tmp/openclaw-cron.json",
+          logGateway: {
+            warn: vi.fn(),
+            debug: vi.fn(),
+          },
+          execApprovalManager: {
+            computeBindHash: () => "unused",
+            consumeToken: () => true,
+          },
+        } as never,
+      });
+
+      const [ok, , error] = respond.mock.calls[0] ?? [];
+      expect(ok).toBe(false);
+      expect(error?.message).toContain("node not connected");
+    } finally {
+      if (previous === undefined) {
+        delete process.env.OPENCLAW_ALLOW_BROWSER_PROXY;
+      } else {
+        process.env.OPENCLAW_ALLOW_BROWSER_PROXY = previous;
+      }
+    }
+  });
+
   it("blocks system.run deny-pattern commands", async () => {
     const res = await invokeNode(
       {

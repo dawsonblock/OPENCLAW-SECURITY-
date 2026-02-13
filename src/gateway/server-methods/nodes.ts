@@ -12,6 +12,10 @@ import {
   verifyNodeToken,
 } from "../../infra/node-pairing.js";
 import {
+  computeCapabilityApprovalBindHash,
+  computeNodeInvokeApprovalPayloadHash,
+} from "../../security/capability-approval.js";
+import {
   isBreakGlassEnvEnabled,
   resolveNodeCommandCapabilityPolicy,
 } from "../../security/capability-registry.js";
@@ -104,29 +108,11 @@ function breakGlassMessage(command: string, key: string): string {
   return `${command} is disabled; set ${key}=1`;
 }
 
-function normalizeParamsForHash(params: unknown): unknown {
-  if (!params || typeof params !== "object") {
-    return params;
-  }
-  if (Array.isArray(params)) {
-    return params.map((entry) => normalizeParamsForHash(entry));
-  }
-  const record = params as Record<string, unknown>;
-  const normalized: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(record)) {
-    if (key === "approvalToken") {
-      continue;
-    }
-    normalized[key] = normalizeParamsForHash(value);
-  }
-  return normalized;
-}
-
 function resolveDangerousPayloadHash(nodeId: string, command: string, params: unknown): string {
-  return hashPayload({
+  return computeNodeInvokeApprovalPayloadHash({
     nodeId,
     command,
-    params: normalizeParamsForHash(params),
+    payload: params,
   });
 }
 
@@ -155,6 +141,40 @@ function normalizeCommandEnv(env: unknown): Record<string, string> | null {
     out[key] = value;
   }
   return Object.keys(out).length > 0 ? out : null;
+}
+
+function resolveCapabilityApprovalToken(params: unknown): string {
+  if (!params || typeof params !== "object") {
+    return "";
+  }
+  const record = params as Record<string, unknown>;
+  const candidate = [record.capabilityApprovalToken, record.approvalToken];
+  for (const value of candidate) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return "";
+}
+
+function sanitizeCapabilityApprovalTokenParams(params: unknown): unknown {
+  if (!params || typeof params !== "object") {
+    return params;
+  }
+  const out = { ...(params as Record<string, unknown>) };
+  delete out.capabilityApprovalToken;
+  return out;
+}
+
+function resolveAgentIdFromParams(params: unknown): string | null {
+  if (!params || typeof params !== "object") {
+    return null;
+  }
+  const raw = (params as Record<string, unknown>).agentId;
+  if (typeof raw !== "string" || !raw.trim()) {
+    return null;
+  }
+  return raw.trim();
 }
 
 function resolveSystemRunInputs(params: unknown): {
@@ -722,6 +742,56 @@ export const nodeHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    if (capabilityPolicy.requiresApprovalToken) {
+      if (!dangerousPayloadHash) {
+        dangerousActionLimiter.noteDenial(rateLimitKey);
+        writeDangerousLedger("dangerous.invoke.denied", {
+          reason: "missing dangerous payload hash for capability approval",
+        });
+        respondDangerous(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `${command} requires capability approval token binding`,
+          ),
+        );
+        return;
+      }
+      const token = resolveCapabilityApprovalToken(p.params);
+      if (!token) {
+        dangerousActionLimiter.noteDenial(rateLimitKey);
+        writeDangerousLedger("dangerous.invoke.denied", {
+          reason: "missing capability approval token",
+        });
+        respondDangerous(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, `${command} requires capability approval token`),
+        );
+        return;
+      }
+      const bindHash = computeCapabilityApprovalBindHash({
+        capability: capabilityPolicy.capability,
+        subject: nodeId,
+        payloadHash: dangerousPayloadHash,
+        agentId: resolveAgentIdFromParams(p.params),
+        sessionKey: resolveDangerousSessionKey(p.params),
+      });
+      const valid = context.execApprovalManager.consumeToken(token, bindHash);
+      if (!valid) {
+        dangerousActionLimiter.noteDenial(rateLimitKey);
+        writeDangerousLedger("dangerous.invoke.denied", {
+          reason: "invalid capability approval token",
+        });
+        respondDangerous(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, `${command} approval token invalid or expired`),
+        );
+        return;
+      }
+    }
     if (command === "system.run") {
       const { rawCommand, argv } = resolveSystemRunInputs(p.params);
       const constrained = validateSystemRunCommand({
@@ -744,8 +814,12 @@ export const nodeHandlers: GatewayRequestHandlers = {
 
     await respondUnavailableOnThrow(respond, async () => {
       const cfg = loadConfig();
-      const sanitizedParams =
-        command === "system.run" ? sanitizeSystemRunApprovalParams(p.params, context) : p.params;
+      let sanitizedParams = capabilityPolicy.requiresApprovalToken
+        ? sanitizeCapabilityApprovalTokenParams(p.params)
+        : p.params;
+      if (command === "system.run") {
+        sanitizedParams = sanitizeSystemRunApprovalParams(sanitizedParams, context);
+      }
       const invokeResult = await invokeNodeCommandWithKernelGate({
         cfg,
         nodeRegistry: context.nodeRegistry,

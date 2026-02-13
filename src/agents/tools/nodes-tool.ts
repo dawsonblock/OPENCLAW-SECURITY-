@@ -17,6 +17,8 @@ import {
 } from "../../cli/nodes-screen.js";
 import { parseDurationMs } from "../../cli/parse-duration.js";
 import { imageMimeFromFormat } from "../../media/mime.js";
+import { computeNodeInvokeApprovalPayloadHash } from "../../security/capability-approval.js";
+import { resolveNodeCommandCapabilityPolicy } from "../../security/capability-registry.js";
 import { resolveSessionAgentId } from "../agent-scope.js";
 import { optionalStringEnum, stringEnum } from "../schema/typebox.js";
 import { sanitizeToolResultImages } from "../tool-images.js";
@@ -529,10 +531,64 @@ export function createNodesTool(options?: {
               }
             }
             const invokeTimeoutMs = parseTimeoutMs(params.invokeTimeoutMs);
+            const capabilityPolicy = resolveNodeCommandCapabilityPolicy(invokeCommand);
+            let invokePayload = invokeParams;
+            if (capabilityPolicy.requiresApprovalToken) {
+              if (
+                !invokePayload ||
+                typeof invokePayload !== "object" ||
+                Array.isArray(invokePayload)
+              ) {
+                throw new Error(
+                  `${invokeCommand} requires object invokeParamsJson when capability approval is enabled`,
+                );
+              }
+              const invokePayloadRecord = {
+                ...(invokePayload as Record<string, unknown>),
+                agentId: agentId ?? undefined,
+                sessionKey: sessionKey ?? undefined,
+              };
+              const payloadHash = computeNodeInvokeApprovalPayloadHash({
+                nodeId,
+                command: invokeCommand,
+                payload: invokePayloadRecord,
+              });
+              const approvalTimeoutMs = Math.max(
+                5_000,
+                parseTimeoutMs(params.approvalTimeoutMs) ?? DEFAULT_APPROVAL_TIMEOUT_MS,
+              );
+              const approval = await callGatewayTool<{
+                decision?: string;
+                approvalToken?: string | null;
+              }>(
+                "capability.approval.request",
+                { timeoutMs: approvalTimeoutMs + 10_000 },
+                {
+                  id: crypto.randomUUID(),
+                  capability: capabilityPolicy.capability,
+                  subject: nodeId,
+                  payloadHash,
+                  agentId,
+                  sessionKey,
+                  timeoutMs: approvalTimeoutMs,
+                },
+              );
+              const decision = typeof approval?.decision === "string" ? approval.decision : "deny";
+              if (decision !== "allow-once" && decision !== "allow-always") {
+                throw new Error(`${invokeCommand} denied by capability approval`);
+              }
+              if (!approval?.approvalToken) {
+                throw new Error(`${invokeCommand} denied (missing capability approval token)`);
+              }
+              invokePayload = {
+                ...invokePayloadRecord,
+                capabilityApprovalToken: approval.approvalToken,
+              };
+            }
             const raw = await callGatewayTool("node.invoke", gatewayOpts, {
               nodeId,
               command: invokeCommand,
-              params: invokeParams,
+              params: invokePayload,
               timeoutMs: invokeTimeoutMs,
               idempotencyKey: crypto.randomUUID(),
             });

@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { ExecApprovalManager } from "../exec-approval-manager.js";
-import { validateExecApprovalRequestParams } from "../protocol/index.js";
+import {
+  validateCapabilityApprovalRequestParams,
+  validateExecApprovalRequestParams,
+} from "../protocol/index.js";
 import { createExecApprovalHandlers } from "./exec-approval.js";
 
 const noop = () => {};
@@ -46,6 +49,18 @@ describe("exec approval handlers", () => {
         resolvedPath: null,
       };
       expect(validateExecApprovalRequestParams(params)).toBe(true);
+    });
+  });
+
+  describe("CapabilityApprovalRequestParams validation", () => {
+    it("accepts minimal payload", () => {
+      expect(
+        validateCapabilityApprovalRequestParams({
+          capability: "node.browser.proxy",
+          subject: "node-1",
+          payloadHash: "hash-1",
+        }),
+      ).toBe(true);
     });
   });
 
@@ -134,6 +149,59 @@ describe("exec approval handlers", () => {
       undefined,
     );
     expect(broadcasts.some((entry) => entry.event === "exec.approval.resolved")).toBe(true);
+  });
+
+  it("issues approval token for capability approvals", async () => {
+    const manager = new ExecApprovalManager();
+    const handlers = createExecApprovalHandlers(manager);
+    const broadcasts: Array<{ event: string; payload: unknown }> = [];
+    const respond = vi.fn();
+    const context = {
+      broadcast: (event: string, payload: unknown) => {
+        broadcasts.push({ event, payload });
+      },
+    };
+
+    const requestPromise = handlers["capability.approval.request"]({
+      params: {
+        capability: "node.browser.proxy",
+        subject: "node-1",
+        payloadHash: "payload-hash",
+        sessionKey: "agent:main:test",
+      },
+      respond,
+      context: context as unknown as Parameters<
+        (typeof handlers)["capability.approval.request"]
+      >[0]["context"],
+      client: null,
+      req: { id: "req-1", type: "req", method: "capability.approval.request" },
+      isWebchatConnect: noop,
+    });
+
+    const requested = broadcasts.find((entry) => entry.event === "exec.approval.requested");
+    const id = (requested?.payload as { id?: string })?.id ?? "";
+    const resolveRespond = vi.fn();
+    await handlers["exec.approval.resolve"]({
+      params: { id, decision: "allow-once" },
+      respond: resolveRespond,
+      context: context as unknown as Parameters<
+        (typeof handlers)["exec.approval.resolve"]
+      >[0]["context"],
+      client: { connect: { client: { id: "cli", displayName: "CLI" } } },
+      req: { id: "req-2", type: "req", method: "exec.approval.resolve" },
+      isWebchatConnect: noop,
+    });
+
+    await requestPromise;
+
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        decision: "allow-once",
+        approvalToken: expect.any(String),
+      }),
+      undefined,
+    );
   });
 
   it("accepts resolve during broadcast", async () => {

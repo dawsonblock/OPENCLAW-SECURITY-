@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import type { OpenClawConfig } from "../../config/config.js";
 import {
   browserAct,
   browserArmDialog,
@@ -27,6 +28,8 @@ import {
 } from "../../browser/unsafe-eval.js";
 import { loadConfig } from "../../config/config.js";
 import { saveMediaBuffer } from "../../media/store.js";
+import { computeNodeInvokeApprovalPayloadHash } from "../../security/capability-approval.js";
+import { resolveSessionAgentId } from "../agent-scope.js";
 import { BrowserToolSchema } from "./browser-tool.schema.js";
 import { type AnyAgentTool, imageResultFromFile, jsonResult, readStringParam } from "./common.js";
 import { callGatewayTool } from "./gateway.js";
@@ -125,11 +128,56 @@ async function callBrowserProxy(params: {
   body?: unknown;
   timeoutMs?: number;
   profile?: string;
+  agentId?: string;
+  sessionKey?: string;
 }): Promise<BrowserProxyResult> {
   const gatewayTimeoutMs =
     typeof params.timeoutMs === "number" && Number.isFinite(params.timeoutMs)
       ? Math.max(1, Math.floor(params.timeoutMs))
       : DEFAULT_BROWSER_PROXY_TIMEOUT_MS;
+  const invokeParams: Record<string, unknown> = {
+    method: params.method,
+    path: params.path,
+    query: params.query,
+    body: params.body,
+    timeoutMs: params.timeoutMs,
+    profile: params.profile,
+    agentId: params.agentId,
+    sessionKey: params.sessionKey,
+  };
+  const payloadHash = computeNodeInvokeApprovalPayloadHash({
+    nodeId: params.nodeId,
+    command: "browser.proxy",
+    payload: invokeParams,
+  });
+  const approvalResult = await callGatewayTool<{
+    decision?: string;
+    approvalToken?: string | null;
+  }>(
+    "capability.approval.request",
+    { timeoutMs: gatewayTimeoutMs + 10_000 },
+    {
+      id: crypto.randomUUID(),
+      capability: "node.browser.proxy",
+      subject: params.nodeId,
+      payloadHash,
+      agentId: params.agentId ?? null,
+      sessionKey: params.sessionKey ?? null,
+      timeoutMs: gatewayTimeoutMs,
+    },
+  );
+  const approvalDecision =
+    approvalResult && typeof approvalResult.decision === "string" ? approvalResult.decision : null;
+  if (approvalDecision !== "allow-once" && approvalDecision !== "allow-always") {
+    throw new Error("browser proxy denied by capability approval");
+  }
+  const approvalToken =
+    approvalResult && typeof approvalResult.approvalToken === "string"
+      ? approvalResult.approvalToken
+      : null;
+  if (!approvalToken) {
+    throw new Error("browser proxy denied (missing approval token)");
+  }
   const payload = await callGatewayTool<{ payloadJSON?: string; payload?: string }>(
     "node.invoke",
     { timeoutMs: gatewayTimeoutMs },
@@ -137,12 +185,8 @@ async function callBrowserProxy(params: {
       nodeId: params.nodeId,
       command: "browser.proxy",
       params: {
-        method: params.method,
-        path: params.path,
-        query: params.query,
-        body: params.body,
-        timeoutMs: params.timeoutMs,
-        profile: params.profile,
+        ...invokeParams,
+        capabilityApprovalToken: approvalToken,
       },
       idempotencyKey: crypto.randomUUID(),
     },
@@ -224,7 +268,14 @@ function resolveBrowserBaseUrl(params: {
 export function createBrowserTool(opts?: {
   sandboxBridgeUrl?: string;
   allowHostControl?: boolean;
+  agentSessionKey?: string;
+  config?: OpenClawConfig;
 }): AnyAgentTool {
+  const sessionKey = opts?.agentSessionKey?.trim() || undefined;
+  const agentId = resolveSessionAgentId({
+    sessionKey: opts?.agentSessionKey,
+    config: opts?.config,
+  });
   const targetDefault = opts?.sandboxBridgeUrl ? "sandbox" : "host";
   const hostHint =
     opts?.allowHostControl === false ? "Host target blocked by policy." : "Host target allowed.";
@@ -292,6 +343,8 @@ export function createBrowserTool(opts?: {
               body: opts.body,
               timeoutMs: opts.timeoutMs,
               profile: opts.profile,
+              agentId,
+              sessionKey,
             });
             const mapping = await persistProxyFiles(proxy.files);
             applyProxyPaths(proxy.result, mapping);
