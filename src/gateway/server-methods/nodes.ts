@@ -1,5 +1,4 @@
 import path from "node:path";
-import type { ExecApprovalRequestPayload } from "../exec-approval-manager.js";
 import type { GatewayRequestHandlers } from "./types.js";
 import { loadConfig } from "../../config/config.js";
 import { listDevicePairing } from "../../infra/device-pairing.js";
@@ -21,8 +20,11 @@ import {
 } from "../../security/capability-registry.js";
 import { DangerousActionLimiter } from "../../security/dangerous-action-limiter.js";
 import { appendDangerousLedgerEntry } from "../../security/dangerous-ledger.js";
+import { isArbitraryEnvAllowed, sanitizeExecEnv } from "../../security/exec-env-allowlist.js";
 import { hashPayload } from "../../security/stable-hash.js";
+import { isSafeExposure } from "../../security/startup-validator.js";
 import { validateSystemRunCommand } from "../../security/system-run-constraints.js";
+import { resolveGatewayBindHost } from "../net.js";
 import { invokeNodeCommandWithKernelGate } from "../node-command-kernel-gate.js";
 import {
   ErrorCodes,
@@ -215,56 +217,15 @@ function normalizeNodeInvokeResultParams(params: unknown): unknown {
   return normalized;
 }
 
-function sanitizeSystemRunApprovalParams(
-  params: unknown,
-  context: Parameters<GatewayRequestHandlers["node.invoke"]>[0]["context"],
-): unknown {
+function stripBypassFlags(params: unknown): unknown {
   if (!params || typeof params !== "object") {
     return params;
   }
-  const candidate = { ...(params as Record<string, unknown>) };
-  const bypassRequested =
-    candidate.approved === true ||
-    candidate.approvalDecision === "allow-once" ||
-    candidate.approvalDecision === "allow-always";
-  if (!bypassRequested) {
-    return candidate;
-  }
-
-  const token =
-    typeof candidate.approvalToken === "string" && candidate.approvalToken.trim().length > 0
-      ? candidate.approvalToken.trim()
-      : "";
-  const rawCommand =
-    typeof candidate.rawCommand === "string" && candidate.rawCommand.trim().length > 0
-      ? candidate.rawCommand
-      : Array.isArray(candidate.command)
-        ? candidate.command.map((entry) => String(entry)).join(" ")
-        : typeof candidate.command === "string"
-          ? candidate.command
-          : "";
-  const bindRequest: ExecApprovalRequestPayload = {
-    command: rawCommand,
-    commandArgv: Array.isArray(candidate.command)
-      ? candidate.command.map((entry) => String(entry))
-      : null,
-    commandEnv: normalizeCommandEnv(candidate.env),
-    cwd: typeof candidate.cwd === "string" ? candidate.cwd : null,
-    host: "node",
-    security: typeof candidate.security === "string" ? candidate.security : null,
-    ask: typeof candidate.ask === "string" ? candidate.ask : null,
-    agentId: typeof candidate.agentId === "string" ? candidate.agentId : null,
-    resolvedPath: typeof candidate.resolvedPath === "string" ? candidate.resolvedPath : null,
-    sessionKey: typeof candidate.sessionKey === "string" ? candidate.sessionKey : null,
-  };
-  const expectedHash = context.execApprovalManager.computeBindHash(bindRequest);
-  const valid = token ? context.execApprovalManager.consumeToken(token, expectedHash) : false;
-  if (!valid) {
-    delete candidate.approved;
-    delete candidate.approvalDecision;
-    delete candidate.approvalToken;
-  }
-  return candidate;
+  const out = { ...(params as Record<string, unknown>) };
+  delete out.approved;
+  delete out.approvalDecision;
+  delete out.approvalToken;
+  return out;
 }
 
 export const nodeHandlers: GatewayRequestHandlers = {
@@ -592,6 +553,9 @@ export const nodeHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    // ── Strip legacy bypass flags unconditionally ──
+    p.params = stripBypassFlags(p.params) as typeof p.params;
+
     const capabilityPolicy = resolveNodeCommandCapabilityPolicy(command);
     const rateLimitKey = resolveRateLimitKey(command, p.params, client);
     const dangerousSessionKey = capabilityPolicy.dangerous
@@ -604,7 +568,15 @@ export const nodeHandlers: GatewayRequestHandlers = {
     let dangerousPayloadHash: string | null = null;
     let dangerousDedupeKey: string | null = null;
 
-    const writeDangerousLedger = (event: string, payload: Record<string, unknown>) => {
+    const writeDangerousLedger = (
+      event: string,
+      payload: Record<string, unknown>,
+      enrichment?: {
+        decision?: "allowed" | "denied";
+        result?: "success" | "failure" | "pending";
+        tokenHash?: string | null;
+      },
+    ) => {
       if (!capabilityPolicy.dangerous || !dangerousLedgerBaseDir) {
         return;
       }
@@ -619,6 +591,12 @@ export const nodeHandlers: GatewayRequestHandlers = {
           payloadHash: dangerousPayloadHash,
           ...payload,
         },
+        capability: capabilityPolicy.capability,
+        subject: nodeId,
+        sessionKeyHash: dangerousSessionKeyHash,
+        decision: enrichment?.decision,
+        result: enrichment?.result,
+        tokenHash: enrichment?.tokenHash,
       }).catch((err) => {
         context.logGateway.warn(`dangerous ledger append failed: ${String(err)}`);
       });
@@ -686,7 +664,11 @@ export const nodeHandlers: GatewayRequestHandlers = {
     if (capabilityPolicy.dangerous) {
       const limiterResult = dangerousActionLimiter.checkAndConsume(rateLimitKey);
       if (!limiterResult.ok) {
-        writeDangerousLedger("dangerous.invoke.denied", { reason: limiterResult.reason });
+        writeDangerousLedger(
+          "dangerous.invoke.denied",
+          { reason: limiterResult.reason },
+          { decision: "denied" },
+        );
         respondDangerous(
           false,
           undefined,
@@ -698,7 +680,11 @@ export const nodeHandlers: GatewayRequestHandlers = {
     if (capabilityPolicy.requiresAdmin && !hasAdminScope(client)) {
       if (capabilityPolicy.dangerous) {
         dangerousActionLimiter.noteDenial(rateLimitKey);
-        writeDangerousLedger("dangerous.invoke.denied", { reason: "missing admin scope" });
+        writeDangerousLedger(
+          "dangerous.invoke.denied",
+          { reason: "missing admin scope" },
+          { decision: "denied" },
+        );
       }
       respondDangerous(
         false,
@@ -730,7 +716,11 @@ export const nodeHandlers: GatewayRequestHandlers = {
     if (capabilityPolicy.requiresSessionKey && !resolveDangerousSessionKey(p.params)) {
       if (capabilityPolicy.dangerous) {
         dangerousActionLimiter.noteDenial(rateLimitKey);
-        writeDangerousLedger("dangerous.invoke.denied", { reason: "missing sessionKey" });
+        writeDangerousLedger(
+          "dangerous.invoke.denied",
+          { reason: "missing sessionKey" },
+          { decision: "denied" },
+        );
       }
       respondDangerous(
         false,
@@ -741,6 +731,35 @@ export const nodeHandlers: GatewayRequestHandlers = {
         ),
       );
       return;
+    }
+    // ── Runtime safe-exposure enforcement ──
+    if (capabilityPolicy.requiresSafeExposure) {
+      const cfg = loadConfig();
+      const runtimeBindHost = await resolveGatewayBindHost(
+        cfg.gateway?.bind,
+        cfg.gateway?.customBindHost,
+      );
+      const tailscaleMode = String(cfg.gateway?.tailscale?.mode ?? "");
+      if (!isSafeExposure(runtimeBindHost, tailscaleMode)) {
+        const overrideEnv = "OPENCLAW_ALLOW_DANGEROUS_EXPOSED";
+        if (!isBreakGlassEnvEnabled(process.env, overrideEnv)) {
+          if (capabilityPolicy.dangerous) {
+            dangerousActionLimiter.noteDenial(rateLimitKey);
+            writeDangerousLedger("dangerous.invoke.denied", {
+              reason: `${command} requires safe exposure (loopback or tailscale serve); set ${overrideEnv}=1 to override`,
+            });
+          }
+          respondDangerous(
+            false,
+            undefined,
+            errorShape(
+              ErrorCodes.INVALID_REQUEST,
+              `${command} blocked: gateway is exposed and ${overrideEnv}=1 is not set`,
+            ),
+          );
+          return;
+        }
+      }
     }
     if (capabilityPolicy.requiresApprovalToken) {
       if (!dangerousPayloadHash) {
@@ -801,7 +820,11 @@ export const nodeHandlers: GatewayRequestHandlers = {
       if (!constrained.ok) {
         if (capabilityPolicy.dangerous) {
           dangerousActionLimiter.noteDenial(rateLimitKey);
-          writeDangerousLedger("dangerous.invoke.denied", { reason: constrained.reason });
+          writeDangerousLedger(
+            "dangerous.invoke.denied",
+            { reason: constrained.reason },
+            { decision: "denied" },
+          );
         }
         respondDangerous(
           false,
@@ -810,79 +833,124 @@ export const nodeHandlers: GatewayRequestHandlers = {
         );
         return;
       }
+      // ── Deny-by-default env inheritance ──
+      const rawParams = p.params as Record<string, unknown> | undefined;
+      if (rawParams?.env && typeof rawParams.env === "object") {
+        const envResult = sanitizeExecEnv(rawParams.env as Record<string, string>, {
+          allowArbitraryEnv: isArbitraryEnvAllowed(process.env),
+        });
+        if (!envResult.ok) {
+          if (capabilityPolicy.dangerous) {
+            dangerousActionLimiter.noteDenial(rateLimitKey);
+            writeDangerousLedger(
+              "dangerous.invoke.denied",
+              { reason: envResult.reason },
+              { decision: "denied" },
+            );
+          }
+          respondDangerous(
+            false,
+            undefined,
+            errorShape(ErrorCodes.INVALID_REQUEST, envResult.reason),
+          );
+          return;
+        }
+        (p.params as Record<string, unknown>).env = envResult.env;
+      }
     }
 
-    await respondUnavailableOnThrow(respond, async () => {
-      const cfg = loadConfig();
-      let sanitizedParams = capabilityPolicy.requiresApprovalToken
-        ? sanitizeCapabilityApprovalTokenParams(p.params)
-        : p.params;
-      if (command === "system.run") {
-        sanitizedParams = sanitizeSystemRunApprovalParams(sanitizedParams, context);
-      }
-      const invokeResult = await invokeNodeCommandWithKernelGate({
-        cfg,
-        nodeRegistry: context.nodeRegistry,
-        nodeId,
-        command,
-        commandParams: sanitizedParams,
-        timeoutMs: p.timeoutMs,
-        idempotencyKey: p.idempotencyKey,
-      });
-      if (!invokeResult.ok) {
-        if (capabilityPolicy.dangerous) {
-          dangerousActionLimiter.noteDenial(rateLimitKey);
-          writeDangerousLedger("dangerous.invoke.denied", {
-            reason: invokeResult.message,
-            gateCode: invokeResult.code,
-          });
-        }
-        const code =
-          invokeResult.code === "NOT_ALLOWED" ? ErrorCodes.INVALID_REQUEST : ErrorCodes.UNAVAILABLE;
+    // ── Concurrency cap for dangerous operations ──
+    if (capabilityPolicy.dangerous) {
+      const concurrencyResult = dangerousActionLimiter.acquireConcurrency(rateLimitKey);
+      if (!concurrencyResult.ok) {
+        writeDangerousLedger("dangerous.invoke.denied", { reason: concurrencyResult.reason });
         respondDangerous(
           false,
           undefined,
-          errorShape(code, invokeResult.message, {
-            details: invokeResult.details,
-          }),
+          errorShape(ErrorCodes.INVALID_REQUEST, concurrencyResult.reason),
         );
         return;
       }
-      const res = invokeResult.result;
-      if (!res.ok) {
-        if (capabilityPolicy.dangerous) {
-          dangerousActionLimiter.noteDenial(rateLimitKey);
-          writeDangerousLedger("dangerous.invoke.denied", {
-            reason: res.error?.message ?? "node invoke failed",
-            nodeErrorCode: res.error?.code,
-          });
-        }
-        respondDangerous(
-          false,
-          undefined,
-          errorShape(ErrorCodes.UNAVAILABLE, res.error?.message ?? "node invoke failed", {
-            details: { nodeError: res.error ?? null },
-          }),
-        );
-        return;
-      }
-      const payload = res.payloadJSON ? safeParseJson(res.payloadJSON) : res.payload;
-      if (capabilityPolicy.dangerous) {
-        dangerousActionLimiter.noteSuccess(rateLimitKey);
-        writeDangerousLedger("dangerous.invoke.allowed", { ok: true });
-      }
-      respondDangerous(
-        true,
-        {
-          ok: true,
+    }
+
+    try {
+      await respondUnavailableOnThrow(respond, async () => {
+        const cfg = loadConfig();
+        const sanitizedParams = sanitizeCapabilityApprovalTokenParams(p.params);
+        const invokeResult = await invokeNodeCommandWithKernelGate({
+          cfg,
+          nodeRegistry: context.nodeRegistry,
           nodeId,
           command,
-          payload,
-          payloadJSON: res.payloadJSON ?? null,
-        },
-        undefined,
-      );
-    });
+          commandParams: sanitizedParams,
+          timeoutMs: p.timeoutMs,
+          idempotencyKey: p.idempotencyKey,
+        });
+        if (!invokeResult.ok) {
+          if (capabilityPolicy.dangerous) {
+            dangerousActionLimiter.noteDenial(rateLimitKey);
+            writeDangerousLedger("dangerous.invoke.denied", {
+              reason: invokeResult.message,
+              gateCode: invokeResult.code,
+            });
+          }
+          const code =
+            invokeResult.code === "NOT_ALLOWED"
+              ? ErrorCodes.INVALID_REQUEST
+              : ErrorCodes.UNAVAILABLE;
+          respondDangerous(
+            false,
+            undefined,
+            errorShape(code, invokeResult.message, {
+              details: invokeResult.details,
+            }),
+          );
+          return;
+        }
+        const res = invokeResult.result;
+        if (!res.ok) {
+          if (capabilityPolicy.dangerous) {
+            dangerousActionLimiter.noteDenial(rateLimitKey);
+            writeDangerousLedger("dangerous.invoke.denied", {
+              reason: res.error?.message ?? "node invoke failed",
+              nodeErrorCode: res.error?.code,
+            });
+          }
+          respondDangerous(
+            false,
+            undefined,
+            errorShape(ErrorCodes.UNAVAILABLE, res.error?.message ?? "node invoke failed", {
+              details: { nodeError: res.error ?? null },
+            }),
+          );
+          return;
+        }
+        const payload = res.payloadJSON ? safeParseJson(res.payloadJSON) : res.payload;
+        if (capabilityPolicy.dangerous) {
+          dangerousActionLimiter.noteSuccess(rateLimitKey);
+          writeDangerousLedger(
+            "dangerous.invoke.allowed",
+            { ok: true },
+            { decision: "allowed", result: "success" },
+          );
+        }
+        respondDangerous(
+          true,
+          {
+            ok: true,
+            nodeId,
+            command,
+            payload,
+            payloadJSON: res.payloadJSON ?? null,
+          },
+          undefined,
+        );
+      });
+    } finally {
+      if (capabilityPolicy.dangerous) {
+        dangerousActionLimiter.releaseConcurrency(rateLimitKey);
+      }
+    }
   },
   "node.invoke.result": async ({ params, respond, context, client }) => {
     const normalizedParams = normalizeNodeInvokeResultParams(params);

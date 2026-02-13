@@ -304,6 +304,64 @@ export async function summarizeInStages(params: {
   });
 }
 
+// ── Message Importance Scoring ──────────────────────────────────
+
+const IMPORTANCE_TOOL_ERROR = 1.5;
+const IMPORTANCE_CODE_HEAVY = 1.3;
+const IMPORTANCE_NORMAL = 1.0;
+const IMPORTANCE_SYSTEM = 0.5;
+
+/**
+ * Score a message's importance for retention during compaction.
+ * Higher scores = more important to keep.
+ *
+ * - Tool errors → 1.5× (diagnostic value, hardest to reproduce)
+ * - Code blocks / patches → 1.3× (implementation context)
+ * - Normal user/assistant chat → 1.0×
+ * - System messages → 0.5× (easily regenerated)
+ */
+export function scoreMessageImportance(msg: AgentMessage): number {
+  const role = (msg as { role?: string }).role ?? "";
+  const content =
+    typeof (msg as { content?: unknown }).content === "string"
+      ? ((msg as { content: string }).content ?? "")
+      : JSON.stringify((msg as { content?: unknown }).content ?? "");
+
+  // System prompts are lowest priority — they're regenerated on each run
+  if (role === "system") {
+    return IMPORTANCE_SYSTEM;
+  }
+
+  // Tool errors are highest priority — critical for debugging
+  if (
+    content.includes("is_error") ||
+    (content.includes("error") && content.includes("tool_result")) ||
+    (role === "tool" && content.includes("Error"))
+  ) {
+    return IMPORTANCE_TOOL_ERROR;
+  }
+
+  // Code-heavy messages (patches, diffs, code blocks)
+  if (
+    content.includes("```") ||
+    content.includes("diff --git") ||
+    content.includes("@@") ||
+    content.includes("function ") ||
+    content.includes("class ")
+  ) {
+    return IMPORTANCE_CODE_HEAVY;
+  }
+
+  return IMPORTANCE_NORMAL;
+}
+
+/**
+ * Score a chunk (array of messages) by summing individual importance scores.
+ */
+export function scoreChunkImportance(messages: AgentMessage[]): number {
+  return messages.reduce((sum, msg) => sum + scoreMessageImportance(msg), 0);
+}
+
 export function pruneHistoryForContextShare(params: {
   messages: AgentMessage[];
   maxContextTokens: number;
@@ -333,7 +391,22 @@ export function pruneHistoryForContextShare(params: {
     if (chunks.length <= 1) {
       break;
     }
-    const [dropped, ...rest] = chunks;
+
+    // Find the least-important chunk to drop (prefer dropping low-value content first)
+    let leastImportantIdx = 0;
+    let leastImportance = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < chunks.length; i++) {
+      const importance = scoreChunkImportance(chunks[i]);
+      // Normalize by message count to avoid penalizing small chunks
+      const normalizedImportance = chunks[i].length > 0 ? importance / chunks[i].length : 0;
+      if (normalizedImportance < leastImportance) {
+        leastImportance = normalizedImportance;
+        leastImportantIdx = i;
+      }
+    }
+
+    const dropped = chunks[leastImportantIdx];
+    const rest = chunks.filter((_, i) => i !== leastImportantIdx);
     const flatRest = rest.flat();
 
     // After dropping a chunk, repair tool_use/tool_result pairing to handle

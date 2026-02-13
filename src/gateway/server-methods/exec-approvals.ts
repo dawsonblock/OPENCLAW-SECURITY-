@@ -88,6 +88,35 @@ function redactExecApprovals(file: ExecApprovalsFile): ExecApprovalsFile {
   };
 }
 
+/**
+ * Structural guards for policy mutation.
+ * Returns an array of issues; empty = OK.
+ */
+function validatePolicyMutation(file: ExecApprovalsFile): string[] {
+  const issues: string[] = [];
+  const security = (file as Record<string, unknown>).security;
+  if (typeof security === "string" && security.toLowerCase() === "full") {
+    issues.push('security mode "full" is not allowed via policy mutation');
+  }
+  const rules = (file as Record<string, unknown>).rules;
+  if (Array.isArray(rules)) {
+    for (const rule of rules) {
+      if (!rule || typeof rule !== "object") {
+        continue;
+      }
+      const r = rule as Record<string, unknown>;
+      const commands = r.commands ?? r.command;
+      if (commands === "*" || commands === "any" || commands === "") {
+        issues.push("wildcard command rules are not allowed");
+      }
+      if (Array.isArray(commands) && commands.some((c: unknown) => c === "*" || c === "any")) {
+        issues.push("wildcard command rules are not allowed");
+      }
+    }
+  }
+  return issues;
+}
+
 export const execApprovalsHandlers: GatewayRequestHandlers = {
   "exec.approvals.get": ({ params, respond }) => {
     if (!validateExecApprovalsGetParams(params)) {
@@ -137,12 +166,27 @@ export const execApprovalsHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    // ── Structural policy mutation guards ──
+    const incoming = (params as { file?: unknown }).file;
+    if (incoming && typeof incoming === "object") {
+      const policyIssues = validatePolicyMutation(incoming as ExecApprovalsFile);
+      if (policyIssues.length > 0) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `policy mutation rejected: ${policyIssues.join("; ")}`,
+          ),
+        );
+        return;
+      }
+    }
     ensureExecApprovals();
     const snapshot = readExecApprovalsSnapshot();
     if (!requireApprovalsBaseHash(params, snapshot, respond)) {
       return;
     }
-    const incoming = (params as { file?: unknown }).file;
     if (!incoming || typeof incoming !== "object") {
       respond(
         false,

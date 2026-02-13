@@ -38,4 +38,39 @@ describe("DangerousActionLimiter", () => {
     const allowed = limiter.checkAndConsume("s2", now + 20_000);
     expect(allowed).toEqual({ ok: true });
   });
+
+  it("enforces concurrency cap per session", () => {
+    const limiter = new DangerousActionLimiter({
+      maxConcurrentPerSession: 2,
+    });
+    const r1 = limiter.acquireConcurrency("s1");
+    expect(r1).toEqual({ ok: true });
+    const r2 = limiter.acquireConcurrency("s1");
+    expect(r2).toEqual({ ok: true });
+    const r3 = limiter.acquireConcurrency("s1");
+    expect(r3.ok).toBe(false);
+    if (!r3.ok) {
+      expect(r3.code).toBe("TOO_MANY_CONCURRENT");
+    }
+  });
+
+  it("allows more after releasing concurrency", () => {
+    const limiter = new DangerousActionLimiter({
+      maxConcurrentPerSession: 1,
+    });
+    expect(limiter.acquireConcurrency("s1").ok).toBe(true);
+    expect(limiter.acquireConcurrency("s1").ok).toBe(false);
+    limiter.releaseConcurrency("s1");
+    expect(limiter.acquireConcurrency("s1").ok).toBe(true);
+  });
+
+  it("isolates concurrency between sessions", () => {
+    const limiter = new DangerousActionLimiter({
+      maxConcurrentPerSession: 1,
+    });
+    expect(limiter.acquireConcurrency("s1").ok).toBe(true);
+    expect(limiter.acquireConcurrency("s2").ok).toBe(true);
+    expect(limiter.acquireConcurrency("s1").ok).toBe(false);
+    expect(limiter.acquireConcurrency("s2").ok).toBe(false);
+  });
 });

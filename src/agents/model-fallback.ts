@@ -19,6 +19,7 @@ import {
   resolveConfiguredModelRef,
   resolveModelRefFromString,
 } from "./model-selection.js";
+import { getModelSuccessTracker, isAdaptiveFallbackEnabled } from "./model-success-tracker.js";
 
 type ModelCandidate = {
   provider: string;
@@ -233,14 +234,18 @@ export async function runWithModelFallback<T>(params: {
     model: params.model,
     fallbacksOverride: params.fallbacksOverride,
   });
+  let orderedCandidates = candidates;
+  if (isAdaptiveFallbackEnabled() && candidates.length > 1) {
+    orderedCandidates = getModelSuccessTracker().resolveAdaptiveCandidateOrder(candidates);
+  }
   const authStore = params.cfg
     ? ensureAuthProfileStore(params.agentDir, { allowKeychainPrompt: false })
     : null;
   const attempts: FallbackAttempt[] = [];
   let lastError: unknown;
 
-  for (let i = 0; i < candidates.length; i += 1) {
-    const candidate = candidates[i];
+  for (let i = 0; i < orderedCandidates.length; i += 1) {
+    const candidate = orderedCandidates[i];
     if (authStore) {
       const profileIds = resolveAuthProfileOrder({
         cfg: params.cfg,
@@ -262,6 +267,9 @@ export async function runWithModelFallback<T>(params: {
     }
     try {
       const result = await params.run(candidate.provider, candidate.model);
+      if (isAdaptiveFallbackEnabled()) {
+        getModelSuccessTracker().recordOutcome(candidate.provider, candidate.model, "success");
+      }
       return {
         result,
         provider: candidate.provider,
@@ -291,12 +299,15 @@ export async function runWithModelFallback<T>(params: {
         status: described.status,
         code: described.code,
       });
+      if (isAdaptiveFallbackEnabled()) {
+        getModelSuccessTracker().recordOutcome(candidate.provider, candidate.model, "failure");
+      }
       await params.onError?.({
         provider: candidate.provider,
         model: candidate.model,
         error: normalized,
         attempt: i + 1,
-        total: candidates.length,
+        total: orderedCandidates.length,
       });
     }
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getDefaultRedactPatterns, redactSensitiveText } from "./redact.js";
+import { getDefaultRedactPatterns, redactSensitiveText, redactStructuredFields } from "./redact.js";
 
 const defaults = getDefaultRedactPatterns();
 
@@ -101,5 +101,48 @@ describe("redactSensitiveText", () => {
       patterns: defaults,
     });
     expect(output).toBe(input);
+  });
+});
+
+describe("redactStructuredFields", () => {
+  it("redacts known sensitive field names", () => {
+    const input = {
+      command: "system.run",
+      approvalToken: "secret-token-value",
+      capabilityApprovalToken: "another-token",
+      sessionKey: "session-123",
+    };
+    const result = redactStructuredFields(input) as Record<string, unknown>;
+    expect(result.command).toBe("system.run");
+    expect(result.approvalToken).toBe("[REDACTED]");
+    expect(result.capabilityApprovalToken).toBe("[REDACTED]");
+    expect(result.sessionKey).toBe("[REDACTED]");
+  });
+
+  it("handles nested objects recursively", () => {
+    const input = { outer: { apiKey: "sk-12345", safe: "hello" } };
+    const result = redactStructuredFields(input) as Record<string, Record<string, unknown>>;
+    expect(result.outer.apiKey).toBe("[REDACTED]");
+    expect(result.outer.safe).toBe("hello");
+  });
+
+  it("handles arrays", () => {
+    const input = [{ token: "abc" }, { password: "pass123" }];
+    const result = redactStructuredFields(input) as Array<Record<string, unknown>>;
+    expect(result[0].token).toBe("[REDACTED]");
+    expect(result[1].password).toBe("[REDACTED]");
+  });
+
+  it("preserves non-string sensitive field values", () => {
+    const input = { token: 42, apiKey: null };
+    const result = redactStructuredFields(input) as Record<string, unknown>;
+    expect(result.token).toBe(42);
+    expect(result.apiKey).toBeNull();
+  });
+
+  it("passes through primitives", () => {
+    expect(redactStructuredFields("hello")).toBe("hello");
+    expect(redactStructuredFields(null)).toBeNull();
+    expect(redactStructuredFields(undefined)).toBeUndefined();
   });
 });

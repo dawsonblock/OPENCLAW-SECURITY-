@@ -7,6 +7,7 @@ export type NodeCommandCapabilityPolicy = {
   requiresAdmin: boolean;
   requiresSessionKey: boolean;
   requiresApprovalToken: boolean;
+  requiresSafeExposure: boolean;
   breakGlassEnv?: string;
 };
 
@@ -14,29 +15,38 @@ const COMMAND_OVERRIDES: Record<
   string,
   Pick<
     NodeCommandCapabilityPolicy,
-    "requiresAdmin" | "requiresSessionKey" | "requiresApprovalToken" | "breakGlassEnv"
+    | "requiresAdmin"
+    | "requiresSessionKey"
+    | "requiresApprovalToken"
+    | "requiresSafeExposure"
+    | "breakGlassEnv"
   >
 > = {
   "system.run": {
     requiresAdmin: false,
     requiresSessionKey: true,
-    requiresApprovalToken: false,
+    requiresApprovalToken: true,
+    requiresSafeExposure: true,
+    breakGlassEnv: "OPENCLAW_ALLOW_NODE_EXEC",
   },
   "system.execApprovals.get": {
     requiresAdmin: true,
     requiresSessionKey: false,
     requiresApprovalToken: true,
+    requiresSafeExposure: false,
   },
   "system.execApprovals.set": {
     requiresAdmin: true,
     requiresSessionKey: false,
     requiresApprovalToken: true,
+    requiresSafeExposure: false,
     breakGlassEnv: "OPENCLAW_ALLOW_POLICY_MUTATION",
   },
   "browser.proxy": {
     requiresAdmin: true,
     requiresSessionKey: false,
     requiresApprovalToken: true,
+    requiresSafeExposure: true,
     breakGlassEnv: "OPENCLAW_ALLOW_BROWSER_PROXY",
   },
 };
@@ -61,6 +71,7 @@ export function resolveNodeCommandCapabilityPolicy(command: string): NodeCommand
     requiresAdmin: override?.requiresAdmin ?? false,
     requiresSessionKey: override?.requiresSessionKey ?? false,
     requiresApprovalToken: override?.requiresApprovalToken ?? false,
+    requiresSafeExposure: override?.requiresSafeExposure ?? false,
     breakGlassEnv: override?.breakGlassEnv,
   };
 }

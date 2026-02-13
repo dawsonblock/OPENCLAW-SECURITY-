@@ -149,3 +149,44 @@ export function redactToolDetail(detail: string): string {
 export function getDefaultRedactPatterns(): string[] {
   return [...DEFAULT_REDACT_PATTERNS];
 }
+
+const REDACT_FIELD_NAMES = new Set([
+  "approvalToken",
+  "capabilityApprovalToken",
+  "execApprovalToken",
+  "token",
+  "apiKey",
+  "secret",
+  "authorization",
+  "cookie",
+  "sessionKey",
+  "password",
+  "passwd",
+  "refreshToken",
+  "accessToken",
+]);
+
+/**
+ * Recursively replaces values of sensitive-named keys in an object.
+ * Returns a shallow copy with redacted values — never mutates the original.
+ */
+export function redactStructuredFields(value: unknown): unknown {
+  if (value === null || value === undefined) {
+    return value;
+  }
+  if (typeof value !== "object") {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(redactStructuredFields);
+  }
+  const out: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (REDACT_FIELD_NAMES.has(key) && typeof entry === "string" && entry.length > 0) {
+      out[key] = "[REDACTED]";
+    } else {
+      out[key] = redactStructuredFields(entry);
+    }
+  }
+  return out;
+}

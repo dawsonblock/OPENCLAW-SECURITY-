@@ -1,7 +1,27 @@
 import type { RfsnPolicy } from "./policy.js";
 import type { RfsnActionProposal, RfsnGateDecision, RfsnRisk } from "./types.js";
 import { evaluateShellAllowlist } from "../infra/exec-approvals.js";
+import { getGateFeedbackTracker, isAdaptiveRiskEnabled } from "./gate-feedback.js";
 import { validateAndNormalizeActionProposal } from "./schemas.js";
+
+// ── Decision integrity stamp ─────────────────────────────────────────
+// A Symbol-based stamp that only evaluateGate can produce. Prevents
+// forged RfsnGateDecision objects from being accepted by rfsnDispatch.
+const GATE_DECISION_STAMP: unique symbol = Symbol.for("openclaw.rfsn.gateDecisionStamp");
+
+type StampedGateDecision = RfsnGateDecision & {
+  [GATE_DECISION_STAMP]?: true;
+};
+
+/** Check that a gate decision was produced by evaluateGate (not constructed ad-hoc). */
+export function hasValidGateStamp(decision: RfsnGateDecision): boolean {
+  return (decision as StampedGateDecision)[GATE_DECISION_STAMP] === true;
+}
+
+function stampDecision(decision: RfsnGateDecision): RfsnGateDecision {
+  (decision as StampedGateDecision)[GATE_DECISION_STAMP] = true;
+  return decision;
+}
 
 function approxJsonBytes(value: unknown): number {
   try {
@@ -312,49 +332,52 @@ export function evaluateGate(params: {
     sandboxed: params.sandboxed,
   });
   if (!validated.ok) {
-    return {
+    return stampDecision({
       verdict: "deny",
       reasons: validated.reasons,
       risk: "high",
-    };
+    });
   }
 
   const proposal = validated.proposal;
   const rule = params.policy.toolRules[proposal.toolName];
-  const risk = resolveRisk(proposal.toolName, params.policy, proposal.risk);
+  const baseRisk = resolveRisk(proposal.toolName, params.policy, proposal.risk);
+  const risk = isAdaptiveRiskEnabled()
+    ? getGateFeedbackTracker().resolveAdaptiveRisk(proposal.toolName, baseRisk)
+    : baseRisk;
 
   if (params.policy.denyTools.has(proposal.toolName)) {
-    return {
+    return stampDecision({
       verdict: "deny",
       reasons: ["policy:tool_denied"],
       risk,
-    };
+    });
   }
 
   if (params.policy.mode === "allowlist" && !params.policy.allowTools.has(proposal.toolName)) {
-    return {
+    return stampDecision({
       verdict: "deny",
       reasons: ["policy:tool_not_allowlisted"],
       risk,
-    };
+    });
   }
 
   const maxArgsBytes = rule?.maxArgsBytes ?? params.policy.maxArgsBytes;
   const argsBytes = approxJsonBytes(proposal.args);
   if (!Number.isFinite(argsBytes) || argsBytes > maxArgsBytes) {
-    return {
+    return stampDecision({
       verdict: "deny",
       reasons: ["policy:args_too_large"],
       risk,
-    };
+    });
   }
 
   if (rule?.requireSandbox && !params.sandboxed) {
-    return {
+    return stampDecision({
       verdict: "require_sandbox_only",
       reasons: ["policy:sandbox_required"],
       risk,
-    };
+    });
   }
 
   const dynamicNetwork = resolveNetworkCapabilities({
@@ -362,32 +385,32 @@ export function evaluateGate(params: {
     proposal,
   });
   if (dynamicNetwork.reasons.length > 0) {
-    return {
+    return stampDecision({
       verdict: "deny",
       reasons: dynamicNetwork.reasons,
       risk,
-    };
+    });
   }
   const dynamicExec = resolveExecCapabilities({
     policy: params.policy,
     proposal,
   });
   if (dynamicExec.reasons.length > 0) {
-    return {
+    return stampDecision({
       verdict: "deny",
       reasons: dynamicExec.reasons,
       risk,
-    };
+    });
   }
   const dynamicBrowserUnsafeEval = resolveBrowserUnsafeEvalCapabilities({
     proposal,
   });
   if (dynamicBrowserUnsafeEval.reasons.length > 0) {
-    return {
+    return stampDecision({
       verdict: "deny",
       reasons: dynamicBrowserUnsafeEval.reasons,
       risk,
-    };
+    });
   }
 
   const requiredCapabilities = [
@@ -406,19 +429,19 @@ export function evaluateGate(params: {
       granted: params.policy.grantedCapabilities,
     });
     if (missing.length > 0) {
-      return {
+      return stampDecision({
         verdict: "deny",
         reasons: missing,
         risk,
-      };
+      });
     }
   }
 
-  return {
+  return stampDecision({
     verdict: "allow",
     reasons: ["ok"],
     risk,
     normalizedArgs: proposal.args,
     capsGranted: dedupedCapabilities,
-  };
+  });
 }

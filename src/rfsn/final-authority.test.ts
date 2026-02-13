@@ -181,6 +181,17 @@ const RFSN_GATED_FACTORY_RULES = [
   },
 ] as const;
 
+// Every chokepoint file must contain at least one of these gate-routing markers.
+// This proves the file routes through the kernel gate.
+const RFSN_CHOKEPOINT_GATE_MARKERS = ["rfsnDispatch", "createGatedTools"] as const;
+
+// Env vars that control gate behaviour — agent tool files must not assign these.
+const GATE_CRITICAL_ENV_VARS = [
+  "OPENCLAW_RFSN_AUTOWHITELIST_ALL_TOOLS",
+  "OPENCLAW_RFSN_ADAPTIVE_RISK",
+  "OPENCLAW_RFSN_REQUIRE_SIGNED_POLICY",
+] as const;
+
 const RUNTIME_TS_FILE_RE = /\.ts$/;
 const TEST_FILE_RE = /\.(test|spec)\.ts$|\.e2e\.test\.ts$/;
 
@@ -417,6 +428,40 @@ describe("RFSN final authority", () => {
       }
       if (/\bexecSync\(/.test(content)) {
         violations.push(`${relPath}: extension runtime code contains execSync()`);
+      }
+      // Extensions must not call tool.execute directly (bypass gate).
+      if (/\.execute(?:\?\.)?\(/.test(content)) {
+        violations.push(
+          `${relPath}: extension runtime contains direct tool.execute call (bypasses rfsnDispatch)`,
+        );
+      }
+    }
+
+    // Every chokepoint file must prove it routes through the kernel gate.
+    for (const relPath of RFSN_CHOKEPOINT_FILES) {
+      const absPath = path.resolve(process.cwd(), relPath);
+      const content = await fs.readFile(absPath, "utf8");
+      const hasGateMarker = RFSN_CHOKEPOINT_GATE_MARKERS.some((marker) => content.includes(marker));
+      if (!hasGateMarker) {
+        violations.push(
+          `${relPath}: chokepoint file does not contain any gate routing marker (${RFSN_CHOKEPOINT_GATE_MARKERS.join(" | ")})`,
+        );
+      }
+    }
+
+    // Agent tool files must not mutate gate-critical env vars.
+    for (const absPath of files) {
+      const relPath = toPosixRelative(absPath);
+      if (!relPath.startsWith(RFSN_AGENT_TOOL_ROOT)) {
+        continue;
+      }
+      const content = await fs.readFile(absPath, "utf8");
+      for (const envVar of GATE_CRITICAL_ENV_VARS) {
+        // Detect process.env.VAR = ... (assignment, not just reads)
+        const assignPattern = new RegExp(`process\\.env\\.${envVar}\\s*=`);
+        if (assignPattern.test(content)) {
+          violations.push(`${relPath}: agent tool mutates gate-critical env var ${envVar}`);
+        }
       }
     }
 

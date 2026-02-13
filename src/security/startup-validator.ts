@@ -16,7 +16,7 @@ export function allowUnsafeGatewayConfig(env: NodeJS.ProcessEnv): boolean {
   return truthyEnv(env.OPENCLAW_ALLOW_UNSAFE_CONFIG);
 }
 
-function isSafeExposure(bindHost: string, tailscaleMode: string): boolean {
+export function isSafeExposure(bindHost: string, tailscaleMode: string): boolean {
   return isLoopbackHost(bindHost) || tailscaleMode === "serve";
 }
 

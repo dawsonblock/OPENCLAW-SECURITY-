@@ -5,12 +5,14 @@ import {
 } from "./capability-registry.js";
 
 describe("resolveNodeCommandCapabilityPolicy", () => {
-  it("marks system.run as dangerous and session-bound", () => {
+  it("marks system.run as dangerous, session-bound, and approval-token-required", () => {
     const policy = resolveNodeCommandCapabilityPolicy("system.run");
     expect(policy.dangerous).toBe(true);
     expect(policy.requiresSessionKey).toBe(true);
-    expect(policy.requiresApprovalToken).toBe(false);
+    expect(policy.requiresApprovalToken).toBe(true);
+    expect(policy.requiresSafeExposure).toBe(true);
     expect(policy.requiresAdmin).toBe(false);
+    expect(policy.breakGlassEnv).toBe("OPENCLAW_ALLOW_NODE_EXEC");
   });
 
   it("marks policy mutation as admin + break-glass", () => {
@@ -32,6 +34,12 @@ describe("resolveNodeCommandCapabilityPolicy", () => {
     expect(policy.requiresAdmin).toBe(false);
     expect(policy.requiresSessionKey).toBe(false);
     expect(policy.requiresApprovalToken).toBe(false);
+    expect(policy.requiresSafeExposure).toBe(false);
+  });
+
+  it("marks browser.proxy as requiring safe exposure", () => {
+    const policy = resolveNodeCommandCapabilityPolicy("browser.proxy");
+    expect(policy.requiresSafeExposure).toBe(true);
   });
 });
 

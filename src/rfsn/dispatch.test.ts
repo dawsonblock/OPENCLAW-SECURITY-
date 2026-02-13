@@ -2,11 +2,23 @@ import { Type } from "@sinclair/typebox";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, test, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, test, vi } from "vitest";
 import type { AnyAgentTool } from "../agents/pi-tools.types.js";
 import { rfsnDispatch } from "./dispatch.js";
 import { readLedgerEntries, resolveLedgerFilePath } from "./ledger.js";
 import { createDefaultRfsnPolicy } from "./policy.js";
+
+// The VITEST ledger root is shared across all test invocations.
+// Clean it before each test to prevent cross-run accumulation.
+const VITEST_LEDGER_ROOT = path.join(os.tmpdir(), "openclaw-ledger-vitest");
+
+beforeEach(async () => {
+  await fs.rm(VITEST_LEDGER_ROOT, { recursive: true, force: true });
+});
+
+afterAll(async () => {
+  await fs.rm(VITEST_LEDGER_ROOT, { recursive: true, force: true });
+});
 
 async function createTmpDir(): Promise<string> {
   return fs.mkdtemp(path.join(os.tmpdir(), "openclaw-rfsn-"));

@@ -16,6 +16,7 @@ import { getMachineDisplayName } from "../../infra/machine-name.js";
 import { type enqueueCommand, enqueueCommandInLane } from "../../process/command-queue.js";
 import { createAndBootstrapDefaultPolicy } from "../../rfsn/policy-bootstrap.js";
 import { resolveRfsnRuntimeCapabilities } from "../../rfsn/runtime-caps.js";
+import { isRfsnWrappedTool } from "../../rfsn/wrap-tools.js";
 import { isSubagentSessionKey } from "../../routing/session-key.js";
 import { resolveSignalReactionLevel } from "../../signal/reaction-level.js";
 import { resolveTelegramInlineButtonsScope } from "../../telegram/inline-buttons.js";
@@ -297,6 +298,14 @@ export async function compactEmbeddedPiSessionDirect(
       },
       runtime: { sandboxed: runtimeSandboxed },
     });
+    // Runtime assertion: every gated tool must carry the kernel stamp
+    for (const gt of gatedToolsRaw) {
+      if (!isRfsnWrappedTool(gt)) {
+        throw new Error(
+          `RFSN final authority violation: compact tool "${gt.name}" not kernel-wrapped after createGatedTools.`,
+        );
+      }
+    }
     const tools = sanitizeToolsForGoogle({ tools: gatedToolsRaw, provider });
     logToolSchemasForGoogle({ tools, provider });
     const machineName = await getMachineDisplayName();

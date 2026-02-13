@@ -3,8 +3,15 @@ import { randomUUID } from "node:crypto";
 import type { AnyAgentTool } from "../agents/pi-tools.types.js";
 import type { RfsnPolicy } from "./policy.js";
 import type { RfsnActionProposal, RfsnActionResult, RfsnProvenance } from "./types.js";
-import { evaluateGate } from "./gate.js";
+import { getGateFeedbackTracker, isAdaptiveRiskEnabled } from "./gate-feedback.js";
+import { evaluateGate, hasValidGateStamp } from "./gate.js";
 import { appendLedgerEntry } from "./ledger.js";
+
+// Inline symbol check — avoids circular dep with wrap-tools.ts (which imports rfsnDispatch).
+const RFSN_WRAPPED_KEY = Symbol.for("openclaw.rfsn.wrapped");
+function isToolAlreadyWrapped(tool: AnyAgentTool): boolean {
+  return Boolean((tool as unknown as Record<symbol, unknown>)[RFSN_WRAPPED_KEY]);
+}
 
 function summarizeToolResult(result: unknown): string | undefined {
   if (!result || typeof result !== "object") {
@@ -69,6 +76,15 @@ export async function rfsnDispatch(params: {
   };
 }): Promise<Awaited<ReturnType<AnyAgentTool["execute"]>>> {
   const captureToolOutput = process.env.OPENCLAW_RFSN_LEDGER_CAPTURE_OUTPUT === "1";
+
+  // Guard: reject double-wrapped tools to prevent infinite recursion
+  if (isToolAlreadyWrapped(params.tool)) {
+    throw new Error(
+      `RFSN dispatch integrity violation: tool "${params.tool.name}" is already kernel-wrapped. ` +
+        "Double-gating is not allowed — ensure rfsnDispatch receives the raw tool.",
+    );
+  }
+
   const proposal = buildProposal({ tool: params.tool, args: params.args, meta: params.meta });
 
   await appendLedgerEntry({
@@ -87,6 +103,14 @@ export async function rfsnDispatch(params: {
     proposal,
     sandboxed: params.runtime?.sandboxed,
   });
+
+  // Verify the decision was produced by evaluateGate (not forged)
+  if (!hasValidGateStamp(decision)) {
+    throw new Error(
+      `RFSN gate integrity violation: decision for "${proposal.toolName}" lacks valid gate stamp. ` +
+        "Gate decisions must originate from evaluateGate.",
+    );
+  }
 
   await appendLedgerEntry({
     workspaceDir: params.workspaceDir,
@@ -124,10 +148,15 @@ export async function rfsnDispatch(params: {
   }
 
   const startedAt = Date.now();
+  // Freeze normalizedArgs to prevent post-gate mutation
+  const frozenArgs =
+    decision.normalizedArgs != null && typeof decision.normalizedArgs === "object"
+      ? Object.freeze(decision.normalizedArgs)
+      : decision.normalizedArgs;
   try {
     const output = await params.tool.execute(
       params.toolCallId,
-      decision.normalizedArgs,
+      frozenArgs,
       params.signal,
       params.onUpdate,
     );
@@ -149,6 +178,9 @@ export async function rfsnDispatch(params: {
         result: resultEntry,
       },
     });
+    if (isAdaptiveRiskEnabled()) {
+      getGateFeedbackTracker().recordOutcome(proposal.toolName, "success");
+    }
     return output;
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
@@ -166,6 +198,9 @@ export async function rfsnDispatch(params: {
         },
       },
     });
+    if (isAdaptiveRiskEnabled()) {
+      getGateFeedbackTracker().recordOutcome(proposal.toolName, "error");
+    }
     throw err;
   }
 }

@@ -4,6 +4,7 @@ type DangerousActionLimiterOptions = {
   maxDenialsPerWindow?: number;
   blockMs?: number;
   maxSessions?: number;
+  maxConcurrentPerSession?: number;
 };
 
 type DangerousActionState = {
@@ -16,13 +17,14 @@ type DangerousActionState = {
 
 export type DangerousActionCheckResult =
   | { ok: true }
-  | { ok: false; code: "BLOCKED" | "RATE_LIMITED"; reason: string };
+  | { ok: false; code: "BLOCKED" | "RATE_LIMITED" | "TOO_MANY_CONCURRENT"; reason: string };
 
 const DEFAULT_WINDOW_MS = 60_000;
 const DEFAULT_MAX_ATTEMPTS_PER_WINDOW = 20;
 const DEFAULT_MAX_DENIALS_PER_WINDOW = 5;
 const DEFAULT_BLOCK_MS = 5 * 60_000;
 const DEFAULT_MAX_SESSIONS = 5_000;
+const DEFAULT_MAX_CONCURRENT_PER_SESSION = 2;
 
 function normalizeLimit(value: number | undefined, fallback: number): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -37,7 +39,9 @@ export class DangerousActionLimiter {
   private readonly maxDenialsPerWindow: number;
   private readonly blockMs: number;
   private readonly maxSessions: number;
+  private readonly maxConcurrentPerSession: number;
   private readonly states = new Map<string, DangerousActionState>();
+  private readonly activeCounts = new Map<string, number>();
 
   constructor(options?: DangerousActionLimiterOptions) {
     this.windowMs = normalizeLimit(options?.windowMs, DEFAULT_WINDOW_MS);
@@ -51,6 +55,10 @@ export class DangerousActionLimiter {
     );
     this.blockMs = normalizeLimit(options?.blockMs, DEFAULT_BLOCK_MS);
     this.maxSessions = normalizeLimit(options?.maxSessions, DEFAULT_MAX_SESSIONS);
+    this.maxConcurrentPerSession = normalizeLimit(
+      options?.maxConcurrentPerSession,
+      DEFAULT_MAX_CONCURRENT_PER_SESSION,
+    );
   }
 
   private getState(key: string, now: number): DangerousActionState {
@@ -125,6 +133,28 @@ export class DangerousActionLimiter {
     const state = this.getState(key, now);
     if (state.denials > 0) {
       state.denials -= 1;
+    }
+  }
+
+  acquireConcurrency(key: string): DangerousActionCheckResult {
+    const current = this.activeCounts.get(key) ?? 0;
+    if (current >= this.maxConcurrentPerSession) {
+      return {
+        ok: false,
+        code: "TOO_MANY_CONCURRENT",
+        reason: `too many concurrent dangerous operations for session (limit: ${this.maxConcurrentPerSession})`,
+      };
+    }
+    this.activeCounts.set(key, current + 1);
+    return { ok: true };
+  }
+
+  releaseConcurrency(key: string): void {
+    const current = this.activeCounts.get(key) ?? 0;
+    if (current <= 1) {
+      this.activeCounts.delete(key);
+    } else {
+      this.activeCounts.set(key, current - 1);
     }
   }
 }
