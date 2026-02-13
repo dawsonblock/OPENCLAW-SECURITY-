@@ -1103,6 +1103,7 @@ export function createExecTool(
           approvedByAsk: boolean,
           approvalDecision: "allow-once" | "allow-always" | null,
           runId?: string,
+          approvalToken?: string | null,
         ) =>
           ({
             nodeId,
@@ -1115,8 +1116,11 @@ export function createExecTool(
               timeoutMs: typeof params.timeout === "number" ? params.timeout * 1000 : undefined,
               agentId,
               sessionKey: defaults?.sessionKey,
+              security: hostSecurity,
+              ask: hostAsk,
               approved: approvedByAsk,
               approvalDecision: approvalDecision ?? undefined,
+              approvalToken: approvalToken ?? undefined,
               runId: runId ?? undefined,
             },
             idempotencyKey: crypto.randomUUID(),
@@ -1132,13 +1136,19 @@ export function createExecTool(
 
           void (async () => {
             let decision: string | null = null;
+            let approvalToken: string | null = null;
             try {
-              const decisionResult = await callGatewayTool<{ decision: string }>(
+              const decisionResult = await callGatewayTool<{
+                decision?: string;
+                approvalToken?: string | null;
+              }>(
                 "exec.approval.request",
                 { timeoutMs: DEFAULT_APPROVAL_REQUEST_TIMEOUT_MS },
                 {
                   id: approvalId,
                   command: commandText,
+                  commandArgv: argv,
+                  commandEnv: nodeEnv ?? null,
                   cwd: workdir,
                   host: "node",
                   security: hostSecurity,
@@ -1154,6 +1164,10 @@ export function createExecTool(
                   ? (decisionResult as { decision?: unknown }).decision
                   : undefined;
               decision = typeof decisionValue === "string" ? decisionValue : null;
+              approvalToken =
+                decisionResult && typeof decisionResult.approvalToken === "string"
+                  ? decisionResult.approvalToken
+                  : null;
             } catch {
               emitExecSystemEvent(
                 `Exec denied (node=${nodeId} id=${approvalId}, approval-request-failed): ${commandText}`,
@@ -1178,11 +1192,19 @@ export function createExecTool(
                 deniedReason = "approval-timeout";
               }
             } else if (decision === "allow-once") {
-              approvedByAsk = true;
-              approvalDecision = "allow-once";
+              if (approvalToken) {
+                approvedByAsk = true;
+                approvalDecision = "allow-once";
+              } else {
+                deniedReason = "approval-token-missing";
+              }
             } else if (decision === "allow-always") {
-              approvedByAsk = true;
-              approvalDecision = "allow-always";
+              if (approvalToken) {
+                approvedByAsk = true;
+                approvalDecision = "allow-always";
+              } else {
+                deniedReason = "approval-token-missing";
+              }
             }
 
             if (deniedReason) {
@@ -1207,7 +1229,7 @@ export function createExecTool(
               await callGatewayTool(
                 "node.invoke",
                 { timeoutMs: invokeTimeoutMs },
-                buildInvokeParams(approvedByAsk, approvalDecision, approvalId),
+                buildInvokeParams(approvedByAsk, approvalDecision, approvalId, approvalToken),
               );
             } catch {
               emitExecSystemEvent(

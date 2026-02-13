@@ -48,7 +48,7 @@ export async function invokeNodeCommandWithKernelGate(params: {
     return {
       ok: false,
       code: "NOT_ALLOWED",
-      message: "node command not allowed",
+      message: `node command not allowed: ${allowed.reason}`,
       details: {
         reason: allowed.reason,
         command,

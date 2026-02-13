@@ -99,7 +99,11 @@ describe("exec approval handlers", () => {
     expect(resolveRespond).toHaveBeenCalledWith(true, { ok: true }, undefined);
     expect(respond).toHaveBeenCalledWith(
       true,
-      expect.objectContaining({ id, decision: "allow-once" }),
+      expect.objectContaining({
+        id,
+        decision: "allow-once",
+        approvalToken: expect.any(String),
+      }),
       undefined,
     );
     expect(broadcasts.some((entry) => entry.event === "exec.approval.resolved")).toBe(true);
@@ -153,7 +157,7 @@ describe("exec approval handlers", () => {
     expect(resolveRespond).toHaveBeenCalledWith(true, { ok: true }, undefined);
     expect(respond).toHaveBeenCalledWith(
       true,
-      expect.objectContaining({ decision: "allow-once" }),
+      expect.objectContaining({ decision: "allow-once", approvalToken: expect.any(String) }),
       undefined,
     );
   });
@@ -206,7 +210,11 @@ describe("exec approval handlers", () => {
     await requestPromise;
     expect(respond).toHaveBeenCalledWith(
       true,
-      expect.objectContaining({ id: "approval-123", decision: "allow-once" }),
+      expect.objectContaining({
+        id: "approval-123",
+        decision: "allow-once",
+        approvalToken: expect.any(String),
+      }),
       undefined,
     );
   });

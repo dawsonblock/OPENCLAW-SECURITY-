@@ -43,4 +43,26 @@ describe("resolveNodeCommandAllowlist", () => {
     expect(allow.has("screen.record")).toBe(true);
     expect(allow.has("camera.clip")).toBe(false);
   });
+
+  it("does not include dangerous system commands by default on desktop platforms", () => {
+    const mac = resolveNodeCommandAllowlist({}, { platform: "macos", deviceFamily: "Mac" });
+    const linux = resolveNodeCommandAllowlist({}, { platform: "linux", deviceFamily: "Linux" });
+    const windows = resolveNodeCommandAllowlist(
+      {},
+      { platform: "windows", deviceFamily: "Windows" },
+    );
+    const unknown = resolveNodeCommandAllowlist(
+      {},
+      { platform: "unknown", deviceFamily: "Unknown" },
+    );
+
+    for (const allow of [mac, linux, windows, unknown]) {
+      expect(allow.has("system.run")).toBe(false);
+      expect(allow.has("system.which")).toBe(false);
+      expect(allow.has("system.execApprovals.get")).toBe(false);
+      expect(allow.has("system.execApprovals.set")).toBe(false);
+      expect(allow.has("browser.proxy")).toBe(false);
+      expect(allow.has("system.notify")).toBe(true);
+    }
+  });
 });

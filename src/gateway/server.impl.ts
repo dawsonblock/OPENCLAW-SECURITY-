@@ -44,6 +44,7 @@ import { createSubsystemLogger, runtimeForLogger } from "../logging/subsystem.js
 import { runOnboardingWizard } from "../wizard/onboarding.js";
 import { startGatewayConfigReloader } from "./config-reload.js";
 import { ExecApprovalManager } from "./exec-approval-manager.js";
+import { isLoopbackHost } from "./net.js";
 import { NodeRegistry } from "./node-registry.js";
 import { createChannelManager } from "./server-channels.js";
 import { createAgentEventHandler } from "./server-chat.js";
@@ -79,6 +80,11 @@ import {
 import { loadGatewayTlsRuntime } from "./server/tls.js";
 
 export { __resetModelCatalogCacheForTest } from "./server-model-catalog.js";
+
+function allowUnsafeGatewayConfig() {
+  const flag = process.env.OPENCLAW_ALLOW_UNSAFE_CONFIG?.trim().toLowerCase();
+  return flag === "1" || flag === "true";
+}
 
 ensureOpenClawCliOnPath();
 
@@ -266,6 +272,24 @@ export async function startGatewayServer(
     tailscaleConfig,
     tailscaleMode,
   } = runtimeConfig;
+  const controlUiAllowInsecureAuth = cfgAtStart.gateway?.controlUi?.allowInsecureAuth === true;
+  const controlUiDisableDeviceAuth =
+    cfgAtStart.gateway?.controlUi?.dangerouslyDisableDeviceAuth === true;
+  const safeExposure = isLoopbackHost(bindHost) || tailscaleMode === "serve";
+  if ((controlUiAllowInsecureAuth || controlUiDisableDeviceAuth) && !safeExposure) {
+    const unsafeFlag = controlUiAllowInsecureAuth
+      ? "gateway.controlUi.allowInsecureAuth=true"
+      : "gateway.controlUi.dangerouslyDisableDeviceAuth=true";
+    if (!allowUnsafeGatewayConfig()) {
+      throw new Error(
+        `Unsafe Control UI auth config: ${unsafeFlag} with gateway exposure bindHost=${bindHost} tailscale.mode=${tailscaleMode}. ` +
+          "Refusing startup. Set OPENCLAW_ALLOW_UNSAFE_CONFIG=1 for break-glass override.",
+      );
+    }
+    log.warn(
+      `gateway: OPENCLAW_ALLOW_UNSAFE_CONFIG override enabled with ${unsafeFlag} on exposed bindHost=${bindHost}`,
+    );
+  }
   let hooksConfig = runtimeConfig.hooksConfig;
   const canvasHostEnabled = runtimeConfig.canvasHostEnabled;
 
@@ -489,6 +513,7 @@ export async function startGatewayServer(
     broadcast,
     context: {
       deps,
+      execApprovalManager,
       cron,
       cronStorePath,
       loadGatewayModelCatalog,

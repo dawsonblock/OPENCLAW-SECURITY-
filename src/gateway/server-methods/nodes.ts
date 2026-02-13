@@ -1,3 +1,4 @@
+import type { ExecApprovalRequestPayload } from "../exec-approval-manager.js";
 import type { GatewayRequestHandlers } from "./types.js";
 import { loadConfig } from "../../config/config.js";
 import { listDevicePairing } from "../../infra/device-pairing.js";
@@ -42,6 +43,34 @@ function isNodeEntry(entry: { role?: string; roles?: string[] }) {
   return false;
 }
 
+function hasAdminScope(client: { connect?: { role?: string; scopes?: string[] } } | null): boolean {
+  const role = client?.connect?.role ?? "operator";
+  if (role !== "operator") {
+    return false;
+  }
+  const scopes = Array.isArray(client?.connect?.scopes) ? client.connect.scopes : [];
+  return scopes.includes("operator.admin");
+}
+
+function policyMutationEnabled() {
+  const value = process.env.OPENCLAW_ALLOW_POLICY_MUTATION?.trim().toLowerCase();
+  return value === "1" || value === "true";
+}
+
+function normalizeCommandEnv(env: unknown): Record<string, string> | null {
+  if (!env || typeof env !== "object") {
+    return null;
+  }
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(env as Record<string, unknown>)) {
+    if (!key.trim() || typeof value !== "string") {
+      continue;
+    }
+    out[key] = value;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
 function normalizeNodeInvokeResultParams(params: unknown): unknown {
   if (!params || typeof params !== "object") {
     return params;
@@ -60,6 +89,58 @@ function normalizeNodeInvokeResultParams(params: unknown): unknown {
     delete normalized.error;
   }
   return normalized;
+}
+
+function sanitizeSystemRunApprovalParams(
+  params: unknown,
+  context: Parameters<GatewayRequestHandlers["node.invoke"]>[0]["context"],
+): unknown {
+  if (!params || typeof params !== "object") {
+    return params;
+  }
+  const candidate = { ...(params as Record<string, unknown>) };
+  const bypassRequested =
+    candidate.approved === true ||
+    candidate.approvalDecision === "allow-once" ||
+    candidate.approvalDecision === "allow-always";
+  if (!bypassRequested) {
+    return candidate;
+  }
+
+  const token =
+    typeof candidate.approvalToken === "string" && candidate.approvalToken.trim().length > 0
+      ? candidate.approvalToken.trim()
+      : "";
+  const rawCommand =
+    typeof candidate.rawCommand === "string" && candidate.rawCommand.trim().length > 0
+      ? candidate.rawCommand
+      : Array.isArray(candidate.command)
+        ? candidate.command.map((entry) => String(entry)).join(" ")
+        : typeof candidate.command === "string"
+          ? candidate.command
+          : "";
+  const bindRequest: ExecApprovalRequestPayload = {
+    command: rawCommand,
+    commandArgv: Array.isArray(candidate.command)
+      ? candidate.command.map((entry) => String(entry))
+      : null,
+    commandEnv: normalizeCommandEnv(candidate.env),
+    cwd: typeof candidate.cwd === "string" ? candidate.cwd : null,
+    host: "node",
+    security: typeof candidate.security === "string" ? candidate.security : null,
+    ask: typeof candidate.ask === "string" ? candidate.ask : null,
+    agentId: typeof candidate.agentId === "string" ? candidate.agentId : null,
+    resolvedPath: typeof candidate.resolvedPath === "string" ? candidate.resolvedPath : null,
+    sessionKey: typeof candidate.sessionKey === "string" ? candidate.sessionKey : null,
+  };
+  const expectedHash = context.execApprovalManager.computeBindHash(bindRequest);
+  const valid = token ? context.execApprovalManager.consumeToken(token, expectedHash) : false;
+  if (!valid) {
+    delete candidate.approved;
+    delete candidate.approvalDecision;
+    delete candidate.approvalToken;
+  }
+  return candidate;
 }
 
 export const nodeHandlers: GatewayRequestHandlers = {
@@ -361,7 +442,7 @@ export const nodeHandlers: GatewayRequestHandlers = {
       );
     });
   },
-  "node.invoke": async ({ params, respond, context }) => {
+  "node.invoke": async ({ params, respond, context, client }) => {
     if (!validateNodeInvokeParams(params)) {
       respondInvalidParams({
         respond,
@@ -387,15 +468,36 @@ export const nodeHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    if (command === "system.execApprovals.set" && !hasAdminScope(client)) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, "missing scope: operator.admin"),
+      );
+      return;
+    }
+    if (command === "system.execApprovals.set" && !policyMutationEnabled()) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          "policy mutation is disabled; set OPENCLAW_ALLOW_POLICY_MUTATION=1",
+        ),
+      );
+      return;
+    }
 
     await respondUnavailableOnThrow(respond, async () => {
       const cfg = loadConfig();
+      const sanitizedParams =
+        command === "system.run" ? sanitizeSystemRunApprovalParams(p.params, context) : p.params;
       const invokeResult = await invokeNodeCommandWithKernelGate({
         cfg,
         nodeRegistry: context.nodeRegistry,
         nodeId,
         command,
-        commandParams: p.params,
+        commandParams: sanitizedParams,
         timeoutMs: p.timeoutMs,
         idempotencyKey: p.idempotencyKey,
       });

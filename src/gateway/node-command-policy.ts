@@ -39,10 +39,11 @@ const SMS_DANGEROUS_COMMANDS = ["sms.send"];
 // iOS nodes don't implement system.run/which, but they do support notifications.
 const IOS_SYSTEM_COMMANDS = ["system.notify"];
 
-const SYSTEM_COMMANDS = [
+const SYSTEM_SAFE_COMMANDS = ["system.notify"];
+
+const SYSTEM_DANGEROUS_COMMANDS = [
   "system.run",
   "system.which",
-  "system.notify",
   "system.execApprovals.get",
   "system.execApprovals.set",
   "browser.proxy",
@@ -57,6 +58,7 @@ export const DEFAULT_DANGEROUS_NODE_COMMANDS = [
   ...CALENDAR_DANGEROUS_COMMANDS,
   ...REMINDERS_DANGEROUS_COMMANDS,
   ...SMS_DANGEROUS_COMMANDS,
+  ...SYSTEM_DANGEROUS_COMMANDS,
 ];
 
 const PLATFORM_DEFAULTS: Record<string, string[]> = {
@@ -93,11 +95,11 @@ const PLATFORM_DEFAULTS: Record<string, string[]> = {
     ...REMINDERS_COMMANDS,
     ...PHOTOS_COMMANDS,
     ...MOTION_COMMANDS,
-    ...SYSTEM_COMMANDS,
+    ...SYSTEM_SAFE_COMMANDS,
   ],
-  linux: [...SYSTEM_COMMANDS],
-  windows: [...SYSTEM_COMMANDS],
-  unknown: [...CANVAS_COMMANDS, ...CAMERA_COMMANDS, ...LOCATION_COMMANDS, ...SYSTEM_COMMANDS],
+  linux: [...SYSTEM_SAFE_COMMANDS],
+  windows: [...SYSTEM_SAFE_COMMANDS],
+  unknown: [...CANVAS_COMMANDS, ...CAMERA_COMMANDS, ...LOCATION_COMMANDS, ...SYSTEM_SAFE_COMMANDS],
 };
 
 function normalizePlatformId(platform?: string, deviceFamily?: string): string {
@@ -167,6 +169,12 @@ export function isNodeCommandAllowed(params: {
     return { ok: false, reason: "command required" };
   }
   if (!params.allowlist.has(command)) {
+    if (DEFAULT_DANGEROUS_NODE_COMMANDS.includes(command)) {
+      return {
+        ok: false,
+        reason: `${command} requires explicit gateway.nodes.allowCommands opt-in`,
+      };
+    }
     return { ok: false, reason: "command not allowlisted" };
   }
   if (Array.isArray(params.declaredCommands) && params.declaredCommands.length > 0) {

@@ -21,6 +21,11 @@ import {
 } from "../protocol/index.js";
 import { respondUnavailableOnThrow, safeParseJson } from "./nodes.helpers.js";
 
+function policyMutationEnabled() {
+  const value = process.env.OPENCLAW_ALLOW_POLICY_MUTATION?.trim().toLowerCase();
+  return value === "1" || value === "true";
+}
+
 function resolveBaseHash(params: unknown): string | null {
   const raw = (params as { baseHash?: unknown })?.baseHash;
   if (typeof raw !== "string") {
@@ -117,6 +122,17 @@ export const execApprovalsHandlers: GatewayRequestHandlers = {
         errorShape(
           ErrorCodes.INVALID_REQUEST,
           `invalid exec.approvals.set params: ${formatValidationErrors(validateExecApprovalsSetParams.errors)}`,
+        ),
+      );
+      return;
+    }
+    if (!policyMutationEnabled()) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          "policy mutation is disabled; set OPENCLAW_ALLOW_POLICY_MUTATION=1",
         ),
       );
       return;
@@ -220,6 +236,17 @@ export const execApprovalsHandlers: GatewayRequestHandlers = {
         errorShape(
           ErrorCodes.INVALID_REQUEST,
           `invalid exec.approvals.node.set params: ${formatValidationErrors(validateExecApprovalsNodeSetParams.errors)}`,
+        ),
+      );
+      return;
+    }
+    if (!policyMutationEnabled()) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          "policy mutation is disabled; set OPENCLAW_ALLOW_POLICY_MUTATION=1",
         ),
       );
       return;

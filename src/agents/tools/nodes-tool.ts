@@ -44,6 +44,12 @@ const NOTIFY_PRIORITIES = ["passive", "active", "timeSensitive"] as const;
 const NOTIFY_DELIVERIES = ["system", "overlay", "auto"] as const;
 const CAMERA_FACING = ["front", "back", "both"] as const;
 const LOCATION_ACCURACY = ["coarse", "balanced", "precise"] as const;
+const APPROVAL_MODES = ["auto", "on", "off"] as const;
+const DEFAULT_APPROVAL_TIMEOUT_MS = 120_000;
+
+function formatArgvForApproval(argv: string[]): string {
+  return argv.map((token) => JSON.stringify(token)).join(" ");
+}
 
 // Flattened schema: runtime validates per-action requirements.
 const NodesToolSchema = Type.Object({
@@ -85,6 +91,8 @@ const NodesToolSchema = Type.Object({
   commandTimeoutMs: Type.Optional(Type.Number()),
   invokeTimeoutMs: Type.Optional(Type.Number()),
   needsScreenRecording: Type.Optional(Type.Boolean()),
+  approval: optionalStringEnum(APPROVAL_MODES),
+  approvalTimeoutMs: Type.Optional(Type.Number()),
   // invoke
   invokeCommand: Type.Optional(Type.String()),
   invokeParamsJson: Type.Optional(Type.String()),
@@ -416,6 +424,7 @@ export function createNodesTool(options?: {
             if (command.length === 0) {
               throw new Error("command must not be empty");
             }
+            const rawCommand = formatArgvForApproval(command);
             const cwd =
               typeof params.cwd === "string" && params.cwd.trim() ? params.cwd.trim() : undefined;
             const env = parseEnvPairs(params.env);
@@ -425,17 +434,77 @@ export function createNodesTool(options?: {
               typeof params.needsScreenRecording === "boolean"
                 ? params.needsScreenRecording
                 : undefined;
+            const approvalModeRaw =
+              typeof params.approval === "string" ? params.approval.trim().toLowerCase() : "auto";
+            const approvalMode =
+              approvalModeRaw === "on" || approvalModeRaw === "off" ? approvalModeRaw : "auto";
+            const shouldRequestApproval = approvalMode !== "off";
+            const approvalId = crypto.randomUUID();
+            let approved = false;
+            let approvalDecision: "allow-once" | "allow-always" | undefined;
+            let approvalToken: string | undefined;
+
+            if (shouldRequestApproval) {
+              const approvalTimeoutMs = Math.max(
+                5_000,
+                parseTimeoutMs(params.approvalTimeoutMs) ?? DEFAULT_APPROVAL_TIMEOUT_MS,
+              );
+              const approvalResult = await callGatewayTool<{
+                decision?: string;
+                approvalToken?: string | null;
+              }>(
+                "exec.approval.request",
+                { timeoutMs: approvalTimeoutMs + 10_000 },
+                {
+                  id: approvalId,
+                  command: rawCommand,
+                  commandArgv: command,
+                  commandEnv: env ?? null,
+                  cwd,
+                  host: "node",
+                  agentId,
+                  sessionKey,
+                  timeoutMs: approvalTimeoutMs,
+                },
+              );
+              const decision =
+                approvalResult && typeof approvalResult.decision === "string"
+                  ? approvalResult.decision
+                  : null;
+              if (decision === "deny") {
+                throw new Error("system.run denied by exec approval");
+              }
+              if (decision === "allow-once" || decision === "allow-always") {
+                const token =
+                  approvalResult && typeof approvalResult.approvalToken === "string"
+                    ? approvalResult.approvalToken
+                    : null;
+                if (!token) {
+                  throw new Error("system.run denied (missing approval token)");
+                }
+                approved = true;
+                approvalDecision = decision;
+                approvalToken = token;
+              } else if (approvalMode === "on") {
+                throw new Error("system.run denied (no exec approval decision)");
+              }
+            }
             const raw = await callGatewayTool<{ payload: unknown }>("node.invoke", gatewayOpts, {
               nodeId,
               command: "system.run",
               params: {
                 command,
+                rawCommand,
                 cwd,
                 env,
                 timeoutMs: commandTimeoutMs,
                 needsScreenRecording,
                 agentId,
                 sessionKey,
+                approved: approved || undefined,
+                approvalDecision,
+                approvalToken,
+                runId: approved ? approvalId : undefined,
               },
               timeoutMs: invokeTimeoutMs,
               idempotencyKey: crypto.randomUUID(),

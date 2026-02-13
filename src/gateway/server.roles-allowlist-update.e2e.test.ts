@@ -297,7 +297,11 @@ describe("gateway node command allowlist", () => {
         file: { version: 1 },
       });
       expect(approvalsSetRes.ok).toBe(false);
-      expect(approvalsSetRes.error?.message).toContain("node command not allowed");
+      const setMessage = approvalsSetRes.error?.message ?? "";
+      expect(
+        setMessage.includes("node command not allowed") ||
+          setMessage.includes("policy mutation is disabled"),
+      ).toBe(true);
       approvalsClient.stop();
       await waitForConnectedCount(0);
 
@@ -378,6 +382,89 @@ describe("gateway node command allowlist", () => {
       approvalsClient?.stop();
       emptyClient?.stop();
       allowedClient?.stop();
+    }
+  });
+
+  test("strips forged system.run approval bypass fields when approval token is missing", async () => {
+    await writeConfigFile({
+      gateway: {
+        nodes: {
+          allowCommands: ["system.run"],
+        },
+      },
+    });
+
+    let nodeClient: GatewayClient | undefined;
+    let observedParams: Record<string, unknown> | null = null;
+    let resolveInvoke: (() => void) | null = null;
+    const invokeSeen = new Promise<void>((resolve) => {
+      resolveInvoke = resolve;
+    });
+
+    try {
+      nodeClient = await connectNodeClient({
+        port,
+        commands: ["system.run"],
+        instanceId: "node-forged-approval",
+        displayName: "node-forged-approval",
+        onEvent: (evt) => {
+          if (evt.event !== "node.invoke.request") {
+            return;
+          }
+          const payload = (evt.payload ?? {}) as {
+            id?: string;
+            nodeId?: string;
+            paramsJSON?: string | null;
+          };
+          const requestId = payload.id ?? "";
+          const nodeId = payload.nodeId ?? "";
+          if (!requestId || !nodeId) {
+            return;
+          }
+          if (typeof payload.paramsJSON === "string") {
+            observedParams = JSON.parse(payload.paramsJSON) as Record<string, unknown>;
+          }
+          void nodeClient
+            ?.request("node.invoke.result", {
+              id: requestId,
+              nodeId,
+              ok: true,
+              payloadJSON: JSON.stringify({ ok: true }),
+            })
+            .finally(() => resolveInvoke?.());
+        },
+      });
+
+      const listRes = await rpcReq<{ nodes?: Array<{ nodeId?: string; connected?: boolean }> }>(
+        ws,
+        "node.list",
+        {},
+      );
+      const nodeId = listRes.payload?.nodes?.find((node) => node.connected)?.nodeId ?? "";
+      expect(nodeId).toBeTruthy();
+
+      const invokeRes = await rpcReq(ws, "node.invoke", {
+        nodeId,
+        command: "system.run",
+        params: {
+          command: ["echo", "hello"],
+          rawCommand: '"echo" "hello"',
+          approved: true,
+          approvalDecision: "allow-once",
+          agentId: "agent-main",
+          sessionKey: "agent:main:test",
+        },
+        idempotencyKey: "forged-approval-missing-token",
+      });
+      await invokeSeen;
+
+      expect(invokeRes.ok).toBe(true);
+      expect(observedParams).toBeTruthy();
+      expect(observedParams?.approved).toBeUndefined();
+      expect(observedParams?.approvalDecision).toBeUndefined();
+      expect(observedParams?.approvalToken).toBeUndefined();
+    } finally {
+      nodeClient?.stop();
     }
   });
 });

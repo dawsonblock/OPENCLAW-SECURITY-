@@ -5,6 +5,7 @@ import type { CronService } from "../../cron/service.js";
 import type { createSubsystemLogger } from "../../logging/subsystem.js";
 import type { WizardSession } from "../../wizard/session.js";
 import type { ChatAbortControllerEntry } from "../chat-abort.js";
+import type { ExecApprovalManager } from "../exec-approval-manager.js";
 import type { NodeRegistry } from "../node-registry.js";
 import type { ConnectParams, ErrorShape, RequestFrame } from "../protocol/index.js";
 import type { ChannelRuntimeSnapshot } from "../server-channels.js";
@@ -26,6 +27,7 @@ export type RespondFn = (
 
 export type GatewayRequestContext = {
   deps: ReturnType<typeof createDefaultDeps>;
+  execApprovalManager: ExecApprovalManager;
   cron: CronService;
   cronStorePath: string;
   loadGatewayModelCatalog: () => Promise<ModelCatalogEntry[]>;

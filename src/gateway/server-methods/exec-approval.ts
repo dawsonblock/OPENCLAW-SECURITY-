@@ -32,6 +32,8 @@ export function createExecApprovalHandlers(
       const p = params as {
         id?: string;
         command: string;
+        commandArgv?: string[] | null;
+        commandEnv?: Record<string, string> | null;
         cwd?: string;
         host?: string;
         security?: string;
@@ -53,6 +55,10 @@ export function createExecApprovalHandlers(
       }
       const request = {
         command: p.command,
+        commandArgv: Array.isArray(p.commandArgv)
+          ? p.commandArgv.map((token) => String(token))
+          : null,
+        commandEnv: p.commandEnv && typeof p.commandEnv === "object" ? p.commandEnv : null,
         cwd: p.cwd ?? null,
         host: p.host ?? null,
         security: p.security ?? null,
@@ -84,11 +90,17 @@ export function createExecApprovalHandlers(
           context.logGateway?.error?.(`exec approvals: forward request failed: ${String(err)}`);
         });
       const decision = await decisionPromise;
+      const bindHash = manager.computeBindHash(request);
+      const approvalToken =
+        decision === "allow-once" || decision === "allow-always"
+          ? manager.issueToken(bindHash)
+          : null;
       respond(
         true,
         {
           id: record.id,
           decision,
+          approvalToken,
           createdAtMs: record.createdAtMs,
           expiresAtMs: record.expiresAtMs,
         },

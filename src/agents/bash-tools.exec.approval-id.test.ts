@@ -51,7 +51,7 @@ describe("exec approvals", () => {
 
     vi.mocked(callGatewayTool).mockImplementation(async (method, _opts, params) => {
       if (method === "exec.approval.request") {
-        return { decision: "allow-once" };
+        return { decision: "allow-once", approvalToken: "approval-token-1" };
       }
       if (method === "node.invoke") {
         invokeParams = params;
