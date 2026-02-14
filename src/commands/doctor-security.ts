@@ -179,6 +179,92 @@ export async function noteSecurityWarnings(cfg: OpenClawConfig) {
     }
   }
 
+  // ===========================================
+  // BREAK-GLASS ENVIRONMENT VARIABLES
+  // ===========================================
+  const breakGlassVars: Array<{ key: string; label: string }> = [
+    { key: "OPENCLAW_ALLOW_NODE_EXEC", label: "Node exec (system.run)" },
+    { key: "OPENCLAW_ALLOW_HOST_EXEC", label: "Host exec" },
+    { key: "OPENCLAW_ALLOW_BROWSER_PROXY", label: "Browser proxy" },
+    { key: "OPENCLAW_ALLOW_DANGEROUS_EXPOSED", label: "Dangerous on exposed gateway" },
+    { key: "OPENCLAW_ALLOW_POLICY_MUTATION", label: "Policy mutation" },
+    { key: "OPENCLAW_ALLOW_ARBITRARY_ENV", label: "Arbitrary env pass-through" },
+    { key: "OPENCLAW_ALLOW_NO_TTL_POLICY", label: "No-TTL policy rules" },
+    { key: "OPENCLAW_ALLOW_UNSAFE_CONFIG", label: "Unsafe config override" },
+  ];
+
+  const activeBreakGlass = breakGlassVars.filter((v) => {
+    const val = process.env[v.key]?.trim().toLowerCase();
+    return val === "1" || val === "true";
+  });
+
+  if (activeBreakGlass.length > 0) {
+    warnings.push("- BREAK-GLASS ENV VARS ACTIVE:");
+    for (const v of activeBreakGlass) {
+      warnings.push(`  ⚠ ${v.key}=1 → ${v.label} enabled`);
+      warnings.push(`    Fix: unset ${v.key}`);
+    }
+    // One-way toggle: OPENCLAW_ALLOW_UNSAFE_CONFIG requires double-confirm
+    const unsafeCfg = activeBreakGlass.find((v) => v.key === "OPENCLAW_ALLOW_UNSAFE_CONFIG");
+    if (unsafeCfg && !isLoopback) {
+      const confirm = process.env.OPENCLAW_I_UNDERSTAND_THIS_IS_UNSAFE?.trim().toLowerCase();
+      if (confirm !== "1" && confirm !== "true") {
+        warnings.push(
+          "  🛑 OPENCLAW_ALLOW_UNSAFE_CONFIG on exposed gateway requires " +
+            "OPENCLAW_I_UNDERSTAND_THIS_IS_UNSAFE=1 to take effect",
+        );
+      }
+    }
+  } else {
+    warnings.push("- Break-glass: none active (good)");
+  }
+
+  // ===========================================
+  // DANGEROUS CAPABILITIES (from config)
+  // ===========================================
+  const allowCommands = cfg.gateway?.nodes?.allowCommands ?? [];
+  const dangerousNodeCommands = new Set(["system.run", "browser.proxy"]);
+  const enabledDangerous = allowCommands.filter((cmd: string) => dangerousNodeCommands.has(cmd));
+  if (enabledDangerous.length > 0) {
+    warnings.push(`- Dangerous commands enabled: ${enabledDangerous.join(", ")}`);
+    warnings.push(`  Fix: remove from gateway.nodes.allowCommands in config`);
+  } else {
+    warnings.push("- Dangerous commands: none enabled via config (good)");
+  }
+
+  // ===========================================
+  // SAFE MODE CHECK
+  // ===========================================
+  const safeModeValue = process.env.OPENCLAW_SAFE_MODE?.trim().toLowerCase();
+  const safeModeActive = safeModeValue === "1" || safeModeValue === "true";
+  if (safeModeActive) {
+    warnings.push("- Safe mode: ACTIVE — all dangerous commands disabled");
+  }
+
+  // ===========================================
+  // AUTH STATE SUMMARY
+  // ===========================================
+  warnings.push(`- Auth mode: ${resolvedAuth.mode}`);
+  if (resolvedAuth.mode === "token") {
+    warnings.push(
+      hasToken
+        ? "- Auth token: configured"
+        : "- Auth token: NOT SET — fix with openclaw doctor --fix",
+    );
+  } else if (resolvedAuth.mode === "password") {
+    warnings.push(
+      hasPassword
+        ? "- Auth password: configured"
+        : "- Auth password: NOT SET — fix with openclaw configure",
+    );
+  } else if (resolvedAuth.mode === "none") {
+    if (isExposed) {
+      warnings.push("- CRITICAL: Auth disabled on exposed gateway");
+    } else {
+      warnings.push("- Auth: disabled (loopback only — acceptable)");
+    }
+  }
+
   const lines = warnings.length > 0 ? warnings : ["- No channel security warnings detected."];
   lines.push(auditHint);
   note(lines.join("\n"), "Security");

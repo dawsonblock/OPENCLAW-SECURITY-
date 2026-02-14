@@ -7,6 +7,16 @@ const SHELL_LIKE_BINS = new Set(["sh", "bash", "zsh", "fish", "dash", "ksh"]);
 const PYTHON_LIKE_BINS = new Set(["python", "python3", "python2"]);
 const POWERSHELL_LIKE_BINS = new Set(["powershell", "pwsh"]);
 
+const NODE_LIKE_BINS = new Set(["node", "nodejs", "bun", "deno"]);
+const CMD_LIKE_BINS = new Set(["cmd", "cmd.exe"]);
+const ALL_INTERPRETER_BINS = new Set([
+  ...SHELL_LIKE_BINS,
+  ...PYTHON_LIKE_BINS,
+  ...POWERSHELL_LIKE_BINS,
+  ...NODE_LIKE_BINS,
+  ...CMD_LIKE_BINS,
+]);
+
 function normalizeToken(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -21,6 +31,11 @@ function hasPrefix(argv: string[], bins: Set<string>): boolean {
     return false;
   }
   return bins.has(normalizeToken(argv[0] ?? ""));
+}
+
+function shellExecAllowed(): boolean {
+  const val = process.env.OPENCLAW_ALLOW_SHELL_EXEC?.trim().toLowerCase();
+  return val === "1" || val === "true";
 }
 
 export function validateSystemRunCommand(
@@ -44,6 +59,15 @@ export function validateSystemRunCommand(
     }
     if (hasPrefix(argv, POWERSHELL_LIKE_BINS) && includesArg(argv, ["-enc", "-encodedcommand"])) {
       return { ok: false, reason: "powershell encoded command execution is not allowed" };
+    }
+
+    // ── Block bare shell/interpreter invocations unless break-glass ──
+    if (!shellExecAllowed() && hasPrefix(argv, ALL_INTERPRETER_BINS)) {
+      const bin = normalizeToken(argv[0] ?? "");
+      return {
+        ok: false,
+        reason: `bare interpreter "${bin}" is blocked (set OPENCLAW_ALLOW_SHELL_EXEC=1 to override)`,
+      };
     }
   }
 

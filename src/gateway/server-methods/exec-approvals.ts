@@ -98,6 +98,13 @@ function validatePolicyMutation(file: ExecApprovalsFile): string[] {
   if (typeof security === "string" && security.toLowerCase() === "full") {
     issues.push('security mode "full" is not allowed via policy mutation');
   }
+
+  const noTtlBreakGlass =
+    process.env.OPENCLAW_ALLOW_NO_TTL_POLICY?.trim().toLowerCase() === "1" ||
+    process.env.OPENCLAW_ALLOW_NO_TTL_POLICY?.trim().toLowerCase() === "true";
+
+  const MAX_COMMANDS_PER_RULE = 10;
+
   const rules = (file as Record<string, unknown>).rules;
   if (Array.isArray(rules)) {
     for (const rule of rules) {
@@ -106,11 +113,47 @@ function validatePolicyMutation(file: ExecApprovalsFile): string[] {
       }
       const r = rule as Record<string, unknown>;
       const commands = r.commands ?? r.command;
+
+      // ── Wildcard guard ──
       if (commands === "*" || commands === "any" || commands === "") {
         issues.push("wildcard command rules are not allowed");
       }
       if (Array.isArray(commands) && commands.some((c: unknown) => c === "*" || c === "any")) {
         issues.push("wildcard command rules are not allowed");
+      }
+
+      // ── Max commands per rule guard ──
+      if (Array.isArray(commands) && commands.length > MAX_COMMANDS_PER_RULE) {
+        issues.push(
+          `rule grants too many commands (${commands.length}); maximum is ${MAX_COMMANDS_PER_RULE}`,
+        );
+      }
+
+      // ── TTL enforcement for allow rules ──
+      const action = String(r.action ?? r.type ?? "").toLowerCase();
+      if (action === "allow" || action === "") {
+        const hasExpiresAt =
+          typeof r.expiresAt === "string" ||
+          typeof r.expiresAt === "number" ||
+          typeof r.expires_at === "string" ||
+          typeof r.expires_at === "number";
+        const hasTtl =
+          typeof r.ttlSeconds === "number" ||
+          typeof r.ttl_seconds === "number" ||
+          typeof r.ttl === "number";
+        if (!hasExpiresAt && !hasTtl && !noTtlBreakGlass) {
+          issues.push(
+            "allow rules require expiresAt or ttlSeconds (set OPENCLAW_ALLOW_NO_TTL_POLICY=1 to override)",
+          );
+        }
+      }
+
+      // ── Reason requirement for allow rules ──
+      if (action === "allow" || action === "") {
+        const reason = r.reason ?? r.justification;
+        if (!reason || (typeof reason === "string" && !reason.trim())) {
+          issues.push("allow rules require a reason or justification field");
+        }
       }
     }
   }

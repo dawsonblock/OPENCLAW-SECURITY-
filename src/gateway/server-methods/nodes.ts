@@ -18,8 +18,10 @@ import {
   isBreakGlassEnvEnabled,
   resolveNodeCommandCapabilityPolicy,
 } from "../../security/capability-registry.js";
+import { resolveWorkspaceRoot, validateExecCwd } from "../../security/cwd-containment.js";
 import { DangerousActionLimiter } from "../../security/dangerous-action-limiter.js";
 import { appendDangerousLedgerEntry } from "../../security/dangerous-ledger.js";
+import { clampTimeoutMs, resolveExecBudget } from "../../security/exec-budgets.js";
 import { isArbitraryEnvAllowed, sanitizeExecEnv } from "../../security/exec-env-allowlist.js";
 import { hashPayload } from "../../security/stable-hash.js";
 import { isSafeExposure } from "../../security/startup-validator.js";
@@ -790,6 +792,19 @@ export const nodeHandlers: GatewayRequestHandlers = {
         );
         return;
       }
+      // ── Approval request rate limit ──
+      const approvalRateResult = dangerousActionLimiter.checkApprovalRequest(rateLimitKey);
+      if (!approvalRateResult.ok) {
+        writeDangerousLedger("dangerous.invoke.denied", {
+          reason: approvalRateResult.reason,
+        });
+        respondDangerous(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, approvalRateResult.reason),
+        );
+        return;
+      }
       const bindHash = computeCapabilityApprovalBindHash({
         capability: capabilityPolicy.capability,
         subject: nodeId,
@@ -857,6 +872,34 @@ export const nodeHandlers: GatewayRequestHandlers = {
         }
         (p.params as Record<string, unknown>).env = envResult.env;
       }
+      // ── CWD containment ──
+      const cwdParam = (p.params as Record<string, unknown> | undefined)?.cwd;
+      const cwdStr = typeof cwdParam === "string" ? cwdParam : undefined;
+      const cfgForCwd = loadConfig();
+      const nodesConfig = cfgForCwd.gateway?.nodes as Record<string, unknown> | undefined;
+      const workspaceRoot = resolveWorkspaceRoot(
+        (nodesConfig?.workspaceRoot as string) ?? undefined,
+      );
+      if (workspaceRoot) {
+        const cwdResult = await validateExecCwd(cwdStr, workspaceRoot);
+        if (!cwdResult.ok) {
+          if (capabilityPolicy.dangerous) {
+            dangerousActionLimiter.noteDenial(rateLimitKey);
+            writeDangerousLedger(
+              "dangerous.invoke.denied",
+              { reason: cwdResult.reason },
+              { decision: "denied" },
+            );
+          }
+          respondDangerous(
+            false,
+            undefined,
+            errorShape(ErrorCodes.INVALID_REQUEST, cwdResult.reason),
+          );
+          return;
+        }
+        (p.params as Record<string, unknown>).cwd = cwdResult.resolvedCwd;
+      }
     }
 
     // ── Concurrency cap for dangerous operations ──
@@ -877,13 +920,29 @@ export const nodeHandlers: GatewayRequestHandlers = {
       await respondUnavailableOnThrow(respond, async () => {
         const cfg = loadConfig();
         const sanitizedParams = sanitizeCapabilityApprovalTokenParams(p.params);
+
+        // ── Exec budget resolution ──
+        const dangerousCommands = cfg.gateway?.nodes?.allowCommands ?? [];
+        const execBudget = resolveExecBudget(command, dangerousCommands);
+        const clampedTimeoutMs = clampTimeoutMs(p.timeoutMs, execBudget);
+
+        // Inject budget metadata into params for downstream enforcement
+        if (sanitizedParams && typeof sanitizedParams === "object") {
+          (sanitizedParams as Record<string, unknown>).__execBudget = {
+            timeoutMs: clampedTimeoutMs,
+            maxStdoutBytes: execBudget.maxStdoutBytes,
+            maxStderrBytes: execBudget.maxStderrBytes,
+            maxOutputBytes: execBudget.maxOutputBytes,
+          };
+        }
+
         const invokeResult = await invokeNodeCommandWithKernelGate({
           cfg,
           nodeRegistry: context.nodeRegistry,
           nodeId,
           command,
           commandParams: sanitizedParams,
-          timeoutMs: p.timeoutMs,
+          timeoutMs: clampedTimeoutMs,
           idempotencyKey: p.idempotencyKey,
         });
         if (!invokeResult.ok) {
@@ -926,11 +985,31 @@ export const nodeHandlers: GatewayRequestHandlers = {
           return;
         }
         const payload = res.payloadJSON ? safeParseJson(res.payloadJSON) : res.payload;
+
+        // ── Output boundary cap ──
+        const MAX_GATEWAY_OUTPUT_BYTES = 3 * 1024 * 1024; // 3 MB hard cap
+        let finalPayloadJSON = res.payloadJSON ?? null;
+        let outputTruncated = false;
+        if (typeof finalPayloadJSON === "string") {
+          const outputBytes = Buffer.byteLength(finalPayloadJSON, "utf8");
+          if (outputBytes > MAX_GATEWAY_OUTPUT_BYTES) {
+            finalPayloadJSON =
+              finalPayloadJSON.slice(0, MAX_GATEWAY_OUTPUT_BYTES) + "\n[truncated]";
+            outputTruncated = true;
+            if (capabilityPolicy.dangerous) {
+              writeDangerousLedger("dangerous.invoke.output_truncated", {
+                originalBytes: outputBytes,
+                maxBytes: MAX_GATEWAY_OUTPUT_BYTES,
+              });
+            }
+          }
+        }
+
         if (capabilityPolicy.dangerous) {
           dangerousActionLimiter.noteSuccess(rateLimitKey);
           writeDangerousLedger(
             "dangerous.invoke.allowed",
-            { ok: true },
+            { ok: true, outputTruncated },
             { decision: "allowed", result: "success" },
           );
         }
@@ -940,8 +1019,8 @@ export const nodeHandlers: GatewayRequestHandlers = {
             ok: true,
             nodeId,
             command,
-            payload,
-            payloadJSON: res.payloadJSON ?? null,
+            payload: outputTruncated ? safeParseJson(finalPayloadJSON ?? "") : payload,
+            payloadJSON: finalPayloadJSON,
           },
           undefined,
         );

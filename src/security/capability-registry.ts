@@ -22,6 +22,7 @@ const COMMAND_OVERRIDES: Record<
     | "breakGlassEnv"
   >
 > = {
+  // ── Execution ──
   "system.run": {
     requiresAdmin: false,
     requiresSessionKey: true,
@@ -29,6 +30,7 @@ const COMMAND_OVERRIDES: Record<
     requiresSafeExposure: true,
     breakGlassEnv: "OPENCLAW_ALLOW_NODE_EXEC",
   },
+  // ── Policy mutation ──
   "system.execApprovals.get": {
     requiresAdmin: true,
     requiresSessionKey: false,
@@ -42,12 +44,123 @@ const COMMAND_OVERRIDES: Record<
     requiresSafeExposure: false,
     breakGlassEnv: "OPENCLAW_ALLOW_POLICY_MUTATION",
   },
+  // ── Browser / proxy ──
   "browser.proxy": {
     requiresAdmin: true,
     requiresSessionKey: false,
     requiresApprovalToken: true,
     requiresSafeExposure: true,
     breakGlassEnv: "OPENCLAW_ALLOW_BROWSER_PROXY",
+  },
+  // ── File write / delete ──
+  "system.write": {
+    requiresAdmin: false,
+    requiresSessionKey: true,
+    requiresApprovalToken: true,
+    requiresSafeExposure: true,
+  },
+  "system.delete": {
+    requiresAdmin: false,
+    requiresSessionKey: true,
+    requiresApprovalToken: true,
+    requiresSafeExposure: true,
+  },
+  "system.mkdir": {
+    requiresAdmin: false,
+    requiresSessionKey: true,
+    requiresApprovalToken: true,
+    requiresSafeExposure: false,
+  },
+  // ── Download / fetch ──
+  "web.fetch": {
+    requiresAdmin: false,
+    requiresSessionKey: false,
+    requiresApprovalToken: true,
+    requiresSafeExposure: true,
+  },
+  "web.download": {
+    requiresAdmin: false,
+    requiresSessionKey: false,
+    requiresApprovalToken: true,
+    requiresSafeExposure: true,
+  },
+  // ── Dependency installation ──
+  "system.install": {
+    requiresAdmin: true,
+    requiresSessionKey: true,
+    requiresApprovalToken: true,
+    requiresSafeExposure: true,
+    breakGlassEnv: "OPENCLAW_ALLOW_INSTALL",
+  },
+  // ── Secrets access ──
+  "secrets.get": {
+    requiresAdmin: true,
+    requiresSessionKey: true,
+    requiresApprovalToken: true,
+    requiresSafeExposure: true,
+  },
+  "secrets.set": {
+    requiresAdmin: true,
+    requiresSessionKey: true,
+    requiresApprovalToken: true,
+    requiresSafeExposure: true,
+  },
+  // ── Contacts / SMS / calendar / email send ──
+  "contacts.add": {
+    requiresAdmin: false,
+    requiresSessionKey: true,
+    requiresApprovalToken: true,
+    requiresSafeExposure: false,
+  },
+  "sms.send": {
+    requiresAdmin: false,
+    requiresSessionKey: true,
+    requiresApprovalToken: true,
+    requiresSafeExposure: false,
+  },
+  "calendar.add": {
+    requiresAdmin: false,
+    requiresSessionKey: true,
+    requiresApprovalToken: true,
+    requiresSafeExposure: false,
+  },
+  "reminders.add": {
+    requiresAdmin: false,
+    requiresSessionKey: true,
+    requiresApprovalToken: true,
+    requiresSafeExposure: false,
+  },
+  // ── Screen / camera (privacy-sensitive) ──
+  "screen.record": {
+    requiresAdmin: false,
+    requiresSessionKey: true,
+    requiresApprovalToken: true,
+    requiresSafeExposure: false,
+  },
+  "camera.snap": {
+    requiresAdmin: false,
+    requiresSessionKey: true,
+    requiresApprovalToken: true,
+    requiresSafeExposure: false,
+  },
+  "camera.clip": {
+    requiresAdmin: false,
+    requiresSessionKey: true,
+    requiresApprovalToken: true,
+    requiresSafeExposure: false,
+  },
+  // ── System introspection ──
+  "system.which": {
+    requiresAdmin: false,
+    requiresSessionKey: false,
+    requiresApprovalToken: true,
+    requiresSafeExposure: true,
+  },
+  "system.env": {
+    requiresAdmin: true,
+    requiresSessionKey: true,
+    requiresApprovalToken: true,
+    requiresSafeExposure: true,
   },
 };
 

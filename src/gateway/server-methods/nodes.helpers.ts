@@ -26,7 +26,12 @@ export async function respondUnavailableOnThrow(respond: RespondFn, fn: () => Pr
   try {
     await fn();
   } catch (err) {
-    respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, formatForLog(err)));
+    // Scrub stack traces in production
+    const debugMode =
+      process.env.OPENCLAW_DEBUG?.trim().toLowerCase() === "1" ||
+      process.env.OPENCLAW_DEBUG?.trim().toLowerCase() === "true";
+    const message = debugMode ? formatForLog(err) : "internal server error";
+    respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, message));
   }
 }
 

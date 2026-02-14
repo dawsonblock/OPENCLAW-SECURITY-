@@ -191,36 +191,78 @@ describe("node.invoke security checks", () => {
   });
 
   it("blocks system.run deny-pattern commands", async () => {
-    const res = await invokeNode(
-      {
-        nodeId: "node-1",
-        command: "system.run",
+    const prev = process.env.OPENCLAW_ALLOW_NODE_EXEC;
+    process.env.OPENCLAW_ALLOW_NODE_EXEC = "1";
+    const respond = vi.fn();
+    try {
+      await nodeHandlers["node.invoke"]({
+        req: { type: "req", id: "req-deny", method: "node.invoke", params: {} } as never,
         params: {
-          command: ["bash", "-c", "echo risky"],
-          sessionKey: "agent:main:test",
+          nodeId: "node-1",
+          command: "system.run",
+          params: {
+            command: ["bash", "-c", "echo risky"],
+            sessionKey: "agent:main:test",
+            capabilityApprovalToken: "tok-deny",
+          },
+          idempotencyKey: "k-4",
         },
-        idempotencyKey: "k-4",
-      },
-      { connect: { role: "operator", scopes: ["operator.admin"] } },
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.message).toContain("shell -c execution is not allowed");
+        client: { connect: { role: "operator", scopes: ["operator.admin"] } } as never,
+        isWebchatConnect: () => false,
+        respond,
+        context: {
+          nodeRegistry: {
+            get: () => undefined,
+            invoke: vi.fn(),
+          },
+          dedupe: new Map(),
+          cronStorePath: "/tmp/openclaw-cron.json",
+          logGateway: {
+            warn: vi.fn(),
+            debug: vi.fn(),
+          },
+          execApprovalManager: {
+            computeBindHash: () => "hash",
+            consumeToken: () => true,
+          },
+        } as never,
+      });
+      const [ok, , error] = respond.mock.calls[0] ?? [];
+      expect(ok).toBe(false);
+      expect(error?.message).toContain("shell -c execution is not allowed");
+    } finally {
+      if (prev === undefined) {
+        delete process.env.OPENCLAW_ALLOW_NODE_EXEC;
+      } else {
+        process.env.OPENCLAW_ALLOW_NODE_EXEC = prev;
+      }
+    }
   });
 
   it("requires sessionKey for system.run", async () => {
-    const res = await invokeNode(
-      {
-        nodeId: "node-1",
-        command: "system.run",
-        params: {
-          command: ["echo", "ok"],
+    const prev = process.env.OPENCLAW_ALLOW_NODE_EXEC;
+    process.env.OPENCLAW_ALLOW_NODE_EXEC = "1";
+    try {
+      const res = await invokeNode(
+        {
+          nodeId: "node-1",
+          command: "system.run",
+          params: {
+            command: ["echo", "ok"],
+          },
+          idempotencyKey: "k-5",
         },
-        idempotencyKey: "k-5",
-      },
-      { connect: { role: "operator", scopes: ["operator.admin"] } },
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.message).toContain("requires sessionKey");
+        { connect: { role: "operator", scopes: ["operator.admin"] } },
+      );
+      expect(res.ok).toBe(false);
+      expect(res.error?.message).toContain("requires sessionKey");
+    } finally {
+      if (prev === undefined) {
+        delete process.env.OPENCLAW_ALLOW_NODE_EXEC;
+      } else {
+        process.env.OPENCLAW_ALLOW_NODE_EXEC = prev;
+      }
+    }
   });
 
   it("rejects dangerous idempotency replay with mismatched payload", async () => {

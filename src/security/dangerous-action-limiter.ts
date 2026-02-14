@@ -5,6 +5,7 @@ type DangerousActionLimiterOptions = {
   blockMs?: number;
   maxSessions?: number;
   maxConcurrentPerSession?: number;
+  maxApprovalRequestsPerWindow?: number;
 };
 
 type DangerousActionState = {
@@ -13,11 +14,17 @@ type DangerousActionState = {
   denials: number;
   blockedUntilMs: number;
   lastSeenMs: number;
+  approvalRequests: number;
+  approvalWindowStartMs: number;
 };
 
 export type DangerousActionCheckResult =
   | { ok: true }
-  | { ok: false; code: "BLOCKED" | "RATE_LIMITED" | "TOO_MANY_CONCURRENT"; reason: string };
+  | {
+      ok: false;
+      code: "BLOCKED" | "RATE_LIMITED" | "TOO_MANY_CONCURRENT" | "APPROVAL_RATE_LIMITED";
+      reason: string;
+    };
 
 const DEFAULT_WINDOW_MS = 60_000;
 const DEFAULT_MAX_ATTEMPTS_PER_WINDOW = 20;
@@ -25,6 +32,7 @@ const DEFAULT_MAX_DENIALS_PER_WINDOW = 5;
 const DEFAULT_BLOCK_MS = 5 * 60_000;
 const DEFAULT_MAX_SESSIONS = 5_000;
 const DEFAULT_MAX_CONCURRENT_PER_SESSION = 2;
+const DEFAULT_MAX_APPROVAL_REQUESTS_PER_WINDOW = 10;
 
 function normalizeLimit(value: number | undefined, fallback: number): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -40,6 +48,7 @@ export class DangerousActionLimiter {
   private readonly blockMs: number;
   private readonly maxSessions: number;
   private readonly maxConcurrentPerSession: number;
+  private readonly maxApprovalRequestsPerWindow: number;
   private readonly states = new Map<string, DangerousActionState>();
   private readonly activeCounts = new Map<string, number>();
 
@@ -59,6 +68,10 @@ export class DangerousActionLimiter {
       options?.maxConcurrentPerSession,
       DEFAULT_MAX_CONCURRENT_PER_SESSION,
     );
+    this.maxApprovalRequestsPerWindow = normalizeLimit(
+      options?.maxApprovalRequestsPerWindow,
+      DEFAULT_MAX_APPROVAL_REQUESTS_PER_WINDOW,
+    );
   }
 
   private getState(key: string, now: number): DangerousActionState {
@@ -70,6 +83,8 @@ export class DangerousActionLimiter {
         denials: 0,
         blockedUntilMs: 0,
         lastSeenMs: now,
+        approvalRequests: 0,
+        approvalWindowStartMs: now,
       };
       this.states.set(key, created);
       this.evictIfNeeded();
@@ -156,5 +171,27 @@ export class DangerousActionLimiter {
     } else {
       this.activeCounts.set(key, current - 1);
     }
+  }
+
+  /**
+   * Check if an approval request is within rate limits for a session.
+   * Returns ok:true and increments counter, or returns error if over limit.
+   */
+  checkApprovalRequest(key: string, now = Date.now()): DangerousActionCheckResult {
+    const state = this.getState(key, now);
+    // Reset approval window if expired
+    if (now - state.approvalWindowStartMs >= this.windowMs) {
+      state.approvalWindowStartMs = now;
+      state.approvalRequests = 0;
+    }
+    if (state.approvalRequests >= this.maxApprovalRequestsPerWindow) {
+      return {
+        ok: false,
+        code: "APPROVAL_RATE_LIMITED",
+        reason: `approval request rate limit exceeded (${this.maxApprovalRequestsPerWindow}/${this.windowMs}ms)`,
+      };
+    }
+    state.approvalRequests += 1;
+    return { ok: true };
   }
 }
