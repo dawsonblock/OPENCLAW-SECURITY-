@@ -4,16 +4,16 @@ import path from "node:path";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import "./test-helpers/fast-coding-tools.js";
+import type { SandboxContext } from "./sandbox.js";
 import { createOpenClawCodingTools } from "./pi-tools.js";
-
-const defaultTools = createOpenClawCodingTools();
 
 describe("createOpenClawCodingTools", () => {
   it("keeps read tool image metadata intact", async () => {
-    const readTool = defaultTools.find((tool) => tool.name === "read");
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-read-"));
+    const tools = createOpenClawCodingTools({ workspaceDir: tmpDir });
+    const readTool = tools.find((tool) => tool.name === "read");
     expect(readTool).toBeDefined();
 
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-read-"));
     try {
       const imagePath = path.join(tmpDir, "sample.png");
       const png = await sharp({
@@ -46,11 +46,11 @@ describe("createOpenClawCodingTools", () => {
     }
   });
   it("returns text content without image blocks for text files", async () => {
-    const tools = createOpenClawCodingTools();
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-read-"));
+    const tools = createOpenClawCodingTools({ workspaceDir: tmpDir });
     const readTool = tools.find((tool) => tool.name === "read");
     expect(readTool).toBeDefined();
 
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-read-"));
     try {
       const textPath = path.join(tmpDir, "sample.txt");
       const contents = "Hello from openclaw read tool.";
@@ -96,7 +96,7 @@ describe("createOpenClawCodingTools", () => {
         deny: ["browser"],
       },
       browserAllowHostControl: false,
-    };
+    } as unknown as SandboxContext;
     const tools = createOpenClawCodingTools({ sandbox });
     expect(tools.some((tool) => tool.name === "exec")).toBe(true);
     expect(tools.some((tool) => tool.name === "read")).toBe(false);
@@ -127,7 +127,7 @@ describe("createOpenClawCodingTools", () => {
         deny: [],
       },
       browserAllowHostControl: false,
-    };
+    } as unknown as SandboxContext;
     const tools = createOpenClawCodingTools({ sandbox });
     expect(tools.some((tool) => tool.name === "read")).toBe(true);
     expect(tools.some((tool) => tool.name === "write")).toBe(false);

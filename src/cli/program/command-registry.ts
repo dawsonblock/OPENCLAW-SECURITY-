@@ -161,6 +161,42 @@ export const commandRegistry: CommandRegistration[] = [
     id: "browser",
     register: ({ program }) => registerBrowserCli(program),
   },
+  {
+    id: "security-doctor",
+    register: ({ program }) => {
+      program
+        .command("security-doctor")
+        .description("Inspect security posture and policy integrity")
+        .option("--json", "Output as JSON")
+        .option("--verbose", "Show detailed break-glass status")
+        .action(async (opts) => {
+          const { securityDoctorCommand } = await import("../../commands/security-doctor.js");
+          await securityDoctorCommand(opts);
+        });
+    },
+    routes: [
+      {
+        match: (path) => path[0] === "security" && path[1] === "doctor",
+        run: async (argv) => {
+          const json = hasFlag(argv, "--json");
+          const verbose = hasFlag(argv, "--verbose");
+          const { securityDoctorCommand } = await import("../../commands/security-doctor.js");
+          await securityDoctorCommand({ json, verbose });
+          return true;
+        },
+      },
+      {
+        match: (path) => path[0] === "security-doctor",
+        run: async (argv) => {
+          const json = hasFlag(argv, "--json");
+          const verbose = hasFlag(argv, "--verbose");
+          const { securityDoctorCommand } = await import("../../commands/security-doctor.js");
+          await securityDoctorCommand({ json, verbose });
+          return true;
+        },
+      },
+    ],
+  },
 ];
 
 export function registerProgramCommands(

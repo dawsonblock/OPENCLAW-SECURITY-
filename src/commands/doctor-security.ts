@@ -191,6 +191,7 @@ export async function noteSecurityWarnings(cfg: OpenClawConfig) {
     { key: "OPENCLAW_ALLOW_ARBITRARY_ENV", label: "Arbitrary env pass-through" },
     { key: "OPENCLAW_ALLOW_NO_TTL_POLICY", label: "No-TTL policy rules" },
     { key: "OPENCLAW_ALLOW_UNSAFE_CONFIG", label: "Unsafe config override" },
+    { key: "OPENCLAW_RFSN_AUTOWHITELIST_ALL_TOOLS", label: "RFSN Gate Bypass (Allow All Tools)" },
   ];
 
   const activeBreakGlass = breakGlassVars.filter((v) => {
@@ -215,8 +216,6 @@ export async function noteSecurityWarnings(cfg: OpenClawConfig) {
         );
       }
     }
-  } else {
-    warnings.push("- Break-glass: none active (good)");
   }
 
   // ===========================================
@@ -224,12 +223,12 @@ export async function noteSecurityWarnings(cfg: OpenClawConfig) {
   // ===========================================
   const allowCommands = cfg.gateway?.nodes?.allowCommands ?? [];
   const dangerousNodeCommands = new Set(["system.run", "browser.proxy"]);
-  const enabledDangerous = allowCommands.filter((cmd: string) => dangerousNodeCommands.has(cmd));
-  if (enabledDangerous.length > 0) {
-    warnings.push(`- Dangerous commands enabled: ${enabledDangerous.join(", ")}`);
+
+  if (allowCommands.includes("browser.proxy") || allowCommands.includes("system.run")) {
+    warnings.push(
+      `- Dangerous commands enabled: ${allowCommands.filter((c) => dangerousNodeCommands.has(c)).join(", ")}`,
+    );
     warnings.push(`  Fix: remove from gateway.nodes.allowCommands in config`);
-  } else {
-    warnings.push("- Dangerous commands: none enabled via config (good)");
   }
 
   // ===========================================
@@ -238,30 +237,20 @@ export async function noteSecurityWarnings(cfg: OpenClawConfig) {
   const safeModeValue = process.env.OPENCLAW_SAFE_MODE?.trim().toLowerCase();
   const safeModeActive = safeModeValue === "1" || safeModeValue === "true";
   if (safeModeActive) {
-    warnings.push("- Safe mode: ACTIVE — all dangerous commands disabled");
+    // Info only, not a warning
   }
 
   // ===========================================
   // AUTH STATE SUMMARY
   // ===========================================
-  warnings.push(`- Auth mode: ${resolvedAuth.mode}`);
-  if (resolvedAuth.mode === "token") {
-    warnings.push(
-      hasToken
-        ? "- Auth token: configured"
-        : "- Auth token: NOT SET — fix with openclaw doctor --fix",
-    );
-  } else if (resolvedAuth.mode === "password") {
-    warnings.push(
-      hasPassword
-        ? "- Auth password: configured"
-        : "- Auth password: NOT SET — fix with openclaw configure",
-    );
+  // warnings.push(`- Auth mode: ${resolvedAuth.mode}`); // Info
+  if (resolvedAuth.mode === "token" && !hasToken && isExposed) {
+    warnings.push("- Auth token: NOT SET — fix with openclaw doctor --fix");
+  } else if (resolvedAuth.mode === "password" && !hasPassword && isExposed) {
+    warnings.push("- Auth password: NOT SET — fix with openclaw configure");
   } else if (resolvedAuth.mode === "none") {
     if (isExposed) {
       warnings.push("- CRITICAL: Auth disabled on exposed gateway");
-    } else {
-      warnings.push("- Auth: disabled (loopback only — acceptable)");
     }
   }
 

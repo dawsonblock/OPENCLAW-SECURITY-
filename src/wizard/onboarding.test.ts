@@ -12,6 +12,7 @@ const setupSkills = vi.hoisted(() => vi.fn(async (cfg) => cfg));
 const healthCommand = vi.hoisted(() => vi.fn(async () => {}));
 const ensureWorkspaceAndSessions = vi.hoisted(() => vi.fn(async () => {}));
 const writeConfigFile = vi.hoisted(() => vi.fn(async () => {}));
+const setupInternalHooks = vi.hoisted(() => vi.fn(async (cfg) => cfg));
 const readConfigFileSnapshot = vi.hoisted(() =>
   vi.fn(async () => ({ exists: false, valid: true, config: {} })),
 );
@@ -30,6 +31,10 @@ vi.mock("../commands/onboard-skills.js", () => ({
 
 vi.mock("../commands/health.js", () => ({
   healthCommand,
+}));
+
+vi.mock("../commands/onboard-hooks.js", () => ({
+  setupInternalHooks,
 }));
 
 vi.mock("../config/config.js", async (importActual) => {

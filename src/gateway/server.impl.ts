@@ -41,6 +41,9 @@ import {
 import { scheduleGatewayUpdateCheck } from "../infra/update-startup.js";
 import { startDiagnosticHeartbeat, stopDiagnosticHeartbeat } from "../logging/diagnostic.js";
 import { createSubsystemLogger, runtimeForLogger } from "../logging/subsystem.js";
+import { initializePolicySnapshot } from "../security/lockdown/policy-snapshot.js";
+import { extractSecurityPosture } from "../security/lockdown/posture.js";
+import { hashPayload } from "../security/stable-hash.js";
 import {
   allowUnsafeGatewayConfig,
   isSafeModeEnabled,
@@ -297,6 +300,13 @@ export async function startGatewayServer(
       `gateway: OPENCLAW_ALLOW_UNSAFE_CONFIG override enabled with unsafe startup config on bindHost=${bindHost} tailscale.mode=${tailscaleMode}: ${startupIssues.join("; ")}`,
     );
   }
+
+  // ── Initialize Policy Snapshot ──
+  const securityPosture = extractSecurityPosture(cfgAtStart, process.env, bindHost, tailscaleMode);
+  const policyHash = hashPayload(securityPosture);
+  // We enable strict mode (fatal on re-init) if running in production-like modes or explicitly enabled.
+  initializePolicySnapshot(policyHash, process.env.NODE_ENV === "production");
+
   let hooksConfig = runtimeConfig.hooksConfig;
   const canvasHostEnabled = runtimeConfig.canvasHostEnabled;
 

@@ -23,6 +23,11 @@ import { DangerousActionLimiter } from "../../security/dangerous-action-limiter.
 import { appendDangerousLedgerEntry } from "../../security/dangerous-ledger.js";
 import { clampTimeoutMs, resolveExecBudget } from "../../security/exec-budgets.js";
 import { isArbitraryEnvAllowed, sanitizeExecEnv } from "../../security/exec-env-allowlist.js";
+import {
+  acquireDangerousSlot,
+  releaseDangerousSlot,
+} from "../../security/lockdown/resource-governor.js";
+import { assertDangerousCapabilityInvariants } from "../../security/lockdown/runtime-assert.js";
 import { hashPayload } from "../../security/stable-hash.js";
 import { isSafeExposure } from "../../security/startup-validator.js";
 import { validateSystemRunCommand } from "../../security/system-run-constraints.js";
@@ -916,6 +921,49 @@ export const nodeHandlers: GatewayRequestHandlers = {
       }
     }
 
+    // ── GL-4 Lockdown: Runtime Invariants & Resource Governor ──
+    if (capabilityPolicy.dangerous) {
+      try {
+        await assertDangerousCapabilityInvariants(capabilityPolicy.capability, p.params, {
+          bindHost: await resolveGatewayBindHost(
+            loadConfig().gateway?.bind,
+            loadConfig().gateway?.customBindHost,
+          ),
+          tailscaleMode: loadConfig().gateway?.tailscale?.mode ?? "",
+          env: process.env,
+        });
+      } catch (err) {
+        // Release the legacy limiter since we are aborting
+        dangerousActionLimiter.releaseConcurrency(rateLimitKey);
+
+        const msg = err instanceof Error ? err.message : String(err);
+        writeDangerousLedger("dangerous.invoke.denied", {
+          reason: "invariant violation",
+          details: msg,
+        });
+        respondDangerous(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, `Lockdown Violation: ${msg}`),
+        );
+        return;
+      }
+
+      // Acquire global dangerous slot (throws if full)
+      try {
+        acquireDangerousSlot();
+      } catch (err) {
+        dangerousActionLimiter.releaseConcurrency(rateLimitKey);
+        const msg = err instanceof Error ? err.message : String(err);
+        writeDangerousLedger("dangerous.invoke.denied", {
+          reason: "resource exhaustion",
+          details: msg,
+        });
+        respondDangerous(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, msg));
+        return;
+      }
+    }
+
     try {
       await respondUnavailableOnThrow(respond, async () => {
         const cfg = loadConfig();
@@ -1030,6 +1078,7 @@ export const nodeHandlers: GatewayRequestHandlers = {
       });
     } finally {
       if (capabilityPolicy.dangerous) {
+        releaseDangerousSlot();
         dangerousActionLimiter.releaseConcurrency(rateLimitKey);
       }
     }

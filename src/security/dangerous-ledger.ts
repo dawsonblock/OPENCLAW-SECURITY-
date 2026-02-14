@@ -17,6 +17,8 @@ export type DangerousLedgerEntry = {
   result?: "success" | "failure" | "pending";
 };
 
+import { scrubDeep } from "./lockdown/secret-scrubber.js";
+
 function resolveLedgerPaths(baseDir: string) {
   const dir = path.resolve(baseDir, "ledger");
   return {
@@ -50,7 +52,11 @@ export async function appendDangerousLedgerEntry(params: {
   const { dir, logPath, chainPath } = resolveLedgerPaths(params.baseDir);
   await fs.mkdir(dir, { recursive: true });
   const prevHash = await readChainHead(chainPath);
-  const redactedPayload = redactStructuredFields(params.payload) as Record<string, unknown>;
+  // Double-scrub: structure-based field removal + deep content regex scanning
+  const redactedPayload = scrubDeep(redactStructuredFields(params.payload)) as Record<
+    string,
+    unknown
+  >;
   const entry: DangerousLedgerEntry = {
     ts: Date.now(),
     event: params.event,

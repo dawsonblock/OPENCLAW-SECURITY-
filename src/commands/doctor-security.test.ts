@@ -73,4 +73,14 @@ describe("noteSecurityWarnings gateway exposure", () => {
     expect(message).toContain("No channel security warnings detected");
     expect(message).not.toContain("Gateway bound");
   });
+
+  it("warns when RFSN gate bypass is active", async () => {
+    process.env.OPENCLAW_RFSN_AUTOWHITELIST_ALL_TOOLS = "1";
+    const cfg = {} as OpenClawConfig;
+    await noteSecurityWarnings(cfg);
+    const message = lastMessage();
+    expect(message).toContain("BREAK-GLASS ENV VARS ACTIVE");
+    expect(message).toContain("RFSN Gate Bypass");
+    delete process.env.OPENCLAW_RFSN_AUTOWHITELIST_ALL_TOOLS;
+  });
 });

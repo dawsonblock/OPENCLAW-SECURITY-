@@ -98,6 +98,9 @@ describe("nodes run", () => {
       if (method === "node.list") {
         return { nodes: [{ nodeId: "mac-1", commands: ["system.run"] }] };
       }
+      if (method === "exec.approval.request") {
+        return { decision: "allow-once", approvalToken: "mock-token" };
+      }
       if (method === "node.invoke") {
         expect(params).toMatchObject({
           nodeId: "mac-1",
@@ -108,6 +111,7 @@ describe("nodes run", () => {
             cwd: "/tmp",
             env: { FOO: "bar" },
             timeoutMs: 12_000,
+            approvalToken: "mock-token",
           },
         });
         return {
