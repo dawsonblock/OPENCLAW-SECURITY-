@@ -29,6 +29,8 @@ import { enqueueSystemEvent } from "../infra/system-events.js";
 import { logInfo, logWarn } from "../logger.js";
 import { formatSpawnError, spawnWithFallback } from "../process/spawn-utils.js";
 import { parseAgentSessionKey, resolveAgentIdFromSessionKey } from "../routing/session-key.js";
+import { type ExecBudget, DEFAULT_DANGEROUS_BUDGET } from "../security/exec-budgets.js";
+import { SAFE_ENV_KEYS } from "../security/exec-env-allowlist.js";
 import {
   type ProcessSession,
   type SessionStdin,
@@ -182,6 +184,7 @@ export type ExecToolDefaults = {
   messageProvider?: string;
   notifyOnExit?: boolean;
   cwd?: string;
+  budget?: ExecBudget;
 };
 
 export type { BashSandboxConfig } from "./bash-tools.shared.js";
@@ -431,7 +434,7 @@ async function runExecProcess(opts: {
   notifyOnExit: boolean;
   scopeKey?: string;
   sessionKey?: string;
-  timeoutSec: number;
+  timeoutMs: number;
   onUpdate?: (partialResult: AgentToolResult<ExecToolDetails>) => void;
 }): Promise<ExecProcessHandle> {
   const startedAt = Date.now();
@@ -620,7 +623,7 @@ async function runExecProcess(opts: {
     markExited(session, null, "SIGKILL", "failed");
     maybeNotifyOnExit(session, "failed");
     const aggregated = session.aggregated.trim();
-    const reason = `Command timed out after ${opts.timeoutSec} seconds`;
+    const reason = `Command timed out after ${opts.timeoutMs / 1000} seconds`;
     settle({
       status: "failed",
       exitCode: null,
@@ -642,10 +645,10 @@ async function runExecProcess(opts: {
     }
   };
 
-  if (opts.timeoutSec > 0) {
+  if (opts.timeoutMs > 0) {
     timeoutTimer = setTimeout(() => {
       onTimeout();
-    }, opts.timeoutSec * 1000);
+    }, opts.timeoutMs);
   }
 
   const emitUpdate = () => {
@@ -725,7 +728,7 @@ async function runExecProcess(opts: {
       const aggregated = session.aggregated.trim();
       if (!isSuccess) {
         const reason = timedOut
-          ? `Command timed out after ${opts.timeoutSec} seconds`
+          ? `Command timed out after ${opts.timeoutMs / 1000} seconds`
           : wasSignal && exitSignal
             ? `Command aborted by signal ${exitSignal}`
             : code === null
@@ -823,6 +826,8 @@ export function createExecTool(
     defaults?.agentId ??
     (parsedAgentSession ? resolveAgentIdFromSessionKey(defaults?.sessionKey) : undefined);
 
+  const budget = defaults?.budget ?? DEFAULT_DANGEROUS_BUDGET;
+
   return {
     name: "exec",
     label: "exec",
@@ -849,8 +854,8 @@ export function createExecTool(
         throw new Error("Provide a command to start.");
       }
 
-      const maxOutput = DEFAULT_MAX_OUTPUT;
-      const pendingMaxOutput = DEFAULT_PENDING_MAX_OUTPUT;
+      const maxOutput = budget.maxTotalOutputBytes;
+      const pendingMaxOutput = budget.maxTotalOutputBytes; // Use total as pending cap for simplicity, or define separate pending budget
       const warnings: string[] = [];
       const backgroundRequested = params.background === true;
       const yieldRequested = typeof params.yieldMs === "number";
@@ -969,7 +974,13 @@ export function createExecTool(
         workdir = resolveWorkdir(rawWorkdir, warnings);
       }
 
-      const baseEnv = coerceEnv(process.env);
+      const hostEnv = coerceEnv(process.env);
+      const baseEnv: Record<string, string> = {};
+      for (const key of SAFE_ENV_KEYS) {
+        if (Object.prototype.hasOwnProperty.call(hostEnv, key)) {
+          baseEnv[key] = hostEnv[key];
+        }
+      }
 
       // Logic: Sandbox gets raw env. Host (gateway/node) must pass validation.
       // We validate BEFORE merging to prevent any dangerous vars from entering the stream.
@@ -1447,7 +1458,9 @@ export function createExecTool(
                 notifyOnExit: false,
                 scopeKey: defaults?.scopeKey,
                 sessionKey: notifySessionKey,
-                timeoutSec: effectiveTimeout,
+                timeoutMs: effectiveTimeout * 1000, // Gateway/Node uses ms? No, this runs locally for gateway/sandbox.
+                // Wait, if host=gateway this runs locally. effectiveTimeout is seconds (from definition).
+                // But runExecProcess now expects ms. So * 1000.
               });
             } catch {
               emitExecSystemEvent(
@@ -1543,7 +1556,7 @@ export function createExecTool(
         notifyOnExit,
         scopeKey: defaults?.scopeKey,
         sessionKey: notifySessionKey,
-        timeoutSec: effectiveTimeout,
+        timeoutMs: effectiveTimeout * 1000,
         onUpdate,
       });
 

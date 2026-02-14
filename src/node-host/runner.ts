@@ -42,6 +42,12 @@ import {
 import { getMachineDisplayName } from "../infra/machine-name.js";
 import { ensureOpenClawCliOnPath } from "../infra/path-env.js";
 import { detectMime } from "../media/mime.js";
+import {
+  DEFAULT_DANGEROUS_BUDGET,
+  enforceSafeBudget,
+  type ExecBudget,
+} from "../security/exec-budgets.js";
+import { SAFE_ENV_KEYS } from "../security/exec-env-allowlist.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
 import { VERSION } from "../version.js";
 import { ensureNodeHostConfig, saveNodeHostConfig, type NodeHostGatewayConfig } from "./config.js";
@@ -67,6 +73,7 @@ type SystemRunParams = {
   approved?: boolean | null;
   approvalDecision?: string | null;
   runId?: string | null;
+  allowArbitraryEnv?: boolean;
 };
 
 type SystemWhichParams = {
@@ -153,7 +160,6 @@ type NodeInvokeRequestPayload = {
   idempotencyKey?: string | null;
 };
 
-const OUTPUT_CAP = 200_000;
 const OUTPUT_EVENT_TAIL = 20_000;
 const DEFAULT_NODE_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
 const BROWSER_PROXY_MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -162,16 +168,7 @@ const execHostEnforced = process.env.OPENCLAW_NODE_EXEC_HOST?.trim().toLowerCase
 const execHostFallbackAllowed =
   process.env.OPENCLAW_NODE_EXEC_FALLBACK?.trim().toLowerCase() !== "0";
 
-const blockedEnvKeys = new Set([
-  "NODE_OPTIONS",
-  "PYTHONHOME",
-  "PYTHONPATH",
-  "PERL5LIB",
-  "PERL5OPT",
-  "RUBYOPT",
-]);
-
-const blockedEnvPrefixes = ["DYLD_", "LD_"];
+// Blocklists removed in favor of Allowlist policy (env-policy.ts)
 
 class SkillBinsCache {
   private bins = new Set<string>();
@@ -203,21 +200,47 @@ class SkillBinsCache {
   }
 }
 
-function sanitizeEnv(
-  overrides?: Record<string, string> | null,
+export function sanitizeEnv(
+  overrides: Record<string, string> | null | undefined,
+  allowArbitrary = false,
 ): Record<string, string> | undefined {
-  if (!overrides) {
-    return undefined;
+  // Helper to filter env based on SAFE_ENV_KEYS
+  const filterEnv = (input: NodeJS.ProcessEnv) => {
+    const result: Record<string, string> = {};
+    for (const key of SAFE_ENV_KEYS) {
+      const val = input[key];
+      if (typeof val === "string") {
+        result[key] = val;
+      }
+    }
+    return result;
+  };
+
+  if (!overrides && !allowArbitrary) {
+    // Return filtered base env if no overrides
+    return filterEnv(process.env);
   }
-  const merged = { ...process.env } as Record<string, string>;
+
+  // If arbitrary allowed, start with full process.env, else filtered
+  const base = allowArbitrary
+    ? ({ ...process.env } as Record<string, string>)
+    : filterEnv(process.env);
+
+  if (!overrides) {
+    return base;
+  }
+
+  const merged = { ...base };
   const basePath = process.env.PATH ?? DEFAULT_NODE_PATH;
+
   for (const [rawKey, value] of Object.entries(overrides)) {
     const key = rawKey.trim();
     if (!key) {
       continue;
     }
-    const upper = key.toUpperCase();
-    if (upper === "PATH") {
+
+    // PATH is always allowed with special handling
+    if (key.toUpperCase() === "PATH") {
       const trimmed = value.trim();
       if (!trimmed) {
         continue;
@@ -232,13 +255,17 @@ function sanitizeEnv(
       }
       continue;
     }
-    if (blockedEnvKeys.has(upper)) {
+
+    // If arbitrary allowed, take it.
+    if (allowArbitrary) {
+      merged[key] = value;
       continue;
     }
-    if (blockedEnvPrefixes.some((prefix) => upper.startsWith(prefix))) {
-      continue;
+
+    // Otherwise, only allow if in allowlist
+    if (SAFE_ENV_KEYS.has(key)) {
+      merged[key] = value;
     }
-    merged[key] = value;
   }
   return merged;
 }
@@ -401,7 +428,7 @@ async function runCommand(
   argv: string[],
   cwd: string | undefined,
   env: Record<string, string> | undefined,
-  timeoutMs: number | undefined,
+  budget: ExecBudget,
 ): Promise<RunResult> {
   return await new Promise((resolve) => {
     let stdout = "";
@@ -419,12 +446,28 @@ async function runCommand(
     });
 
     const onChunk = (chunk: Buffer, target: "stdout" | "stderr") => {
-      if (outputLen >= OUTPUT_CAP) {
+      const currentStdoutLen = stdout.length;
+      const currentStderrLen = stderr.length;
+      const currentTotalLen = currentStdoutLen + currentStderrLen;
+
+      if (currentTotalLen >= budget.maxTotalOutputBytes) {
         truncated = true;
         return;
       }
-      const remaining = OUTPUT_CAP - outputLen;
-      const slice = chunk.length > remaining ? chunk.subarray(0, remaining) : chunk;
+
+      const maxTargetBytes = target === "stdout" ? budget.maxStdoutBytes : budget.maxStderrBytes;
+      const currentTargetLen = target === "stdout" ? currentStdoutLen : currentStderrLen;
+
+      if (currentTargetLen >= maxTargetBytes) {
+        truncated = true;
+        return;
+      }
+
+      const remainingTotal = budget.maxTotalOutputBytes - currentTotalLen;
+      const remainingTarget = maxTargetBytes - currentTargetLen;
+      const limit = Math.min(remainingTotal, remainingTarget);
+
+      const slice = chunk.length > limit ? chunk.subarray(0, limit) : chunk;
       const str = slice.toString("utf8");
       outputLen += slice.length;
       if (target === "stdout") {
@@ -432,7 +475,7 @@ async function runCommand(
       } else {
         stderr += str;
       }
-      if (chunk.length > remaining) {
+      if (chunk.length > limit) {
         truncated = true;
       }
     };
@@ -441,7 +484,7 @@ async function runCommand(
     child.stderr?.on("data", (chunk) => onChunk(chunk as Buffer, "stderr"));
 
     let timer: NodeJS.Timeout | undefined;
-    if (timeoutMs && timeoutMs > 0) {
+    if (budget.timeoutMs > 0) {
       timer = setTimeout(() => {
         timedOut = true;
         try {
@@ -449,7 +492,7 @@ async function runCommand(
         } catch {
           // ignore
         }
-      }, timeoutMs);
+      }, budget.timeoutMs);
     }
 
     const finalize = (exitCode?: number, error?: string | null) => {
@@ -899,7 +942,7 @@ async function handleInvoke(
   const autoAllowSkills = approvals.agent.autoAllowSkills;
   const sessionKey = params.sessionKey?.trim() || "node";
   const runId = params.runId?.trim() || crypto.randomUUID();
-  const env = sanitizeEnv(params.env ?? undefined);
+  const env = sanitizeEnv(params.env ?? undefined, params.allowArbitraryEnv ?? false);
   const safeBins = resolveSafeBins(agentExec?.safeBins ?? cfg.tools?.exec?.safeBins);
   const bins = autoAllowSkills ? await skillBins.current() : new Set<string>();
   let analysisOk = false;
@@ -1160,12 +1203,9 @@ async function handleInvoke(
     execArgv = segments[0].argv;
   }
 
-  const result = await runCommand(
-    execArgv,
-    params.cwd?.trim() || undefined,
-    env,
-    params.timeoutMs ?? undefined,
-  );
+  const budget = enforceSafeBudget({ timeoutMs: params.timeoutMs ?? undefined });
+
+  const result = await runCommand(execArgv, params.cwd?.trim() || undefined, env, budget);
   if (result.truncated) {
     const suffix = "... (truncated)";
     if (result.stderr.trim().length > 0) {

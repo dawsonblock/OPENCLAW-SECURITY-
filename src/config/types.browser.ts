@@ -14,6 +14,8 @@ export type BrowserSnapshotDefaults = {
 };
 export type BrowserConfig = {
   enabled?: boolean;
+  /** Limit browser navigation/open to specific domains (empty = deny all; use "*" for all). */
+  allowDomains?: string[];
   /** If false, disable browser act:evaluate (arbitrary JS). Default: true */
   evaluateEnabled?: boolean;
   /** Base URL of the CDP endpoint (for remote browsers). Default: loopback CDP on the derived port. */

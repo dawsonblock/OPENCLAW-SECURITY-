@@ -128,7 +128,7 @@ describe("web_fetch extraction fallbacks", () => {
       config: {
         tools: {
           web: {
-            fetch: { cacheTtlMinutes: 0, firecrawl: { enabled: false } },
+            fetch: { allowDomains: ["*"], cacheTtlMinutes: 0, firecrawl: { enabled: false } },
           },
         },
       },
@@ -171,7 +171,12 @@ describe("web_fetch extraction fallbacks", () => {
       config: {
         tools: {
           web: {
-            fetch: { cacheTtlMinutes: 0, firecrawl: { enabled: false }, maxChars: 2000 },
+            fetch: {
+              allowDomains: ["*"],
+              cacheTtlMinutes: 0,
+              firecrawl: { enabled: false },
+              maxChars: 2000,
+            },
           },
         },
       },
@@ -202,7 +207,12 @@ describe("web_fetch extraction fallbacks", () => {
       config: {
         tools: {
           web: {
-            fetch: { cacheTtlMinutes: 0, firecrawl: { enabled: false }, maxChars: 100 },
+            fetch: {
+              allowDomains: ["*"],
+              cacheTtlMinutes: 0,
+              firecrawl: { enabled: false },
+              maxChars: 100,
+            },
           },
         },
       },
@@ -237,6 +247,7 @@ describe("web_fetch extraction fallbacks", () => {
         tools: {
           web: {
             fetch: {
+              allowDomains: ["*"],
               cacheTtlMinutes: 0,
               firecrawl: { apiKey: "firecrawl-test" },
             },
@@ -263,7 +274,12 @@ describe("web_fetch extraction fallbacks", () => {
       config: {
         tools: {
           web: {
-            fetch: { readability: false, cacheTtlMinutes: 0, firecrawl: { enabled: false } },
+            fetch: {
+              allowDomains: ["*"],
+              readability: false,
+              cacheTtlMinutes: 0,
+              firecrawl: { enabled: false },
+            },
           },
         },
       },
@@ -292,7 +308,11 @@ describe("web_fetch extraction fallbacks", () => {
       config: {
         tools: {
           web: {
-            fetch: { cacheTtlMinutes: 0, firecrawl: { apiKey: "firecrawl-test" } },
+            fetch: {
+              allowDomains: ["*"],
+              cacheTtlMinutes: 0,
+              firecrawl: { apiKey: "firecrawl-test" },
+            },
           },
         },
       },
@@ -324,7 +344,11 @@ describe("web_fetch extraction fallbacks", () => {
       config: {
         tools: {
           web: {
-            fetch: { cacheTtlMinutes: 0, firecrawl: { apiKey: "firecrawl-test" } },
+            fetch: {
+              allowDomains: ["*"],
+              cacheTtlMinutes: 0,
+              firecrawl: { apiKey: "firecrawl-test" },
+            },
           },
         },
       },
@@ -350,7 +374,12 @@ describe("web_fetch extraction fallbacks", () => {
       config: {
         tools: {
           web: {
-            fetch: { cacheTtlMinutes: 0, firecrawl: { enabled: false }, maxCharsCap: 10_000 },
+            fetch: {
+              allowDomains: ["*"],
+              cacheTtlMinutes: 0,
+              firecrawl: { enabled: false },
+              maxCharsCap: 10_000,
+            },
           },
         },
       },
@@ -383,7 +412,7 @@ describe("web_fetch extraction fallbacks", () => {
       config: {
         tools: {
           web: {
-            fetch: { cacheTtlMinutes: 0, firecrawl: { enabled: false } },
+            fetch: { allowDomains: ["*"], cacheTtlMinutes: 0, firecrawl: { enabled: false } },
           },
         },
       },
@@ -456,7 +485,11 @@ describe("web_fetch extraction fallbacks", () => {
       config: {
         tools: {
           web: {
-            fetch: { cacheTtlMinutes: 0, firecrawl: { apiKey: "firecrawl-test" } },
+            fetch: {
+              allowDomains: ["*"],
+              cacheTtlMinutes: 0,
+              firecrawl: { apiKey: "firecrawl-test" },
+            },
           },
         },
       },

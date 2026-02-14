@@ -5,7 +5,7 @@
  * gateway process. All others are stripped unless OPENCLAW_ALLOW_ARBITRARY_ENV=1.
  */
 
-const SAFE_ENV_KEYS = new Set([
+export const SAFE_ENV_KEYS = new Set([
   "PATH",
   "HOME",
   "LANG",

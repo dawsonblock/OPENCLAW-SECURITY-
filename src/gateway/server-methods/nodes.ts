@@ -932,8 +932,11 @@ export const nodeHandlers: GatewayRequestHandlers = {
             timeoutMs: clampedTimeoutMs,
             maxStdoutBytes: execBudget.maxStdoutBytes,
             maxStderrBytes: execBudget.maxStderrBytes,
-            maxOutputBytes: execBudget.maxOutputBytes,
+            maxOutputBytes: execBudget.maxTotalOutputBytes,
           };
+          if (isArbitraryEnvAllowed(process.env)) {
+            (sanitizedParams as Record<string, unknown>).allowArbitraryEnv = true;
+          }
         }
 
         const invokeResult = await invokeNodeCommandWithKernelGate({

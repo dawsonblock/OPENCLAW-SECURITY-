@@ -4,6 +4,7 @@ import type { AnyAgentTool } from "./common.js";
 import { fetchWithSsrFGuard } from "../../infra/net/fetch-guard.js";
 import { SsrFBlockedError } from "../../infra/net/ssrf.js";
 import { wrapExternalContent, wrapWebContent } from "../../security/external-content.js";
+import { resolveEgressPolicy, validateEgressTarget } from "../../security/network-egress-policy.js";
 import { normalizeSecretInput } from "../../utils/normalize-secret-input.js";
 import { stringEnum } from "../schema/typebox.js";
 import { jsonResult, readNumberParam, readStringParam } from "./common.js";
@@ -384,7 +385,17 @@ async function runWebFetch(params: {
   firecrawlProxy: "auto" | "basic" | "stealth";
   firecrawlStoreInCache: boolean;
   firecrawlTimeoutSeconds: number;
+  allowDomains: string[];
 }): Promise<Record<string, unknown>> {
+  const egressPolicy = resolveEgressPolicy({
+    enabled: true,
+    allowDomains: params.allowDomains,
+  });
+  const validation = validateEgressTarget(params.url, egressPolicy);
+  if (!validation.ok) {
+    throw new Error(`Network egress denied: ${validation.reason}`);
+  }
+
   const cacheKey = normalizeCacheKey(
     `fetch:${params.url}:${params.extractMode}:${params.maxChars}`,
   );
@@ -654,6 +665,7 @@ export function createWebFetchTool(options?: {
   const userAgent =
     (fetch && "userAgent" in fetch && typeof fetch.userAgent === "string" && fetch.userAgent) ||
     DEFAULT_FETCH_USER_AGENT;
+  const allowDomains = fetch?.allowDomains ?? ["*"];
   return {
     label: "Web Fetch",
     name: "web_fetch",
@@ -687,6 +699,7 @@ export function createWebFetchTool(options?: {
         firecrawlProxy: "auto",
         firecrawlStoreInCache: true,
         firecrawlTimeoutSeconds,
+        allowDomains,
       });
       return jsonResult(result);
     },

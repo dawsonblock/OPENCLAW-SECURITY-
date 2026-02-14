@@ -195,6 +195,7 @@ const FIELD_LABELS: Record<string, string> = {
   "tools.web.search.timeoutSeconds": "Web Search Timeout (sec)",
   "tools.web.search.cacheTtlMinutes": "Web Search Cache TTL (min)",
   "tools.web.fetch.enabled": "Enable Web Fetch Tool",
+  "tools.web.fetch.allowDomains": "Web Fetch Allowed Domains",
   "tools.web.fetch.maxChars": "Web Fetch Max Chars",
   "tools.web.fetch.timeoutSeconds": "Web Fetch Timeout (sec)",
   "tools.web.fetch.cacheTtlMinutes": "Web Fetch Cache TTL (min)",
@@ -310,6 +311,8 @@ const FIELD_LABELS: Record<string, string> = {
   "ui.seamColor": "Accent Color",
   "ui.assistant.name": "Assistant Name",
   "ui.assistant.avatar": "Assistant Avatar",
+  "browser.enabled": "Enable Browser Tool",
+  "browser.allowDomains": "Browser Allowed Domains",
   "browser.evaluateEnabled": "Browser Evaluate Enabled",
   "browser.snapshotDefaults": "Browser Snapshot Defaults",
   "browser.snapshotDefaults.mode": "Browser Snapshot Mode",
@@ -487,7 +490,12 @@ const FIELD_HELP: Record<string, string> = {
     "Perplexity base URL override (default: https://openrouter.ai/api/v1 or https://api.perplexity.ai).",
   "tools.web.search.perplexity.model":
     'Perplexity model override (default: "perplexity/sonar-pro").',
+  "browser.enabled": "Enable the browser tool (default: true).",
+  "browser.allowDomains":
+    'Optional allowlist of domains for browser navigation. Empty = deny all; "*" = allow all (default: allow all).',
   "tools.web.fetch.enabled": "Enable the web_fetch tool (lightweight HTTP fetch).",
+  "tools.web.fetch.allowDomains":
+    'Optional allowlist of domains. Empty = deny all; "*" = allow all (default: allow all).',
   "tools.web.fetch.maxChars": "Max characters returned by web_fetch (truncated).",
   "tools.web.fetch.maxCharsCap":
     "Hard cap for web_fetch maxChars (applies to config and tool calls).",

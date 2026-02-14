@@ -26,6 +26,21 @@ const NOT_FOUND_CODES = new Set(["ENOENT", "ENOTDIR"]);
 
 const ensureTrailingSep = (value: string) => (value.endsWith(path.sep) ? value : value + path.sep);
 
+async function realpathPrefix(p: string): Promise<string> {
+  const parts: string[] = [];
+  let cur = p;
+  while (cur && cur !== path.dirname(cur)) {
+    try {
+      const real = await fs.realpath(cur);
+      return path.join(real, ...parts.toReversed());
+    } catch {
+      parts.push(path.basename(cur));
+      cur = path.dirname(cur);
+    }
+  }
+  return p;
+}
+
 const isNodeError = (err: unknown): err is NodeJS.ErrnoException =>
   Boolean(err && typeof err === "object" && "code" in (err as Record<string, unknown>));
 
@@ -35,10 +50,11 @@ const isNotFoundError = (err: unknown) =>
 const isSymlinkOpenError = (err: unknown) =>
   isNodeError(err) && (err.code === "ELOOP" || err.code === "EINVAL" || err.code === "ENOTSUP");
 
-export async function openFileWithinRoot(params: {
+export async function validatePathWithinRoot(params: {
   rootDir: string;
   relativePath: string;
-}): Promise<SafeOpenResult> {
+  allowNonExistent?: boolean;
+}): Promise<{ resolved: string; rootReal: string }> {
   let rootReal: string;
   try {
     rootReal = await fs.realpath(params.rootDir);
@@ -50,9 +66,24 @@ export async function openFileWithinRoot(params: {
   }
   const rootWithSep = ensureTrailingSep(rootReal);
   const resolved = path.resolve(rootWithSep, params.relativePath);
-  if (!resolved.startsWith(rootWithSep)) {
-    throw new SafeOpenError("invalid-path", "path escapes root");
+
+  // Canonicalize the resolved path robustly to handle macOS /private/var symlinks etc.
+  const canonicalResolved = await realpathPrefix(resolved);
+
+  // Ensure the resolved canonical path is within the root
+  if (!canonicalResolved.startsWith(rootWithSep)) {
+    throw new SafeOpenError("invalid-path", `path escapes sandbox root: ${params.relativePath}`);
   }
+
+  return { resolved: canonicalResolved, rootReal };
+}
+
+export async function openFileWithinRoot(params: {
+  rootDir: string;
+  relativePath: string;
+}): Promise<SafeOpenResult> {
+  const { resolved, rootReal } = await validatePathWithinRoot(params);
+  const rootWithSep = ensureTrailingSep(rootReal);
 
   const supportsNoFollow = process.platform !== "win32" && "O_NOFOLLOW" in fsConstants;
   const flags = fsConstants.O_RDONLY | (supportsNoFollow ? fsConstants.O_NOFOLLOW : 0);

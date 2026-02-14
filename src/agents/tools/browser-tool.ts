@@ -29,6 +29,7 @@ import {
 import { loadConfig } from "../../config/config.js";
 import { saveMediaBuffer } from "../../media/store.js";
 import { computeNodeInvokeApprovalPayloadHash } from "../../security/capability-approval.js";
+import { resolveEgressPolicy, validateEgressTarget } from "../../security/network-egress-policy.js";
 import { resolveSessionAgentId } from "../agent-scope.js";
 import { BrowserToolSchema } from "./browser-tool.schema.js";
 import { type AnyAgentTool, imageResultFromFile, jsonResult, readStringParam } from "./common.js";
@@ -311,6 +312,13 @@ export function createBrowserTool(opts?: {
         target = "host";
       }
 
+      const cfg = loadConfig();
+      const resolvedConfig = resolveBrowserConfig(cfg.browser, cfg);
+      const egressPolicy = resolveEgressPolicy({
+        enabled: true,
+        allowDomains: resolvedConfig.allowDomains,
+      });
+
       const nodeTarget = await resolveBrowserNodeTarget({
         requestedNode: requestedNode ?? undefined,
         target,
@@ -422,6 +430,10 @@ export function createBrowserTool(opts?: {
           const targetUrl = readStringParam(params, "targetUrl", {
             required: true,
           });
+          const validation = validateEgressTarget(targetUrl, egressPolicy);
+          if (!validation.ok) {
+            throw new Error(`Browser navigation denied: ${validation.reason}`);
+          }
           if (proxyRequest) {
             const result = await proxyRequest({
               method: "POST",
@@ -604,6 +616,10 @@ export function createBrowserTool(opts?: {
           const targetUrl = readStringParam(params, "targetUrl", {
             required: true,
           });
+          const validation = validateEgressTarget(targetUrl, egressPolicy);
+          if (!validation.ok) {
+            throw new Error(`Browser navigation denied: ${validation.reason}`);
+          }
           const targetId = readStringParam(params, "targetId");
           if (proxyRequest) {
             const result = await proxyRequest({

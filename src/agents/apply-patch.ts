@@ -3,6 +3,7 @@ import { Type } from "@sinclair/typebox";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { validatePathWithinRoot } from "../infra/fs-safe.js";
 import { applyUpdateHunk } from "./apply-patch-update.js";
 import { assertSandboxPath } from "./sandbox-paths.js";
 
@@ -229,6 +230,14 @@ async function resolvePatchPath(
   }
 
   const resolved = resolvePathFromCwd(filePath, options.cwd);
+
+  // Enforce containment within CWD for local execution
+  await validatePathWithinRoot({
+    rootDir: options.cwd,
+    relativePath: resolved,
+    allowNonExistent: true,
+  });
+
   return {
     resolved,
     display: toDisplayPath(resolved, options.cwd),

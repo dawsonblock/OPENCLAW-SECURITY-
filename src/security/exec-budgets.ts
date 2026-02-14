@@ -1,109 +1,109 @@
-/**
- * Execution budget definitions and enforcement helpers.
- *
- * An ExecBudget constrains how much resource a single tool invocation
- * may consume.  The gateway resolves + clamps a budget before routing
- * a command to any execution plane (node-host / sandbox).
- */
-
-// ── Types ──
-
-export type ExecBudget = {
-  /** Wall-clock timeout for the entire invocation (ms). */
+export interface ExecBudget {
+  /** Maximum wall-clock time in milliseconds before the process is killed. */
   timeoutMs: number;
-  /** Maximum bytes on stdout before truncation / kill. */
+  /** Maximum number of bytes allowed for stdout before truncation/kill. */
   maxStdoutBytes: number;
-  /** Maximum bytes on stderr before truncation / kill. */
+  /** Maximum number of bytes allowed for stderr before truncation/kill. */
   maxStderrBytes: number;
-  /** Maximum combined output bytes (stdout + stderr). */
-  maxOutputBytes: number;
+  /** Maximum combined output size (stdout + stderr). */
+  maxTotalOutputBytes: number;
+  /** Maximum number of concurrent subprocesses allowed (if enforceable). */
+  maxSubprocesses: number;
+  /** Maximum bytes written to disk by this execution (if enforceable). */
+  maxFileWriteBytes: number;
+}
+
+/**
+ * Default conservative budget for dangerous executions.
+ * Prevents resource exhaustion and massive output floods.
+ */
+export const DEFAULT_DANGEROUS_BUDGET: ExecBudget = {
+  timeoutMs: 60_000, // 60 seconds
+  maxStdoutBytes: 1_024 * 1024, // 1 MB
+  maxStderrBytes: 1_024 * 1024, // 1 MB
+  maxTotalOutputBytes: 2 * 1024 * 1024, // 2 MB total
+  maxSubprocesses: 3, // Max depth/concurrency
+  maxFileWriteBytes: 10 * 1024 * 1024, // 10 MB write limit
 };
 
-// ── Defaults ──
-
-/** Budget for normal (non-dangerous) commands. */
-export const DEFAULT_EXEC_BUDGET: Readonly<ExecBudget> = Object.freeze({
-  timeoutMs: 120_000, // 2 minutes
-  maxStdoutBytes: 2 * 1024 * 1024, // 2 MB
-  maxStderrBytes: 1024 * 1024, // 1 MB
-  maxOutputBytes: 3 * 1024 * 1024, // 3 MB combined
-});
-
-/** Tighter budget for dangerous / system.run commands. */
-export const DEFAULT_DANGEROUS_BUDGET: Readonly<ExecBudget> = Object.freeze({
-  timeoutMs: 60_000, // 1 minute
-  maxStdoutBytes: 512 * 1024, // 512 KB
-  maxStderrBytes: 256 * 1024, // 256 KB
-  maxOutputBytes: 768 * 1024, // 768 KB combined
-});
-
-/** Absolute maximums — user-supplied values are capped to these. */
-const HARD_CAPS: Readonly<ExecBudget> = Object.freeze({
-  timeoutMs: 600_000, // 10 minutes
+/**
+ * Standard budget for normal executions.
+ */
+export const DEFAULT_EXEC_BUDGET: ExecBudget = {
+  timeoutMs: 300_000, // 5 minutes
   maxStdoutBytes: 10 * 1024 * 1024, // 10 MB
-  maxStderrBytes: 5 * 1024 * 1024, // 5 MB
-  maxOutputBytes: 15 * 1024 * 1024, // 15 MB
-});
+  maxStderrBytes: 10 * 1024 * 1024, // 10 MB
+  maxTotalOutputBytes: 20 * 1024 * 1024, // 20 MB total
+  maxSubprocesses: 10,
+  maxFileWriteBytes: 100 * 1024 * 1024, // 100 MB
+};
 
-// ── Helpers ──
-
-function clampField(value: number | undefined, fallback: number, max: number): number {
-  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
-    return fallback;
-  }
-  return Math.min(value, max);
-}
+const SYSTEM_MAX_TIMEOUT_MS = 600_000; // 10 minutes hard cap
 
 /**
- * Merge a partial user-supplied budget with a base budget,
- * clamping every field to HARD_CAPS.
+ * Clamps a budget against system ceilings.
  */
 export function clampBudget(
-  userBudget?: Partial<ExecBudget>,
-  base: Readonly<ExecBudget> = DEFAULT_EXEC_BUDGET,
+  requested?: Partial<ExecBudget>,
+  base = DEFAULT_EXEC_BUDGET,
 ): ExecBudget {
-  return {
-    timeoutMs: clampField(userBudget?.timeoutMs, base.timeoutMs, HARD_CAPS.timeoutMs),
-    maxStdoutBytes: clampField(
-      userBudget?.maxStdoutBytes,
-      base.maxStdoutBytes,
-      HARD_CAPS.maxStdoutBytes,
-    ),
-    maxStderrBytes: clampField(
-      userBudget?.maxStderrBytes,
-      base.maxStderrBytes,
-      HARD_CAPS.maxStderrBytes,
-    ),
-    maxOutputBytes: clampField(
-      userBudget?.maxOutputBytes,
-      base.maxOutputBytes,
-      HARD_CAPS.maxOutputBytes,
-    ),
-  };
+  const result = { ...base };
+  if (!requested) {
+    return result;
+  }
+
+  if (
+    typeof requested.timeoutMs === "number" &&
+    Number.isFinite(requested.timeoutMs) &&
+    requested.timeoutMs > 0
+  ) {
+    result.timeoutMs = Math.min(requested.timeoutMs, SYSTEM_MAX_TIMEOUT_MS);
+  }
+  if (
+    typeof requested.maxStdoutBytes === "number" &&
+    Number.isFinite(requested.maxStdoutBytes) &&
+    requested.maxStdoutBytes > 0
+  ) {
+    result.maxStdoutBytes = requested.maxStdoutBytes;
+  }
+  if (
+    typeof requested.maxStderrBytes === "number" &&
+    Number.isFinite(requested.maxStderrBytes) &&
+    requested.maxStderrBytes > 0
+  ) {
+    result.maxStderrBytes = requested.maxStderrBytes;
+  }
+  if (
+    typeof requested.maxTotalOutputBytes === "number" &&
+    Number.isFinite(requested.maxTotalOutputBytes) &&
+    requested.maxTotalOutputBytes > 0
+  ) {
+    result.maxTotalOutputBytes = requested.maxTotalOutputBytes;
+  }
+  return result;
 }
 
 /**
- * Resolve the exec budget for a given command.
- * Dangerous commands get a tighter default budget.
+ * Validates if a user-supplied budget exceeds safe maximums.
+ * Returns a safe budget capped at system limits.
  */
+export function enforceSafeBudget(requested?: Partial<ExecBudget>): ExecBudget {
+  return clampBudget(requested, DEFAULT_DANGEROUS_BUDGET);
+}
+
 export function resolveExecBudget(
   command: string,
-  dangerousCommands: readonly string[],
-  userBudget?: Partial<ExecBudget>,
+  dangerousCommands: string[],
+  requested?: Partial<ExecBudget>,
 ): ExecBudget {
-  const base = dangerousCommands.includes(command.trim())
-    ? DEFAULT_DANGEROUS_BUDGET
-    : DEFAULT_EXEC_BUDGET;
-  return clampBudget(userBudget, base);
+  const isDangerous = dangerousCommands.includes(command);
+  const base = isDangerous ? DEFAULT_DANGEROUS_BUDGET : DEFAULT_EXEC_BUDGET;
+  return clampBudget(requested, base);
 }
 
-/**
- * Hard-cap a timeout value against the budget.
- * Returns the smaller of the two.
- */
-export function clampTimeoutMs(userTimeoutMs: number | undefined, budget: ExecBudget): number {
-  if (typeof userTimeoutMs !== "number" || !Number.isFinite(userTimeoutMs) || userTimeoutMs <= 0) {
+export function clampTimeoutMs(requested: number | undefined | null, budget: ExecBudget): number {
+  if (typeof requested !== "number" || !Number.isFinite(requested) || requested <= 0) {
     return budget.timeoutMs;
   }
-  return Math.min(userTimeoutMs, budget.timeoutMs);
+  return Math.min(requested, budget.timeoutMs);
 }

@@ -474,8 +474,10 @@ describe("runMessageAction sendAttachment hydration", () => {
         sandboxRoot: sandboxDir,
       });
 
+      const sandboxReal = await fs.realpath(sandboxDir);
+      const expected = path.join(sandboxReal, "data", "pic.png");
       const call = vi.mocked(loadWebMedia).mock.calls[0];
-      expect(call?.[0]).toBe(path.join(sandboxDir, "data", "pic.png"));
+      expect(call?.[0]).toBe(expected);
     } finally {
       await fs.rm(sandboxDir, { recursive: true, force: true });
     }
@@ -563,8 +565,9 @@ describe("runMessageAction sandboxed media validation", () => {
         dryRun: true,
       });
 
+      const sandboxReal = await fs.realpath(sandboxDir);
       expect(result.kind).toBe("send");
-      expect(result.sendResult?.mediaUrl).toBe(path.join(sandboxDir, "data", "file.txt"));
+      expect(result.sendResult?.mediaUrl).toBe(path.join(sandboxReal, "data", "file.txt"));
     } finally {
       await fs.rm(sandboxDir, { recursive: true, force: true });
     }
@@ -585,8 +588,9 @@ describe("runMessageAction sandboxed media validation", () => {
         dryRun: true,
       });
 
+      const sandboxReal = await fs.realpath(sandboxDir);
       expect(result.kind).toBe("send");
-      expect(result.sendResult?.mediaUrl).toBe(path.join(sandboxDir, "data", "note.ogg"));
+      expect(result.sendResult?.mediaUrl).toBe(path.join(sandboxReal, "data", "note.ogg"));
     } finally {
       await fs.rm(sandboxDir, { recursive: true, force: true });
     }

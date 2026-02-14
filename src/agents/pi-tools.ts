@@ -41,6 +41,7 @@ import {
   normalizeToolParams,
   patchToolSchemaForClaudeCompatibility,
   wrapToolParamNormalization,
+  wrapPathGuard,
 } from "./pi-tools.read.js";
 import { cleanToolSchemaForGemini, normalizeToolParameters } from "./pi-tools.schema.js";
 import {
@@ -248,7 +249,7 @@ export function createOpenClawCodingTools(options?: {
         return [createSandboxedReadTool(sandboxRoot)];
       }
       const freshReadTool = createReadTool(workspaceRoot);
-      return [createOpenClawReadTool(freshReadTool)];
+      return [wrapPathGuard(createOpenClawReadTool(freshReadTool), workspaceRoot)];
     }
     if (tool.name === "bash" || tool.name === execToolName) {
       return [];
@@ -259,7 +260,10 @@ export function createOpenClawCodingTools(options?: {
       }
       // Wrap with param normalization for Claude Code compatibility
       return [
-        wrapToolParamNormalization(createWriteTool(workspaceRoot), CLAUDE_PARAM_GROUPS.write),
+        wrapPathGuard(
+          wrapToolParamNormalization(createWriteTool(workspaceRoot), CLAUDE_PARAM_GROUPS.write),
+          workspaceRoot,
+        ),
       ];
     }
     if (tool.name === "edit") {
@@ -267,9 +271,14 @@ export function createOpenClawCodingTools(options?: {
         return [];
       }
       // Wrap with param normalization for Claude Code compatibility
-      return [wrapToolParamNormalization(createEditTool(workspaceRoot), CLAUDE_PARAM_GROUPS.edit)];
+      return [
+        wrapPathGuard(
+          wrapToolParamNormalization(createEditTool(workspaceRoot), CLAUDE_PARAM_GROUPS.edit),
+          workspaceRoot,
+        ),
+      ];
     }
-    return [tool];
+    return [wrapPathGuard(tool, sandboxRoot ?? workspaceRoot)];
   });
   const { cleanupMs: cleanupMsOverride, ...execDefaults } = options?.exec ?? {};
   const execTool = createExecTool({

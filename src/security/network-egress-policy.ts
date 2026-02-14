@@ -102,6 +102,9 @@ export function isRawIp(host: string): boolean {
 function matchesDomain(hostname: string, allowDomains: string[]): boolean {
   const lower = hostname.toLowerCase();
   for (const domain of allowDomains) {
+    if (domain === "*") {
+      return true;
+    }
     const d = domain.toLowerCase().replace(/^\*\./, "");
     if (lower === d || lower.endsWith("." + d)) {
       return true;

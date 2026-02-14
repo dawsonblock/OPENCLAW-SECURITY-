@@ -17,6 +17,7 @@ import { CDP_PORT_RANGE_START, getUsedPorts } from "./profiles.js";
 
 export type ResolvedBrowserConfig = {
   enabled: boolean;
+  allowDomains: string[];
   evaluateEnabled: boolean;
   controlPort: number;
   cdpProtocol: "http" | "https";
@@ -140,6 +141,7 @@ export function resolveBrowserConfig(
   rootConfig?: OpenClawConfig,
 ): ResolvedBrowserConfig {
   const enabled = cfg?.enabled ?? DEFAULT_OPENCLAW_BROWSER_ENABLED;
+  const allowDomains = cfg?.allowDomains ?? ["*"];
   const evaluateEnabled = cfg?.evaluateEnabled ?? DEFAULT_BROWSER_EVALUATE_ENABLED;
   const gatewayPort = resolveGatewayPort(rootConfig);
   const controlPort = deriveDefaultBrowserControlPort(gatewayPort ?? DEFAULT_BROWSER_CONTROL_PORT);
@@ -198,6 +200,7 @@ export function resolveBrowserConfig(
 
   return {
     enabled,
+    allowDomains,
     evaluateEnabled,
     controlPort,
     cdpProtocol,
