@@ -155,4 +155,62 @@ export function registerSecurityCli(program: Command) {
 
       defaultRuntime.log(lines.join("\n"));
     });
+
+  security
+    .command("monitor")
+    .description("Start the security self-audit daemon (blocks)")
+    .option("--interval <ms>", "Audit interval in ms", "60000")
+    .action(async (opts: { interval: string }) => {
+      const { AuditDaemon } = await import("../security/audit-daemon.js");
+      const { loadConfig } = await import("../config/config.js");
+
+      const daemon = new AuditDaemon(
+        () => loadConfig(),
+        (level, msg) => {
+          const rich = isRich();
+          let prefix = level.toUpperCase();
+          if (rich) {
+            if (level === "critical") {
+              prefix = theme.error(prefix);
+            } else if (level === "warn") {
+              prefix = theme.warn(prefix);
+            } else if (level === "info") {
+              prefix = theme.muted(prefix);
+            }
+          }
+          defaultRuntime.log(`[${prefix}] ${msg}`);
+        },
+      );
+
+      const interval = parseInt(opts.interval, 10);
+      daemon.start(interval);
+
+      // Keep process alive
+      await new Promise(() => {});
+    });
+
+  security
+    .command("bundle")
+    .description("Export forensic incident bundle (logs + ledger + config)")
+    .requiredOption("--session <id>", "Session ID to bundle")
+    .option("--out <dir>", "Output directory", ".")
+    .action(async (opts: { session: string; out: string }) => {
+      const { exportIncidentBundle } = await import("../forensics/bundle.js");
+      const { loadConfig } = await import("../config/config.js");
+
+      // Resolve ledger dir
+      const path = await import("path");
+      const base = process.env.OPENCLAW_HOME || path.join(process.env.HOME || "", ".openclaw");
+      const ledgerDir = path.join(base, "ledger");
+
+      try {
+        console.log(`Exporting bundle for session ${opts.session}...`);
+        const config = loadConfig();
+        const zipPath = await exportIncidentBundle(opts.session, ledgerDir, config, opts.out);
+        console.log(`✅ Bundle created: ${zipPath}`);
+      } catch (error) {
+        console.error(`❌ Failed to export bundle: ${String(error)}`);
+        process.exit(1);
+      }
+    });
 }

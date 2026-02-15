@@ -63,7 +63,7 @@ export async function verifyLedger(path: string): Promise<LedgerVerifyResult> {
         ok: false,
         entries: lineNum,
         tipHash: lastHash,
-        error: `JSON parse error at line ${lineNum}: ${e}`,
+        error: `JSON parse error at line ${lineNum}: ${String(e)}`,
       };
     }
 
@@ -122,7 +122,7 @@ export async function verifyLedger(path: string): Promise<LedgerVerifyResult> {
       entries: lineNum,
       tipHash: lastHash,
       sidecarMatch: false,
-      error: `Sidecar read failed: ${e}`,
+      error: `Sidecar read failed: ${String(e)}`,
     };
   }
 
