@@ -50,6 +50,7 @@ export type AgentCliOpts = {
   runId?: string;
   extraSystemPrompt?: string;
   local?: boolean;
+  replay?: boolean;
 };
 
 function parseTimeoutSeconds(opts: { cfg: ReturnType<typeof loadConfig>; timeout?: string }) {
@@ -178,6 +179,13 @@ export async function agentCliCommand(opts: AgentCliOpts, runtime: RuntimeEnv, d
     agentId: opts.agent,
     replyAccountId: opts.replyAccount,
   };
+
+  if (opts.replay) {
+    process.env.OPENCLAW_REPLAY_MODE = "1";
+    // Replay requires local execution to access the ledger file
+    return await agentCommand(localOpts, runtime, deps);
+  }
+
   if (opts.local === true) {
     return await agentCommand(localOpts, runtime, deps);
   }

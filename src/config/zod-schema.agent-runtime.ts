@@ -245,6 +245,13 @@ export const ElevatedAllowFromSchema = z
   .record(z.string(), z.array(z.union([z.string(), z.number()])))
   .optional();
 
+export const SandboxExecutionBudgetSchema = z
+  .object({
+    timeoutMs: z.number().int().positive().optional(),
+  })
+  .strict()
+  .optional();
+
 export const AgentSandboxSchema = z
   .object({
     mode: z.union([z.literal("off"), z.literal("non-main"), z.literal("all")]).optional(),
@@ -256,6 +263,13 @@ export const AgentSandboxSchema = z
     docker: SandboxDockerSchema,
     browser: SandboxBrowserSchema,
     prune: SandboxPruneSchema,
+    executionBudget: SandboxExecutionBudgetSchema,
+    fs: z
+      .object({
+        allow: z.array(z.string()).optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .optional();

@@ -301,6 +301,18 @@ export async function startGatewayServer(
     );
   }
 
+  // ── Critical Invariant Validation (Hardening Phase 0) ──
+  // This step enforces fail-closed logic. Unlike general security warnings above,
+  // these invariants MUST hold for the system to be considered safe in production.
+  const { validateStartupInvariants } = await import("../security/invariant-validator.js");
+  const invariantCheck = validateStartupInvariants({ cfg: cfgAtStart, env: process.env });
+  if (!invariantCheck.ok) {
+    throw new Error(
+      `Startup Security Invariant Failed:\n- ${invariantCheck.errors.join("\n- ")}\n` +
+        "Refusing startup due to critical security violation.",
+    );
+  }
+
   // ── Initialize Policy Snapshot ──
   const securityPosture = extractSecurityPosture(cfgAtStart, process.env, bindHost, tailscaleMode);
   const policyHash = hashPayload(securityPosture);

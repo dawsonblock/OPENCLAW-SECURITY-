@@ -6,6 +6,8 @@ import type {
   SandboxBrowserSettings,
   SandboxDockerSettings,
   SandboxPruneSettings,
+  SandboxFileSystemSettings,
+  SandboxExecutionBudgetSettings,
 } from "./types.sandbox.js";
 import type { AgentToolsConfig, MemorySearchConfig } from "./types.tools.js";
 
@@ -61,6 +63,10 @@ export type AgentConfig = {
     browser?: SandboxBrowserSettings;
     /** Auto-prune overrides for this agent. */
     prune?: SandboxPruneSettings;
+    /** File system isolation settings. */
+    fs?: SandboxFileSystemSettings;
+    /** Execution budget settings. */
+    executionBudget?: SandboxExecutionBudgetSettings;
   };
   tools?: AgentToolsConfig;
 };

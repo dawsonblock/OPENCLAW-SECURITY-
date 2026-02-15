@@ -12,6 +12,7 @@ import type { SandboxContext } from "./sandbox.js";
 import { logWarn } from "../logger.js";
 import { getPluginToolMeta } from "../plugins/tools.js";
 import { isSubagentSessionKey } from "../routing/session-key.js";
+import { calculateRisk, RiskScore } from "../security/risk-engine.js";
 import { resolveGatewayMessageChannel } from "../utils/message-channel.js";
 import { createApplyPatchTool } from "./apply-patch.js";
 import {
@@ -43,6 +44,7 @@ import {
   wrapToolParamNormalization,
   wrapPathGuard,
 } from "./pi-tools.read.js";
+import { wrapToolWithReplay } from "./pi-tools.replay.js";
 import { cleanToolSchemaForGemini, normalizeToolParameters } from "./pi-tools.schema.js";
 import {
   applyOwnerOnlyToolPolicy,
@@ -306,6 +308,7 @@ export function createOpenClawCodingTools(options?: {
           workspaceDir: sandbox.workspaceDir,
           containerWorkdir: sandbox.containerWorkdir,
           env: sandbox.docker.env,
+          executionBudget: sandbox.executionBudget,
         }
       : undefined,
   });
@@ -451,12 +454,40 @@ export function createOpenClawCodingTools(options?: {
       sessionKey: options?.sessionKey,
     }),
   );
+
+  const withReplay = withHooks.map((tool) =>
+    wrapToolWithReplay(tool, {
+      workspaceDir: workspaceRoot,
+      sessionKey: options?.sessionKey,
+      agentId,
+    }),
+  );
+
   const withAbort = options?.abortSignal
-    ? withHooks.map((tool) => wrapToolWithAbortSignal(tool, options.abortSignal))
-    : withHooks;
+    ? withReplay.map((tool) => wrapToolWithAbortSignal(tool, options.abortSignal))
+    : withReplay;
+
+  // Security: Risk Scoring Logging
+  const withRiskLogging = withAbort.map((tool) => {
+    return {
+      ...tool,
+      run: async (args: any) => {
+        const assessment = calculateRisk(tool.name, args);
+        if (assessment.score >= RiskScore.HIGH) {
+          logWarn(
+            `[RiskEngine] High risk action: ${tool.name} (Score: ${assessment.score}, Reason: ${assessment.reason})`,
+          );
+        } else {
+          // Optional: log lower risk actions at debug level if desired, or just to ledger
+        }
+        // Proceed with execution
+        return tool.run(args);
+      },
+    };
+  });
 
   // NOTE: Keep canonical (lowercase) tool names here.
   // pi-ai's Anthropic OAuth transport remaps tool names to Claude Code-style names
   // on the wire and maps them back for tool dispatch.
-  return withAbort;
+  return withRiskLogging;
 }

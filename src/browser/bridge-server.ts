@@ -70,6 +70,44 @@ export async function startBrowserBridgeServer(params: {
     });
   }
 
+  // Hardening: Enforce Content-Type and Origin
+  app.use((req, res, next) => {
+    // 1. Strict Content-Type for POST/PUT/PATCH
+    if (
+      ["POST", "PUT", "PATCH"].includes(req.method) &&
+      req.headers["content-type"] !== "application/json"
+    ) {
+      res.status(415).send("Unsupported Media Type: Content-Type must be application/json");
+      return;
+    }
+
+    // 2. Origin Validation
+    const origin = req.headers["origin"];
+    if (origin) {
+      // Allow file:// (local electron/files), vscode-webview:// (VS Code), or localhost (loopback)
+      // Adjust regex as needed for strictness.
+      const isAllowed =
+        origin.startsWith("file://") ||
+        origin.startsWith("vscode-webview://") ||
+        // Allow loopback origins for local dev
+        /^http:\/\/localhost:\d+$/.test(origin) ||
+        /^http:\/\/127\.0\.0\.1:\d+$/.test(origin);
+
+      if (!isAllowed) {
+        // Check if explicitly allowed via env (e.g. for specific dev setups)
+        const allowedOrigins = (process.env.OPENCLAW_BROWSER_BRIDGE_ALLOWED_ORIGINS || "")
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        if (!allowedOrigins.includes(origin)) {
+          res.status(403).send("Forbidden: Origin not allowed");
+          return;
+        }
+      }
+    }
+    next();
+  });
+
   const state: BrowserServerState = {
     server: null as unknown as Server,
     port,

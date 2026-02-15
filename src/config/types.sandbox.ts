@@ -73,3 +73,13 @@ export type SandboxPruneSettings = {
   /** Prune if older than N days (0 disables). */
   maxAgeDays?: number;
 };
+
+export type SandboxExecutionBudgetSettings = {
+  /** Hard timeout for tool execution (ms). */
+  timeoutMs?: number;
+};
+
+export type SandboxFileSystemSettings = {
+  /** Whitelist of allowed host paths to mount. */
+  allow?: string[];
+};

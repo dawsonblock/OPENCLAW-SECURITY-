@@ -84,7 +84,18 @@ async function readLastHashFromSidecar(sidecarPath: string): Promise<string | nu
 }
 
 async function writeLastHashSidecar(sidecarPath: string, hash: string): Promise<void> {
-  await fs.writeFile(sidecarPath, `${hash}\n`, "utf8");
+  const tmpPath = `${sidecarPath}.tmp`;
+  let fileHandle: fs.FileHandle | undefined;
+  try {
+    fileHandle = await fs.open(tmpPath, "w");
+    await fileHandle.write(`${hash}\n`, null, "utf8");
+    await fileHandle.sync(); // fsync
+  } finally {
+    if (fileHandle) {
+      await fileHandle.close();
+    }
+  }
+  await fs.rename(tmpPath, sidecarPath);
 }
 
 function readLastHashFromLedgerRaw(raw: string): string {
@@ -141,8 +152,20 @@ export async function appendLedgerEntry(params: {
   const payload = redactForLedger(params.entry) as RfsnLedgerEntry;
   const hash = sha256Hex(prevHash + canonicalJson(payload));
 
-  const line = JSON.stringify({ prevHash, hash, payload });
-  await fs.appendFile(ledgerPath, `${line}\n`, "utf8");
+  const line = JSON.stringify({ prevHash, hash, payload }) + "\n";
+
+  // Hardened append: open, write, fsync, close to ensure durability
+  let fileHandle: fs.FileHandle | undefined;
+  try {
+    fileHandle = await fs.open(ledgerPath, "a");
+    await fileHandle.write(line, null, "utf8");
+    await fileHandle.sync(); // fsync
+  } finally {
+    if (fileHandle) {
+      await fileHandle.close();
+    }
+  }
+
   await writeLastHashSidecar(sidecarPath, hash);
 }
 

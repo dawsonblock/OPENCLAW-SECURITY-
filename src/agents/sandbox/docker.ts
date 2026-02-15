@@ -196,9 +196,14 @@ export function buildSandboxCreateArgs(params: {
   if (params.cfg.user) {
     args.push("--user", params.cfg.user);
   }
-  for (const cap of params.cfg.capDrop) {
+  /* Hardening: Start */
+  // Ensure we drop all capabilities by default if the config was somehow resolved to empty.
+  const caps = params.cfg.capDrop.length > 0 ? params.cfg.capDrop : ["ALL"];
+  for (const cap of caps) {
     args.push("--cap-drop", cap);
   }
+  /* Hardening: End */
+
   args.push("--security-opt", "no-new-privileges:true");
   const seccompProfile = normalizeSecurityProfile(params.cfg.seccompProfile, {
     allowUnconfinedEnvKey: "OPENCLAW_SANDBOX_ALLOW_UNCONFINED_SECCOMP",
@@ -230,13 +235,21 @@ export function buildSandboxCreateArgs(params: {
   const memory = normalizeDockerLimit(params.cfg.memory);
   if (memory) {
     args.push("--memory", memory);
+  } else if (process.env.NODE_ENV === "production") {
+    // Hardening: Force a memory limit in production if none specified
+    args.push("--memory", "1g");
   }
+
   const memorySwap = normalizeDockerLimit(params.cfg.memorySwap);
   if (memorySwap) {
     args.push("--memory-swap", memorySwap);
   }
+
+  // Hardening: Enforce CPU limit in production if missing
   if (typeof params.cfg.cpus === "number" && params.cfg.cpus > 0) {
     args.push("--cpus", String(params.cfg.cpus));
+  } else if (process.env.NODE_ENV === "production") {
+    args.push("--cpus", "2.0");
   }
   for (const [name, value] of Object.entries(params.cfg.ulimits ?? {}) as Array<
     [string, string | number | { soft?: number; hard?: number }]

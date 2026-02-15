@@ -14,6 +14,9 @@ export type BashSandboxConfig = {
   workspaceDir: string;
   containerWorkdir: string;
   env?: Record<string, string>;
+  executionBudget?: {
+    timeoutMs?: number;
+  };
 };
 
 export function buildSandboxEnv(params: {

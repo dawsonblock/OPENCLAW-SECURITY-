@@ -1539,8 +1539,19 @@ export function createExecTool(
         }
       }
 
-      const effectiveTimeout =
-        typeof params.timeout === "number" ? params.timeout : defaultTimeoutSec;
+      const defaultTimeoutMs =
+        typeof defaults?.timeoutSec === "number" && defaults.timeoutSec > 0
+          ? defaults.timeoutSec * 1000
+          : 1800 * 1000;
+
+      let effectiveTimeoutMs =
+        typeof params.timeout === "number" ? Math.ceil(params.timeout * 1000) : defaultTimeoutMs;
+
+      if (sandbox?.executionBudget?.timeoutMs) {
+        if (effectiveTimeoutMs > sandbox.executionBudget.timeoutMs) {
+          effectiveTimeoutMs = sandbox.executionBudget.timeoutMs;
+        }
+      }
       const getWarningText = () => (warnings.length ? `${warnings.join("\n")}\n\n` : "");
       const usePty = params.pty === true && !sandbox;
       const run = await runExecProcess({
@@ -1556,7 +1567,7 @@ export function createExecTool(
         notifyOnExit,
         scopeKey: defaults?.scopeKey,
         sessionKey: notifySessionKey,
-        timeoutMs: effectiveTimeout * 1000,
+        timeoutMs: effectiveTimeoutMs,
         onUpdate,
       });
 

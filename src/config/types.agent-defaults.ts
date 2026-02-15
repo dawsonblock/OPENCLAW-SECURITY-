@@ -9,6 +9,8 @@ import type {
   SandboxBrowserSettings,
   SandboxDockerSettings,
   SandboxPruneSettings,
+  SandboxFileSystemSettings,
+  SandboxExecutionBudgetSettings,
 } from "./types.sandbox.js";
 import type { MemorySearchConfig } from "./types.tools.js";
 
@@ -240,6 +242,10 @@ export type AgentDefaultsConfig = {
     browser?: SandboxBrowserSettings;
     /** Auto-prune sandbox containers. */
     prune?: SandboxPruneSettings;
+    /** File system isolation settings. */
+    fs?: SandboxFileSystemSettings;
+    /** Execution budget settings. */
+    executionBudget?: SandboxExecutionBudgetSettings;
   };
 };
 

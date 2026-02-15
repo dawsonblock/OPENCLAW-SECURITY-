@@ -93,6 +93,7 @@ export async function resolveSandboxContext(params: {
     containerWorkdir: cfg.docker.workdir,
     docker: cfg.docker,
     tools: cfg.tools,
+    executionBudget: cfg.executionBudget,
     browserAllowHostControl: cfg.browser.allowHostControl,
     browser: browser ?? undefined,
   };

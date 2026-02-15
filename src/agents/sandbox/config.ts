@@ -1,9 +1,10 @@
+import path from "node:path";
 import type { OpenClawConfig } from "../../config/config.js";
 import type {
   SandboxBrowserConfig,
   SandboxConfig,
   SandboxDockerConfig,
-  SandboxPruneConfig,
+  SandboxPruneSettings,
   SandboxScope,
 } from "./types.js";
 import { resolveAgentConfig } from "../agent-scope.js";
@@ -27,6 +28,39 @@ import {
 } from "./constants.js";
 import { resolveSandboxToolPolicyForAgent } from "./tool-policy.js";
 
+function validateBinds(binds: string[], allow?: string[]) {
+  if (!allow && binds.length > 0) {
+    throw new Error(
+      "Security Violation: Sandbox binds are not allowed unless whitelisted in 'fs.allow'.",
+    );
+  }
+  if (!allow) {
+    return binds;
+  }
+
+  const allowedPrefixes = allow.map((p) => path.resolve(p));
+
+  for (const bind of binds) {
+    const [hostPath] = bind.split(":");
+    if (!hostPath) {
+      continue;
+    }
+    const resolvedHost = path.resolve(hostPath);
+    // Ensure checking strictly against allowed prefixes
+    const isAllowed = allowedPrefixes.some((prefix) => {
+      const prefixWithSep = prefix.endsWith(path.sep) ? prefix : prefix + path.sep;
+      return resolvedHost === prefix || resolvedHost.startsWith(prefixWithSep);
+    });
+
+    if (!isAllowed) {
+      throw new Error(
+        `Security Violation: Sandbox bind '${hostPath}' is not in 'fs.allow' whitelist.`,
+      );
+    }
+  }
+  return binds;
+}
+
 export function resolveSandboxScope(params: {
   scope?: SandboxScope;
   perSession?: boolean;
@@ -44,6 +78,7 @@ export function resolveSandboxDockerConfig(params: {
   scope: SandboxScope;
   globalDocker?: Partial<SandboxDockerConfig>;
   agentDocker?: Partial<SandboxDockerConfig>;
+  fsAllow?: string[];
 }): SandboxDockerConfig {
   const agentDocker = params.scope === "shared" ? undefined : params.agentDocker;
   const globalDocker = params.globalDocker;
@@ -56,7 +91,8 @@ export function resolveSandboxDockerConfig(params: {
     ? { ...globalDocker?.ulimits, ...agentDocker.ulimits }
     : globalDocker?.ulimits;
 
-  const binds = [...(globalDocker?.binds ?? []), ...(agentDocker?.binds ?? [])];
+  const rawBinds = [...(globalDocker?.binds ?? []), ...(agentDocker?.binds ?? [])];
+  const binds = validateBinds(rawBinds, params.fsAllow);
 
   return {
     image: agentDocker?.image ?? globalDocker?.image ?? DEFAULT_SANDBOX_IMAGE,
@@ -67,7 +103,20 @@ export function resolveSandboxDockerConfig(params: {
     workdir: agentDocker?.workdir ?? globalDocker?.workdir ?? DEFAULT_SANDBOX_WORKDIR,
     readOnlyRoot: agentDocker?.readOnlyRoot ?? globalDocker?.readOnlyRoot ?? true,
     tmpfs: agentDocker?.tmpfs ?? globalDocker?.tmpfs ?? [...DEFAULT_SANDBOX_TMPFS],
-    network: agentDocker?.network ?? globalDocker?.network ?? "none",
+    network: (() => {
+      const net = agentDocker?.network ?? globalDocker?.network ?? "none";
+      if (process.env.NODE_ENV === "production" && net !== "none") {
+        // Fail-safe: In production, we force "none" unless explicitly break-glassed.
+        // NOTE: The startup invariant validator should catch this, but this protects
+        // against config changes *after* startup or during reloads.
+        if (process.env.OPENCLAW_ALLOW_NETWORK !== "1") {
+          throw new Error(
+            `Security Violation: Sandbox network must be 'none' in production. Found: '${net}'`,
+          );
+        }
+      }
+      return net;
+    })(),
     user: agentDocker?.user ?? globalDocker?.user,
     capDrop: agentDocker?.capDrop ?? globalDocker?.capDrop ?? ["ALL"],
     env,
@@ -119,9 +168,9 @@ export function resolveSandboxBrowserConfig(params: {
 
 export function resolveSandboxPruneConfig(params: {
   scope: SandboxScope;
-  globalPrune?: Partial<SandboxPruneConfig>;
-  agentPrune?: Partial<SandboxPruneConfig>;
-}): SandboxPruneConfig {
+  globalPrune?: Partial<SandboxPruneSettings>;
+  agentPrune?: Partial<SandboxPruneSettings>;
+}): SandboxPruneSettings {
   const agentPrune = params.scope === "shared" ? undefined : params.agentPrune;
   const globalPrune = params.globalPrune;
   return {
@@ -160,6 +209,7 @@ export function resolveSandboxConfigForAgent(
       scope,
       globalDocker: agent?.docker,
       agentDocker: agentSandbox?.docker,
+      fsAllow: agentSandbox?.fs?.allow ?? agent?.fs?.allow,
     }),
     browser: resolveSandboxBrowserConfig({
       scope,
@@ -175,5 +225,11 @@ export function resolveSandboxConfigForAgent(
       globalPrune: agent?.prune,
       agentPrune: agentSandbox?.prune,
     }),
+    executionBudget: {
+      timeoutMs: agentSandbox?.executionBudget?.timeoutMs ?? agent?.executionBudget?.timeoutMs,
+    },
+    fs: {
+      allow: agentSandbox?.fs?.allow ?? agent?.fs?.allow,
+    },
   };
 }

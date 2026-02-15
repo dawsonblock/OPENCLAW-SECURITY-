@@ -509,3 +509,21 @@ export const ProviderCommandsSchema = z
   })
   .strict()
   .optional();
+
+export const SecurityConfigSchema = z
+  .object({
+    network: z
+      .object({
+        allowlist: z.array(z.string()).optional(),
+      })
+      .strict()
+      .optional(),
+    model: z
+      .object({
+        providerAllowlist: z.array(z.string()).optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict()
+  .optional();

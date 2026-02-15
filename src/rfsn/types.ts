@@ -45,6 +45,7 @@ export type RfsnActionResult = {
     networkCalls?: string[];
     spawnedProcesses?: string[];
   };
+  output?: unknown; // Captured tool output for replay
 };
 
 export type RfsnLedgerEntry =

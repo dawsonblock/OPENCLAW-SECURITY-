@@ -1,4 +1,10 @@
+import type {
+  SandboxPruneSettings,
+  SandboxExecutionBudgetSettings,
+} from "../../config/types.sandbox.js";
 import type { SandboxDockerConfig } from "./types.docker.js";
+
+export type { SandboxPruneSettings };
 
 export type { SandboxDockerConfig } from "./types.docker.js";
 
@@ -41,11 +47,6 @@ export type SandboxBrowserConfig = {
   autoStartTimeoutMs: number;
 };
 
-export type SandboxPruneConfig = {
-  idleHours: number;
-  maxAgeDays: number;
-};
-
 export type SandboxScope = "session" | "agent" | "shared";
 
 export type SandboxConfig = {
@@ -56,7 +57,11 @@ export type SandboxConfig = {
   docker: SandboxDockerConfig;
   browser: SandboxBrowserConfig;
   tools: SandboxToolPolicy;
-  prune: SandboxPruneConfig;
+  prune: SandboxPruneSettings;
+  executionBudget?: SandboxExecutionBudgetSettings;
+  fs?: {
+    allow?: string[];
+  };
 };
 
 export type SandboxBrowserContext = {
@@ -75,6 +80,10 @@ export type SandboxContext = {
   containerWorkdir: string;
   docker: SandboxDockerConfig;
   tools: SandboxToolPolicy;
+  executionBudget?: SandboxExecutionBudgetSettings;
+  fs?: {
+    allow?: string[];
+  };
   browserAllowHostControl: boolean;
   browser?: SandboxBrowserContext;
 };
