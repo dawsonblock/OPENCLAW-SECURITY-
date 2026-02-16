@@ -32,7 +32,7 @@ gateway host and are tuned for systemd + Termux.
 
 - `scripts/claude-auth-status.sh` now uses `aetherbot models status --json` as the
   source of truth (falling back to direct file reads if the CLI is unavailable),
-  so keep `openclaw` on `PATH` for timers.
+  so keep `aetherbot` on `PATH` for timers.
 - `scripts/auth-monitor.sh`: cron/systemd timer target; sends alerts (ntfy or phone).
 - `scripts/systemd/openclaw-auth-monitor.{service,timer}`: systemd user timer.
 - `scripts/claude-auth-status.sh`: Claude Code + AetherBot auth checker (full/json/simple).
