@@ -18,7 +18,7 @@
 
 If you want a personal, single-user assistant that feels local, fast, always-on, and **cryptographically secure**, this is it.
 
-[Getting Started](#-quick-start) · [Security](#%EF%B8%8F-security-hardening-openclaw-security) · [CLI Reference](#-cli-reference) · [Channels](#-channels)
+[Getting Started](#-quick-start) · [Security](#%EF%B8%8F-security-hardening-aetherbot-security) · [CLI Reference](#-cli-reference) · [Channels](#-channels)
 
 ---
 
@@ -290,7 +290,7 @@ Switch: `aetherbot update --channel stable|beta|dev`
 
 ---
 
-## 🛡️ Security Hardening (OPENCLAW-SECURITY)
+## 🛡️ Security Hardening (AETHERBOT-SECURITY)
 
 This fork includes a **comprehensive, multi-phase security hardening** pass — **120+ files changed**, **5,200+ lines added** across 8 security phases. The hardening covers process isolation, network boundary enforcement, secret redaction, capability-gated tool execution, cryptographic posture verification, and forensic incident response.
 

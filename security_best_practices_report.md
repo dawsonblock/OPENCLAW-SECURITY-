@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-I reviewed the current OpenClaw tree for missed security issues after the RFSN integration work. There are several high-impact gaps still open: unsafe archive extraction, permissive remote embedding overrides, browser debugging/UI bridge exposure, and non-loopback webhook defaults. The RFSN gate is present for agent-tool dispatch but it is not yet the final authority for all side effects across extensions/runtime code paths.
+I reviewed the current AetherBot tree for missed security issues after the RFSN integration work. There are several high-impact gaps still open: unsafe archive extraction, permissive remote embedding overrides, browser debugging/UI bridge exposure, and non-loopback webhook defaults. The RFSN gate is present for agent-tool dispatch but it is not yet the final authority for all side effects across extensions/runtime code paths.
 
 ## Critical Findings
 
