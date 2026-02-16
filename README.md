@@ -93,6 +93,164 @@ Upgrading? Run `openclaw doctor` after updating.
 
 ---
 
+## 🤖 Multi-Agent Setup
+
+This fork includes a pre-configured **3-agent setup** with specialized roles:
+
+### Agent Profiles
+
+| Agent        | ID         | Model              | Specialization        | Tools                    |
+| ------------ | ---------- | ------------------ | --------------------- | ------------------------ |
+| 🔍 **Atlas** | `research` | Gemini 3 Flash     | Research & web search | Web search, web fetch    |
+| 💻 **CodeX** | `coder`    | Groq Llama 3.3 70B | Software engineering  | Web tools, coding agents |
+| ✨ **Muse**  | `creative` | Claude 3.5 Haiku   | Creative writing      | -                        |
+
+Each agent has:
+
+- **Isolated workspace** with separate memory and session history
+- **Custom identity** (name, theme, emoji)
+- **Dedicated skills** and tool configurations
+- **Bootstrap files** (HEARTBEAT.md, BOOTSTRAP.md, MEMORY.md)
+
+### Usage
+
+```bash
+# Chat with research agent (default)
+openclaw --profile dev chat
+
+# Chat with coding agent
+openclaw --profile dev chat --agent coder
+
+# Chat with creative agent
+openclaw --profile dev chat --agent creative
+
+# List all agents
+openclaw --profile dev gateway call agents.list
+```
+
+### Configuration
+
+Agents are defined in `~/.openclaw-dev/openclaw.json`:
+
+```json
+{
+  "agents": {
+    "list": [
+      {
+        "id": "research",
+        "model": { "primary": "google/gemini-3-flash-preview" },
+        "workspace": "~/.openclaw/workspace-research",
+        "identity": {
+          "name": "Atlas",
+          "theme": "research assistant with deep web search expertise",
+          "emoji": "🔍"
+        }
+      }
+    ]
+  }
+}
+```
+
+---
+
+## 🔧 Auto-Vulnerability Fixing
+
+Automatically download repositories and fix security vulnerabilities using the **vuln-fix** skill:
+
+### Quick Usage
+
+```bash
+# Clone repo and fix all vulnerabilities
+"Clone https://github.com/owner/repo and fix all security vulnerabilities"
+```
+
+### Features
+
+- **Automatic cloning** to isolated temp directories
+- **Multi-package manager support** (npm, pnpm, yarn, bun)
+- **Security scanning** via npm audit and Snyk
+- **AI-powered fixes** using Codex/Claude coding agents
+- **PR creation** with automated fix descriptions
+- **Test verification** before committing
+
+### Workflow
+
+1. Clone repository to temp directory
+2. Auto-detect package manager
+3. Install dependencies
+4. Scan for vulnerabilities (`npm audit`)
+5. Apply automatic fixes (`npm audit fix`)
+6. Launch coding agent for complex fixes
+7. Run tests to verify
+8. Create PR with changes
+
+### Example
+
+```bash
+REPO="https://github.com/owner/repo.git"
+TEMP=$(mktemp -d)
+git clone $REPO $TEMP
+cd $TEMP && npm install
+
+# Quick fixes
+npm audit fix
+
+# AI-powered fixes for remaining issues
+bash pty:true workdir:$TEMP command:"codex exec --full-auto 'Fix remaining security vulnerabilities, test, and commit'"
+
+# Create PR
+git checkout -b security/auto-fix
+git push -u origin security/auto-fix
+gh pr create --title "fix: resolve security vulnerabilities"
+```
+
+---
+
+## 🛍️ ClawHub Skill Marketplace
+
+Install community skills from [clawhub.ai](https://clawhub.ai) with automatic security scanning:
+
+### Features
+
+- **Semantic search** for skills (vector-based, not just keywords)
+- **Automatic code scanning** on install (detects command injection, file manipulation, etc.)
+- **Version control** with semver and changelogs
+- **Community moderation** (auto-hide after 3+ reports)
+- **Per-agent installation** for workspace isolation
+
+### Usage
+
+```bash
+# Install ClawHub CLI
+npm i -g clawhub
+
+# Search for skills
+clawhub search "postgres backup"
+
+# Install a skill
+clawhub install postgres-backup-tool
+
+# Update all skills
+clawhub update --all
+
+# Publish your own skill
+clawhub publish ./my-skill --slug my-skill --version 1.0.0
+```
+
+### Security Model
+
+Every skill installation automatically:
+
+1. Scans code for dangerous patterns
+2. Checks binary/env requirements
+3. Validates against allowlists
+4. Isolates to agent workspace
+5. Records version in `.clawhub/lock.json`
+
+Agents can autonomously search and install skills with built-in protection.
+
+---
+
 ## 📦 Installation
 
 ### Global Install (Recommended)
