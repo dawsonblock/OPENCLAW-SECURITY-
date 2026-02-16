@@ -227,7 +227,9 @@ if [ "$NO_SIGN" -eq 1 ] && [ "$ATTACH_ONLY" -ne 1 ]; then
       const fs = require("node:fs");
       const path = require("node:path");
       try {
-        const raw = fs.readFileSync(path.join(process.env.HOME, ".openclaw", "openclaw.json"), "utf8");
+        const aPath = path.join(process.env.HOME, ".aetherbot", "aetherbot.json");
+        const oPath = path.join(process.env.HOME, ".openclaw", "openclaw.json");
+        const raw = fs.readFileSync(fs.existsSync(aPath) ? aPath : oPath, "utf8");
         const cfg = JSON.parse(raw);
         const port = cfg && cfg.gateway && typeof cfg.gateway.port === "number" ? cfg.gateway.port : 18789;
         process.stdout.write(String(port));

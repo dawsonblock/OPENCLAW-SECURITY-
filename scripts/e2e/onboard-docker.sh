@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-IMAGE_NAME="openclaw-onboard-e2e"
+IMAGE_NAME="aetherbot-onboard-e2e"
 
 echo "Building Docker image..."
 docker build -t "$IMAGE_NAME" -f "$ROOT_DIR/scripts/e2e/Dockerfile" "$ROOT_DIR"
@@ -291,9 +291,9 @@ TRASH
       --skip-health
 
     # Assert config + workspace scaffolding.
-    workspace_dir="$HOME/.openclaw/workspace"
-    config_path="$HOME/.openclaw/openclaw.json"
-    sessions_dir="$HOME/.openclaw/agents/main/sessions"
+    workspace_dir="$HOME/.aetherbot/workspace"
+    config_path="$HOME/.aetherbot/aetherbot.json"
+    sessions_dir="$HOME/.aetherbot/agents/main/sessions"
 
     assert_file "$config_path"
     assert_dir "$sessions_dir"
@@ -363,25 +363,17 @@ NODE
       --skip-skills \
       --skip-health
 
-    config_path="$HOME/.openclaw/openclaw.json"
+    config_path="$HOME/.aetherbot/aetherbot.json"
     assert_file "$config_path"
 
     CONFIG_PATH="$config_path" node --input-type=module - <<'"'"'NODE'"'"'
-import fs from "node:fs";
-import JSON5 from "json5";
-
-const cfg = JSON5.parse(fs.readFileSync(process.env.CONFIG_PATH, "utf-8"));
+import { readFileSync } from "node:fs";
+const cfg = JSON.parse(readFileSync(process.env.CONFIG_PATH, "utf8"));
 const errors = [];
 
-if (cfg?.gateway?.mode !== "remote") {
-  errors.push(`gateway.mode mismatch (got ${cfg?.gateway?.mode ?? "unset"})`);
-}
-if (cfg?.gateway?.remote?.url !== "ws://gateway.local:18789") {
-  errors.push(`gateway.remote.url mismatch (got ${cfg?.gateway?.remote?.url ?? "unset"})`);
-}
-if (cfg?.gateway?.remote?.token !== "remote-token") {
-  errors.push(`gateway.remote.token mismatch (got ${cfg?.gateway?.remote?.token ?? "unset"})`);
-}
+if (cfg.gateway?.mode !== "remote") { console.error("mode", cfg.gateway?.mode); process.exit(1); }
+if (cfg.gateway?.remote?.url !== "ws://gateway.local:18789") { console.error("url", cfg.gateway?.remote?.url); process.exit(1); }
+if (cfg.gateway?.remote?.token !== "remote-token") { console.error("token", cfg.gateway?.remote?.token); process.exit(1); }
 if (cfg?.wizard?.lastRunMode !== "remote") {
   errors.push(`wizard.lastRunMode mismatch (got ${cfg?.wizard?.lastRunMode ?? "unset"})`);
 }
@@ -397,9 +389,9 @@ NODE
     local home_dir
     home_dir="$(make_home reset-config)"
     export HOME="$home_dir"
-    mkdir -p "$HOME/.openclaw"
+    mkdir -p "$HOME/.aetherbot"
     # Seed a remote config to exercise reset path.
-	    cat > "$HOME/.openclaw/openclaw.json" <<'"'"'JSON'"'"'
+	    cat > "$HOME/.aetherbot/aetherbot.json" <<'"'"'JSON'"'"'
 {
   "agents": { "defaults": { "workspace": "/root/old" } },
   "gateway": {
@@ -421,17 +413,15 @@ JSON
       --skip-ui \
       --skip-health
 
-    config_path="$HOME/.openclaw/openclaw.json"
+    config_path="$HOME/.aetherbot/aetherbot.json"
     assert_file "$config_path"
 
     CONFIG_PATH="$config_path" node --input-type=module - <<'"'"'NODE'"'"'
-import fs from "node:fs";
-import JSON5 from "json5";
-
-const cfg = JSON5.parse(fs.readFileSync(process.env.CONFIG_PATH, "utf-8"));
+import { readFileSync } from "node:fs";
+const cfg = JSON.parse(readFileSync(process.env.CONFIG_PATH, "utf8"));
 const errors = [];
 
-if (cfg?.gateway?.mode !== "local") {
+if (cfg.gateway?.mode !== "local") {
   errors.push(`gateway.mode mismatch (got ${cfg?.gateway?.mode ?? "unset"})`);
 }
 if (cfg?.gateway?.remote?.url) {
@@ -454,14 +444,12 @@ NODE
 	    # Channels-only configure flow.
 	    run_wizard_cmd channels "$home_dir" "node \"$OPENCLAW_ENTRY\" configure --section channels" send_channels_flow
 
-    config_path="$HOME/.openclaw/openclaw.json"
+    config_path="$HOME/.aetherbot/aetherbot.json"
     assert_file "$config_path"
 
     CONFIG_PATH="$config_path" node --input-type=module - <<'"'"'NODE'"'"'
-import fs from "node:fs";
-import JSON5 from "json5";
-
-const cfg = JSON5.parse(fs.readFileSync(process.env.CONFIG_PATH, "utf-8"));
+import { readFileSync } from "node:fs";
+const cfg = JSON.parse(readFileSync(process.env.CONFIG_PATH, "utf8"));
 const errors = [];
 
     if (cfg?.telegram?.botToken) {
@@ -492,9 +480,9 @@ NODE
     local home_dir
     home_dir="$(make_home skills)"
     export HOME="$home_dir"
-    mkdir -p "$HOME/.openclaw"
+    mkdir -p "$HOME/.aetherbot"
     # Seed skills config to ensure it survives the wizard.
-	    cat > "$HOME/.openclaw/openclaw.json" <<'"'"'JSON'"'"'
+	    cat > "$HOME/.aetherbot/aetherbot.json" <<'"'"'JSON'"'"'
 {
   "skills": {
     "allowBundled": ["__none__"],
@@ -505,7 +493,7 @@ JSON
 
 	    run_wizard_cmd skills "$home_dir" "node \"$OPENCLAW_ENTRY\" configure --section skills" send_skills_flow
 
-    config_path="$HOME/.openclaw/openclaw.json"
+    config_path="$HOME/.aetherbot/aetherbot.json"
     assert_file "$config_path"
 
     CONFIG_PATH="$config_path" node --input-type=module - <<'"'"'NODE'"'"'
