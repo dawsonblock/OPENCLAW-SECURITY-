@@ -1,6 +1,6 @@
 # @openclaw/zalouser
 
-OpenClaw extension for Zalo Personal Account messaging via [zca-cli](https://zca-cli.dev).
+AetherBot extension for Zalo Personal Account messaging via [zca-cli](https://zca-cli.dev).
 
 > **Warning:** Using Zalo automation may result in account suspension or ban. Use at your own risk. This is an unofficial integration.
 
@@ -85,7 +85,7 @@ openclaw onboard
 ### Option 2: Login (QR, on the Gateway machine)
 
 ```bash
-openclaw channels login --channel zalouser
+aetherbot channels login --channel zalouser
 # Scan QR code with Zalo app
 ```
 
@@ -127,10 +127,10 @@ channels:
 ### Authentication
 
 ```bash
-openclaw channels login --channel zalouser              # Login via QR
-openclaw channels login --channel zalouser --account work
-openclaw channels status --probe
-openclaw channels logout --channel zalouser
+aetherbot channels login --channel zalouser              # Login via QR
+aetherbot channels login --channel zalouser --account work
+aetherbot channels status --probe
+aetherbot channels logout --channel zalouser
 ```
 
 ### Directory (IDs, contacts, groups)
@@ -165,7 +165,7 @@ openclaw message send --channel zalouser --target <threadId> --message "caption"
 ### Listener
 
 The listener runs inside the Gateway when the channel is enabled. For debugging,
-use `openclaw channels logs --channel zalouser` or run `zca listen` directly.
+use `aetherbot channels logs --channel zalouser` or run `zca listen` directly.
 
 ### Data Access
 
@@ -191,7 +191,7 @@ zca me id
 Use `--profile` or `-p` to work with multiple accounts:
 
 ```bash
-openclaw channels login --channel zalouser --account work
+aetherbot channels login --channel zalouser --account work
 openclaw message send --channel zalouser --account work --target <id> --message "Hello"
 ZCA_PROFILE=work zca listen
 ```

@@ -14,10 +14,10 @@ Plugin system: `https://docs.openclaw.ai/plugin`
 
 ## Install (local dev)
 
-### Option A: install via OpenClaw (recommended)
+### Option A: install via AetherBot (recommended)
 
 ```bash
-openclaw plugins install @openclaw/voice-call
+aetherbot plugins install @openclaw/voice-call
 ```
 
 Restart the Gateway afterwards.

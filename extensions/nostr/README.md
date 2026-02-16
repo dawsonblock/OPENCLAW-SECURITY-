@@ -1,6 +1,6 @@
 # @openclaw/nostr
 
-Nostr DM channel plugin for OpenClaw using NIP-04 encrypted direct messages.
+Nostr DM channel plugin for AetherBot using NIP-04 encrypted direct messages.
 
 ## Overview
 
@@ -13,7 +13,7 @@ This extension adds Nostr as a messaging channel to OpenClaw. It enables your bo
 ## Installation
 
 ```bash
-openclaw plugins install @openclaw/nostr
+aetherbot plugins install @openclaw/nostr
 ```
 
 ## Quick Setup

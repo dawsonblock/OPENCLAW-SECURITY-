@@ -1,4 +1,4 @@
-# Google Gemini CLI Auth (OpenClaw plugin)
+# Google Gemini CLI Auth (AetherBot plugin)
 
 OAuth provider plugin for **Gemini CLI** (Google Code Assist).
 
@@ -7,7 +7,7 @@ OAuth provider plugin for **Gemini CLI** (Google Code Assist).
 Bundled plugins are disabled by default. Enable this one:
 
 ```bash
-openclaw plugins enable google-gemini-cli-auth
+aetherbot plugins enable google-gemini-cli-auth
 ```
 
 Restart the Gateway after enabling.
@@ -15,7 +15,7 @@ Restart the Gateway after enabling.
 ## Authenticate
 
 ```bash
-openclaw models auth login --provider google-gemini-cli --set-default
+aetherbot models auth login --provider google-gemini-cli --set-default
 ```
 
 ## Requirements
