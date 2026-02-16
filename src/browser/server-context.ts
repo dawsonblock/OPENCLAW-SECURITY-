@@ -333,7 +333,7 @@ function createProfileContext(
     // HTTP responds but WebSocket fails - port in use by something else
     if (!profileState.running) {
       throw new Error(
-        `Port ${profile.cdpPort} is in use for profile "${profile.name}" but not by openclaw. ` +
+        `Port ${profile.cdpPort} is in use for profile "${profile.name}" but not by aetherbot. ` +
           `Run action=reset-profile profile=${profile.name} to kill the process.`,
       );
     }
