@@ -9,23 +9,23 @@ const CLI_NAME = resolveCliName();
 
 const EXAMPLES = [
   [
-    "openclaw channels login --verbose",
+    "aetherbot channels login --verbose",
     "Link personal WhatsApp Web and show QR + connection logs.",
   ],
   [
-    'openclaw message send --target +15555550123 --message "Hi" --json',
+    'aetherbot message send --target +15555550123 --message "Hi" --json',
     "Send via your web session and print JSON result.",
   ],
-  ["openclaw gateway --port 18789", "Run the WebSocket Gateway locally."],
-  ["openclaw --dev gateway", "Run a dev Gateway (isolated state/config) on ws://127.0.0.1:19001."],
-  ["openclaw gateway --force", "Kill anything bound to the default gateway port, then start it."],
-  ["openclaw gateway ...", "Gateway control via WebSocket."],
+  ["aetherbot gateway --port 18789", "Run the WebSocket Gateway locally."],
+  ["aetherbot --dev gateway", "Run a dev Gateway (isolated state/config) on ws://127.0.0.1:19001."],
+  ["aetherbot gateway --force", "Kill anything bound to the default gateway port, then start it."],
+  ["aetherbot gateway ...", "Gateway control via WebSocket."],
   [
-    'openclaw agent --to +15555550123 --message "Run summary" --deliver',
+    'aetherbot agent --to +15555550123 --message "Run summary" --deliver',
     "Talk directly to the agent using the Gateway; optionally send the WhatsApp reply.",
   ],
   [
-    'openclaw message send --channel telegram --target @mychat --message "Hi"',
+    'aetherbot message send --channel telegram --target @mychat --message "Hi"',
     "Send via your Telegram bot.",
   ],
 ] as const;
