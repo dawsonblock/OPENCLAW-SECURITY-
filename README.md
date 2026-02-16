@@ -1,10 +1,7 @@
-# 🦞 OpenClaw — Personal AI Assistant
+# ⚡ AetherBot — Personal AI Assistant
 
 <p align="center">
-    <picture>
-        <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/openclaw-logo-text-dark.png">
-        <img src="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/openclaw-logo-text.png" alt="OpenClaw" width="500">
-    </picture>
+    <strong>AetherBot</strong>
 </p>
 
 <p align="center">
@@ -12,19 +9,16 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/openclaw/openclaw/actions/workflows/ci.yml?branch=main"><img src="https://img.shields.io/github/actions/workflow/status/openclaw/openclaw/ci.yml?branch=main&style=for-the-badge" alt="CI status"></a>
-  <a href="https://github.com/openclaw/openclaw/releases"><img src="https://img.shields.io/github/v/release/openclaw/openclaw?include_prereleases&style=for-the-badge" alt="GitHub release"></a>
-  <a href="https://discord.gg/clawd"><img src="https://img.shields.io/discord/1456350064065904867?label=Discord&logo=discord&logoColor=white&color=5865F2&style=for-the-badge" alt="Discord"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
 </p>
 
 ---
 
-**OpenClaw** is a personal AI assistant that runs entirely on your own devices. It connects to the channels you already use — WhatsApp, Telegram, Slack, Discord, Google Chat, Signal, iMessage, Microsoft Teams, WebChat — and provides a unified, secure intelligence layer over your digital life. It can speak and listen on macOS/iOS/Android, render a live Canvas you control, and execute tools in a hardened sandbox.
+**AetherBot** is a personal AI assistant that runs entirely on your own devices. It connects to the channels you already use — WhatsApp, Telegram, Slack, Discord, Google Chat, Signal, iMessage, Microsoft Teams, WebChat — and provides a unified, secure intelligence layer over your digital life. It can speak and listen on macOS/iOS/Android, render a live Canvas you control, and execute tools in a hardened sandbox.
 
 If you want a personal, single-user assistant that feels local, fast, always-on, and **cryptographically secure**, this is it.
 
-[Website](https://openclaw.ai) · [Docs](https://docs.openclaw.ai) · [DeepWiki](https://deepwiki.com/openclaw/openclaw) · [Getting Started](https://docs.openclaw.ai/start/getting-started) · [Showcase](https://docs.openclaw.ai/start/showcase) · [FAQ](https://docs.openclaw.ai/start/faq) · [Discord](https://discord.gg/clawd)
+[Getting Started](#-quick-start) · [Security](#%EF%B8%8F-security-hardening-openclaw-security) · [CLI Reference](#-cli-reference) · [Channels](#-channels)
 
 ---
 
@@ -64,7 +58,7 @@ WhatsApp / Telegram / Slack / Discord / Signal / iMessage / Teams / WebChat
          ┌─────────────┼─────────────┐
          │             │             │
     Pi Agent        CLI          Companion
-     (RPC)      (openclaw …)       Apps
+     (RPC)      (aetherbot …)      Apps
 ```
 
 The Gateway is the brains. Channels, tools, and clients all connect to it over WebSocket. The **RFSN Policy Engine** sits between the agent and all side-effect primitives, enforcing capability-based access control.
@@ -77,19 +71,19 @@ Requires **Node.js ≥ 22**. Works with npm, pnpm, or bun.
 
 ```bash
 # Install globally
-npm install -g openclaw@latest
+npm install -g aetherbot@latest
 
 # Run the interactive setup wizard
-openclaw onboard --install-daemon
+aetherbot onboard --install-daemon
 
 # Start the gateway
-openclaw gateway --port 18789 --verbose
+aetherbot gateway --port 18789 --verbose
 
 # Talk to your agent
-openclaw agent --message "Ship checklist" --thinking high
+aetherbot agent --message "Ship checklist" --thinking high
 ```
 
-Upgrading? Run `openclaw doctor` after updating.
+Upgrading? Run `aetherbot doctor` after updating.
 
 ---
 
@@ -116,21 +110,21 @@ Each agent has:
 
 ```bash
 # Chat with research agent (default)
-openclaw --profile dev chat
+aetherbot --profile dev chat
 
 # Chat with coding agent
-openclaw --profile dev chat --agent coder
+aetherbot --profile dev chat --agent coder
 
 # Chat with creative agent
-openclaw --profile dev chat --agent creative
+aetherbot --profile dev chat --agent creative
 
 # List all agents
-openclaw --profile dev gateway call agents.list
+aetherbot --profile dev gateway call agents.list
 ```
 
 ### Configuration
 
-Agents are defined in `~/.openclaw-dev/openclaw.json`:
+Agents are defined in `~/.aetherbot-dev/aetherbot.json`:
 
 ```json
 {
@@ -139,7 +133,7 @@ Agents are defined in `~/.openclaw-dev/openclaw.json`:
       {
         "id": "research",
         "model": { "primary": "google/gemini-3-flash-preview" },
-        "workspace": "~/.openclaw/workspace-research",
+        "workspace": "~/.aetherbot/workspace-research",
         "identity": {
           "name": "Atlas",
           "theme": "research assistant with deep web search expertise",
@@ -256,8 +250,8 @@ Agents can autonomously search and install skills with built-in protection.
 ### Global Install (Recommended)
 
 ```bash
-npm install -g openclaw@latest   # or: pnpm add -g openclaw@latest
-openclaw onboard --install-daemon
+npm install -g aetherbot@latest   # or: pnpm add -g aetherbot@latest
+aetherbot onboard --install-daemon
 ```
 
 The wizard installs the Gateway daemon (launchd/systemd) so it stays running in the background.
@@ -266,19 +260,19 @@ The wizard installs the Gateway daemon (launchd/systemd) so it stays running in 
 
 ```bash
 docker run -d \
-  -v ~/.openclaw:/root/.openclaw \
+  -v ~/.aetherbot:/root/.aetherbot \
   -p 18789:18789 \
-  openclaw/gateway:latest
+  aetherbot/gateway:latest
 ```
 
 ### From Source
 
 ```bash
-git clone https://github.com/openclaw/openclaw.git && cd openclaw
+git clone https://github.com/AetheronResearch/aetherbot.git && cd aetherbot
 pnpm install
 pnpm ui:build    # auto-installs UI deps on first run
 pnpm build
-pnpm openclaw onboard --install-daemon
+pnpm aetherbot onboard --install-daemon
 
 # Dev loop (auto-reload on TS changes)
 pnpm gateway:watch
@@ -292,7 +286,7 @@ pnpm gateway:watch
 | `beta`   | `beta`   | Prereleases (`vYYYY.M.D-beta.N`) |
 | `dev`    | `dev`    | Moving head of `main`            |
 
-Switch: `openclaw update --channel stable|beta|dev`
+Switch: `aetherbot update --channel stable|beta|dev`
 
 ---
 
@@ -326,15 +320,15 @@ const result = await runAllowedCommand({
 
 **`src/rfsn/policy.ts`** — Capability-based access control:
 
-| Feature                       | Description                                                      |
-| :---------------------------- | :--------------------------------------------------------------- |
-| Tool allowlist/denylist       | Each tool (`exec`, `browser`, `web_fetch`) is gated by policy    |
-| Risk classification           | Tools categorized as `low`/`medium`/`high` risk                  |
-| Capability grants             | Fine-grained: `fs:read:workspace`, `net:outbound`, `proc:manage` |
-| Safe binary registry          | Whitelisted executables for `exec` tool                          |
-| Fetch domain allowlisting     | Optional domain-level network allowlist with subdomain support   |
-| Command substitution blocking | Prevents `$(...)` and backtick injection                         |
-| Env-driven overrides          | All knobs configurable via `OPENCLAW_RFSN_*` env vars            |
+| Feature                       | Description                                                                |
+| :---------------------------- | :------------------------------------------------------------------------- |
+| Tool allowlist/denylist       | Each tool (`exec`, `browser`, `web_fetch`) is gated by policy              |
+| Risk classification           | Tools categorized as `low`/`medium`/`high` risk                            |
+| Capability grants             | Fine-grained: `fs:read:workspace`, `net:outbound`, `proc:manage`           |
+| Safe binary registry          | Whitelisted executables for `exec` tool                                    |
+| Fetch domain allowlisting     | Optional domain-level network allowlist with subdomain support             |
+| Command substitution blocking | Prevents `$(...)` and backtick injection                                   |
+| Env-driven overrides          | All knobs configurable via `AETHERBOT_RFSN_*` / `OPENCLAW_RFSN_*` env vars |
 
 ### Phase 2 — Secret Redaction
 
@@ -454,28 +448,28 @@ Every security module includes dedicated test files:
 ## 🔧 CLI Reference
 
 ```bash
-openclaw onboard              # Interactive setup wizard
-openclaw gateway              # Start the gateway
-openclaw agent --message "…"  # Send a message to the agent
-openclaw doctor               # Health check and diagnostics
-openclaw update               # Update to latest version
+aetherbot onboard              # Interactive setup wizard
+aetherbot gateway              # Start the gateway
+aetherbot agent --message "…"  # Send a message to the agent
+aetherbot doctor               # Health check and diagnostics
+aetherbot update               # Update to latest version
 
 # Security commands
-openclaw security monitor     # Start the audit daemon (foreground)
-openclaw security bundle      # Export forensic incident bundle
+aetherbot security monitor     # Start the audit daemon (foreground)
+aetherbot security bundle      # Export forensic incident bundle
   --session <id>              #   Session ID to bundle
   --out <dir>                 #   Output directory
 
 # Channel management
-openclaw channels login       # Link messaging channels
-openclaw pairing approve      # Approve a DM pairing request
+aetherbot channels login       # Link messaging channels
+aetherbot pairing approve      # Approve a DM pairing request
 ```
 
 ---
 
 ## 🧠 Model Configuration
 
-OpenClaw supports multiple LLM providers simultaneously. Configure in `~/.openclaw/openclaw.json`:
+AetherBot supports multiple LLM providers simultaneously. Configure in `~/.aetherbot/aetherbot.json`:
 
 ```json5
 {
@@ -523,10 +517,10 @@ OpenClaw supports multiple LLM providers simultaneously. Configure in `~/.opencl
 
 - **Default**: Tools run on the host for the `main` session (full access when it's just you).
 - **Sandbox mode**: Set `agents.defaults.sandbox.mode: "non-main"` to run group/channel sessions inside per-session Docker sandboxes.
-- **DM pairing**: Unknown senders receive a pairing code; approve with `openclaw pairing approve <channel> <code>`.
+- **DM pairing**: Unknown senders receive a pairing code; approve with `aetherbot pairing approve <channel> <code>`.
 - **Tool isolation**: Sandbox allowlist/denylist controls which tools are available per session type.
 
-Run `openclaw doctor` to surface risky or misconfigured security policies.
+Run `aetherbot doctor` to surface risky or misconfigured security policies.
 
 ---
 
@@ -612,31 +606,20 @@ Supported channels with dedicated integrations:
 
 ## ⭐ Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=openclaw/openclaw&type=date&legend=top-left)](https://www.star-history.com/#openclaw/openclaw&type=date&legend=top-left)
+<!-- Star history placeholder -->
 
 ---
 
 ## 🤝 Community
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines, maintainers, and how to submit PRs.
-AI/vibe-coded PRs welcome! 🤖
-
-Join the [Discord](https://discord.gg/clawd) to discuss features, get help, and show off your agent skills.
-
-Special thanks to [Mario Zechner](https://mariozechner.at/) for his support and [pi-mono](https://github.com/badlogic/pi-mono).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## 👥 Contributors
 
-Thanks to all the incredible clawtributors!
-
-<a href="https://github.com/openclaw/openclaw/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=openclaw/openclaw" alt="Contributors" />
-</a>
+Thanks to all the incredible contributors!
 
 ---
 
 <p align="center">
-  Built with 🦞 by Peter Steinberger and the community.
-  <br/>
-  <a href="https://openclaw.ai">openclaw.ai</a> · <a href="https://soul.md">soul.md</a> · <a href="https://steipete.me">steipete.me</a> · <a href="https://x.com/openclaw">@openclaw</a>
+  Built by Aetheron Research.
 </p>
