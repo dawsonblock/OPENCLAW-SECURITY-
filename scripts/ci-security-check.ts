@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from "node:fs";
 
-console.log("🔒 Running OpenCLAW Security Integrity Check...");
+console.log("🔒 Running AetherBot Security Integrity Check...");
 
 const LOCKDOWN_MODULES = [
   "src/security/lockdown/invariants.ts",

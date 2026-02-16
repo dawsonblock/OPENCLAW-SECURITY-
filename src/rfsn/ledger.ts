@@ -51,7 +51,7 @@ function resolveLedgerRoot(workspaceDir: string): string {
     return path.isAbsolute(configured) ? configured : path.join(workspaceDir, configured);
   }
   if (process.env.VITEST) {
-    return path.join(os.tmpdir(), "openclaw-ledger-vitest");
+    return path.join(os.tmpdir(), "aetherbot-ledger-vitest");
   }
   return path.join(workspaceDir, ".openclaw", "ledger");
 }
