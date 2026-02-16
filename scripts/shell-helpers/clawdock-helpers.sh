@@ -154,7 +154,7 @@ _clawdock_read_env_token() {
 
 # Basic Operations
 clawdock-start() {
-  _clawdock_compose up -d openclaw-gateway
+  _clawdock_compose up -d aetherbot-gateway
 }
 
 clawdock-stop() {
@@ -162,11 +162,11 @@ clawdock-stop() {
 }
 
 clawdock-restart() {
-  _clawdock_compose restart openclaw-gateway
+  _clawdock_compose restart aetherbot-gateway
 }
 
 clawdock-logs() {
-  _clawdock_compose logs -f openclaw-gateway
+  _clawdock_compose logs -f aetherbot-gateway
 }
 
 clawdock-status() {
@@ -189,21 +189,21 @@ clawdock-workspace() {
 
 # Container Access
 clawdock-shell() {
-  _clawdock_compose exec openclaw-gateway \
+  _clawdock_compose exec aetherbot-gateway \
     bash -c 'echo "alias openclaw=\"./aetherbot.mjs\"" > /tmp/.bashrc_openclaw && bash --rcfile /tmp/.bashrc_openclaw'
 }
 
 clawdock-exec() {
-  _clawdock_compose exec openclaw-gateway "$@"
+  _clawdock_compose exec aetherbot-gateway "$@"
 }
 
 clawdock-cli() {
-  _clawdock_compose run --rm openclaw-cli "$@"
+  _clawdock_compose run --rm aetherbot-cli "$@"
 }
 
 # Maintenance
 clawdock-rebuild() {
-  _clawdock_compose build openclaw-gateway
+  _clawdock_compose build aetherbot-gateway
 }
 
 clawdock-clean() {
@@ -220,7 +220,7 @@ clawdock-health() {
     echo "   Check: ${CLAWDOCK_DIR}/.env"
     return 1
   fi
-  _clawdock_compose exec -e "OPENCLAW_GATEWAY_TOKEN=$token" openclaw-gateway \
+  _clawdock_compose exec -e "OPENCLAW_GATEWAY_TOKEN=$token" aetherbot-gateway \
     node dist/index.js health
 }
 
@@ -244,12 +244,12 @@ clawdock-fix-token() {
 
   echo "📝 Setting token: ${token:0:20}..."
 
-  _clawdock_compose exec -e "TOKEN=$token" openclaw-gateway \
+  _clawdock_compose exec -e "TOKEN=$token" aetherbot-gateway \
     bash -c './aetherbot.mjs config set gateway.remote.token "$TOKEN" && ./aetherbot.mjs config set gateway.auth.token "$TOKEN"' 2>&1 | _clawdock_filter_warnings
 
   echo "🔍 Verifying token was saved..."
   local saved_token
-  saved_token=$(_clawdock_compose exec openclaw-gateway \
+  saved_token=$(_clawdock_compose exec aetherbot-gateway \
     bash -c "./aetherbot.mjs config get gateway.remote.token 2>/dev/null" 2>&1 | _clawdock_filter_warnings | tr -d '\r\n' | head -c 64)
 
   if [[ "$saved_token" == "$token" ]]; then
@@ -261,7 +261,7 @@ clawdock-fix-token() {
   fi
 
   echo "🔄 Restarting gateway..."
-  _clawdock_compose restart openclaw-gateway 2>&1 | _clawdock_filter_warnings
+  _clawdock_compose restart aetherbot-gateway 2>&1 | _clawdock_filter_warnings
 
   echo "⏳ Waiting for gateway to start..."
   sleep 5
@@ -305,7 +305,7 @@ clawdock-devices() {
 
   echo "🔍 Checking device pairings..."
   local output status
-  output=$(_clawdock_compose exec openclaw-gateway node dist/index.js devices list 2>&1)
+  output=$(_clawdock_compose exec aetherbot-gateway node dist/index.js devices list 2>&1)
   status=$?
   printf "%s\n" "$output" | _clawdock_filter_warnings
   if [ $status -ne 0 ]; then
@@ -341,7 +341,7 @@ clawdock-approve() {
   fi
 
   echo "✅ Approving device: $1"
-  _clawdock_compose exec openclaw-gateway \
+  _clawdock_compose exec aetherbot-gateway \
     node dist/index.js devices approve "$1" 2>&1 | _clawdock_filter_warnings
 
   echo ""
