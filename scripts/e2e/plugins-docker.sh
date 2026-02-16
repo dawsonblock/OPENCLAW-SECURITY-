@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-IMAGE_NAME="openclaw-plugins-e2e"
+IMAGE_NAME="aetherbot-plugins-e2e"
 
 echo "Building Docker image..."
 docker build -t "$IMAGE_NAME" -f "$ROOT_DIR/scripts/e2e/Dockerfile" "$ROOT_DIR"
@@ -21,11 +21,11 @@ echo "Running plugins Docker E2E..."
 	  fi
 	  export OPENCLAW_ENTRY
 
-	  home_dir=$(mktemp -d "/tmp/openclaw-plugins-e2e.XXXXXX")
+	  home_dir=$(mktemp -d "/tmp/aetherbot-plugins-e2e.XXXXXX")
 	  export HOME="$home_dir"
-  mkdir -p "$HOME/.openclaw/extensions/demo-plugin"
+  mkdir -p "$HOME/.aetherbot/extensions/demo-plugin"
 
-  cat > "$HOME/.openclaw/extensions/demo-plugin/index.js" <<'"'"'JS'"'"'
+  cat > "$HOME/.aetherbot/extensions/demo-plugin/index.js" <<'"'"'JS'"'"'
 module.exports = {
   id: "demo-plugin",
   name: "Demo Plugin",
@@ -38,7 +38,7 @@ module.exports = {
   },
 };
 JS
-  cat > "$HOME/.openclaw/extensions/demo-plugin/openclaw.plugin.json" <<'"'"'JSON'"'"'
+  cat > "$HOME/.aetherbot/extensions/demo-plugin/openclaw.plugin.json" <<'"'"'JSON'"'"'
 {
   "id": "demo-plugin",
   "configSchema": {
