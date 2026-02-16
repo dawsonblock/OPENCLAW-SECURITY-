@@ -40,7 +40,7 @@ clawdock-help
 
 On first command, ClawDock auto-detects your OpenClaw directory:
 
-- Checks common paths (`~/openclaw`, `~/workspace/openclaw`, etc.)
+- Checks common paths (`~/aetherbot`, `~/workspace/aetherbot`, etc.)
 - If found, asks you to confirm
 - Saves to `~/.clawdock/config`
 
@@ -155,7 +155,7 @@ clawdock-shell
 **Inside the container, login to WhatsApp:**
 
 ```bash
-openclaw channels login --channel whatsapp --verbose
+aetherbot channels login --channel whatsapp --verbose
 ```
 
 Scan the QR code with WhatsApp on your phone.
@@ -163,7 +163,7 @@ Scan the QR code with WhatsApp on your phone.
 **Verify connection:**
 
 ```bash
-openclaw status
+aetherbot status
 ```
 
 ### Troubleshooting Device Pairing

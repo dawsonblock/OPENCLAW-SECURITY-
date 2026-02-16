@@ -80,7 +80,7 @@ console.log("ok");
 NODE
 
   echo "Testing tgz install flow..."
-  pack_dir="$(mktemp -d "/tmp/openclaw-plugin-pack.XXXXXX")"
+  pack_dir="$(mktemp -d "/tmp/aetherbot-plugin-pack.XXXXXX")"
   mkdir -p "$pack_dir/package"
   cat > "$pack_dir/package/package.json" <<'"'"'JSON'"'"'
 {

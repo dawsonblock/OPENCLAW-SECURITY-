@@ -104,7 +104,7 @@ const logRunner = (message) => {
   if (env.OPENCLAW_RUNNER_LOG === "0") {
     return;
   }
-  process.stderr.write(`[openclaw] ${message}\n`);
+  process.stderr.write(`[aetherbot] ${message}\n`);
 };
 
 const runNode = () => {

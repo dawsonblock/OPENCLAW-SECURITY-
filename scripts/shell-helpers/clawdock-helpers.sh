@@ -45,7 +45,7 @@ CLAWDOCK_COMMON_PATHS=(
   "${HOME}/dev/aetherbot"
   "${HOME}/code/aetherbot"
   "${HOME}/src/aetherbot"
-  "${HOME}/openclaw"
+  "${HOME}/aetherbot"
 )
 
 _clawdock_filter_warnings() {
@@ -118,7 +118,7 @@ _clawdock_ensure_dir() {
     echo ""
     echo "Or set CLAWDOCK_DIR if it's elsewhere:"
     echo ""
-    echo "  export CLAWDOCK_DIR=/path/to/openclaw"
+    echo "  export CLAWDOCK_DIR=/path/to/aetherbot"
     echo ""
     return 1
   fi
