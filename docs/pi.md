@@ -4,11 +4,11 @@ title: "Pi Integration Architecture"
 
 # Pi Integration Architecture
 
-This document describes how OpenClaw integrates with [pi-coding-agent](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent) and its sibling packages (`pi-ai`, `pi-agent-core`, `pi-tui`) to power its AI agent capabilities.
+This document describes how AetherBot integrates with [pi-coding-agent](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent) and its sibling packages (`pi-ai`, `pi-agent-core`, `pi-tui`) to power its AI agent capabilities.
 
 ## Overview
 
-OpenClaw uses the pi SDK to embed an AI coding agent into its messaging gateway architecture. Instead of spawning pi as a subprocess or using RPC mode, OpenClaw directly imports and instantiates pi's `AgentSession` via `createAgentSession()`. This embedded approach provides:
+AetherBot uses the pi SDK to embed an AI coding agent into its messaging gateway architecture. Instead of spawning pi as a subprocess or using RPC mode, AetherBot directly imports and instantiates pi's `AgentSession` via `createAgentSession()`. This embedded approach provides:
 
 - Full control over session lifecycle and event handling
 - Custom tool injection (messaging, sandbox, channel-specific actions)
@@ -33,7 +33,7 @@ OpenClaw uses the pi SDK to embed an AI coding agent into its messaging gateway 
 | `pi-ai`           | Core LLM abstractions: `Model`, `streamSimple`, message types, provider APIs                           |
 | `pi-agent-core`   | Agent loop, tool execution, `AgentMessage` types                                                       |
 | `pi-coding-agent` | High-level SDK: `createAgentSession`, `SessionManager`, `AuthStorage`, `ModelRegistry`, built-in tools |
-| `pi-tui`          | Terminal UI components (used in OpenClaw's local TUI mode)                                             |
+| `pi-tui`          | Terminal UI components (used in AetherBot's local TUI mode)                                            |
 
 ## File Structure
 
