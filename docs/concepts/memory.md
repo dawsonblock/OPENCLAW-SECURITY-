@@ -1,6 +1,6 @@
 ---
 title: "Memory"
-summary: "How OpenClaw memory works (workspace files + automatic memory flush)"
+summary: "How AetherBot memory works (workspace files + automatic memory flush)"
 read_when:
   - You want the memory file layout and workflow
   - You want to tune the automatic pre-compaction memory flush
@@ -8,7 +8,7 @@ read_when:
 
 # Memory
 
-OpenClaw memory is **plain Markdown in the agent workspace**. The files are the
+AetherBot memory is **plain Markdown in the agent workspace**. The files are the
 source of truth; the model only "remembers" what gets written to disk.
 
 Memory search tools are provided by the active memory plugin (default:
@@ -38,7 +38,7 @@ These files live under the workspace (`agents.defaults.workspace`, default
 
 ## Automatic memory flush (pre-compaction ping)
 
-When a session is **close to auto-compaction**, OpenClaw triggers a **silent,
+When a session is **close to auto-compaction**, AetherBot triggers a **silent,
 agentic turn** that reminds the model to write durable memory **before** the
 context is compacted. The default prompts explicitly say the model _may reply_,
 but usually `NO_REPLY` is the correct response so the user never sees this turn.
@@ -78,7 +78,7 @@ For the full compaction lifecycle, see
 
 ## Vector memory search
 
-OpenClaw can build a small vector index over `MEMORY.md` and `memory/*.md` so
+AetherBot can build a small vector index over `MEMORY.md` and `memory/*.md` so
 semantic queries can find related notes even when wording differs.
 
 Defaults:
@@ -87,7 +87,7 @@ Defaults:
 - Watches memory files for changes (debounced).
 - Configure memory search under `agents.defaults.memorySearch` (not top-level
   `memorySearch`).
-- Uses remote embeddings by default. If `memorySearch.provider` is not set, OpenClaw auto-selects:
+- Uses remote embeddings by default. If `memorySearch.provider` is not set, AetherBot auto-selects:
   1. `local` if a `memorySearch.local.modelPath` is configured and the file exists.
   2. `openai` if an OpenAI key can be resolved.
   3. `gemini` if a Gemini key can be resolved.
@@ -96,7 +96,7 @@ Defaults:
 - Local mode uses node-llama-cpp and may require `pnpm approve-builds`.
 - Uses sqlite-vec (when available) to accelerate vector search inside SQLite.
 
-Remote embeddings **require** an API key for the embedding provider. OpenClaw
+Remote embeddings **require** an API key for the embedding provider. AetherBot
 resolves keys from auth profiles, `models.providers.*.apiKey`, or environment
 variables. Codex OAuth only covers chat/completions and does **not** satisfy
 embeddings for memory search. For Gemini, use `GEMINI_API_KEY` or
@@ -108,7 +108,7 @@ set `memorySearch.remote.apiKey` (and optional `memorySearch.remote.headers`).
 
 Set `memory.backend = "qmd"` to swap the built-in SQLite indexer for
 [QMD](https://github.com/tobi/qmd): a local-first search sidecar that combines
-BM25 + vectors + reranking. Markdown stays the source of truth; OpenClaw shells
+BM25 + vectors + reranking. Markdown stays the source of truth; AetherBot shells
 out to QMD for retrieval. Key points:
 
 **Prereqs**
@@ -139,24 +139,24 @@ out to QMD for retrieval. Key points:
 - Boot refresh now runs in the background by default so chat startup is not
   blocked; set `memory.qmd.update.waitForBootSync = true` to keep the previous
   blocking behavior.
-- Searches run via `qmd query --json`, scoped to OpenClaw-managed collections.
+- Searches run via `qmd query --json`, scoped to AetherBot-managed collections.
   If QMD fails or the binary is missing,
-  OpenClaw automatically falls back to the builtin SQLite manager so memory tools
+  AetherBot automatically falls back to the builtin SQLite manager so memory tools
   keep working.
-- OpenClaw does not expose QMD embed batch-size tuning today; batch behavior is
+- AetherBot does not expose QMD embed batch-size tuning today; batch behavior is
   controlled by QMD itself.
 - **First search may be slow**: QMD may download local GGUF models (reranker/query
   expansion) on the first `qmd query` run.
-  - OpenClaw sets `XDG_CONFIG_HOME`/`XDG_CACHE_HOME` automatically when it runs QMD.
-  - If you want to pre-download models manually (and warm the same index OpenClaw
+  - AetherBot sets `XDG_CONFIG_HOME`/`XDG_CACHE_HOME` automatically when it runs QMD.
+  - If you want to pre-download models manually (and warm the same index AetherBot
     uses), run a one-off query with the agent’s XDG dirs.
 
-    OpenClaw’s QMD state lives under your **state dir** (defaults to `~/.openclaw`).
+    AetherBot’s QMD state lives under your **state dir** (defaults to `~/.aetherbot`).
     You can point `qmd` at the exact same index by exporting the same XDG vars
-    OpenClaw uses:
+    AetherBot uses:
 
     ```bash
-    # Pick the same state dir OpenClaw uses
+    # Pick the same state dir AetherBot uses
     STATE_DIR="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"
     if [ -d "$HOME/.moltbot" ] && [ ! -d "$HOME/.openclaw" ] \
       && [ -z "${OPENCLAW_STATE_DIR:-}" ]; then
@@ -190,12 +190,12 @@ out to QMD for retrieval. Key points:
 - `scope`: same schema as [`session.sendPolicy`](/gateway/configuration#session).
   Default is DM-only (`deny` all, `allow` direct chats); loosen it to surface QMD
   hits in groups/channels.
-- When `scope` denies a search, OpenClaw logs a warning with the derived
+- When `scope` denies a search, AetherBot logs a warning with the derived
   `channel`/`chatType` so empty results are easier to debug.
 - Snippets sourced outside the workspace show up as
   `qmd/<collection>/<relative-path>` in `memory_search` results; `memory_get`
   understands that prefix and reads from the configured QMD collection root.
-- When `memory.qmd.sessions.enabled = true`, OpenClaw exports sanitized session
+- When `memory.qmd.sessions.enabled = true`, AetherBot exports sanitized session
   transcripts (User/Assistant turns) into a dedicated QMD collection under
   `~/.openclaw/agents/<id>/qmd/sessions/`, so `memory_search` can recall recent
   conversations without touching the builtin SQLite index.
@@ -363,16 +363,16 @@ Local mode:
 - File type: Markdown only (`MEMORY.md`, `memory/**/*.md`).
 - Index storage: per-agent SQLite at `~/.openclaw/memory/<agentId>.sqlite` (configurable via `agents.defaults.memorySearch.store.path`, supports `{agentId}` token).
 - Freshness: watcher on `MEMORY.md` + `memory/` marks the index dirty (debounce 1.5s). Sync is scheduled on session start, on search, or on an interval and runs asynchronously. Session transcripts use delta thresholds to trigger background sync.
-- Reindex triggers: the index stores the embedding **provider/model + endpoint fingerprint + chunking params**. If any of those change, OpenClaw automatically resets and reindexes the entire store.
+- Reindex triggers: the index stores the embedding **provider/model + endpoint fingerprint + chunking params**. If any of those change, AetherBot automatically resets and reindexes the entire store.
 
 ### Hybrid search (BM25 + vector)
 
-When enabled, OpenClaw combines:
+When enabled, AetherBot combines:
 
 - **Vector similarity** (semantic match, wording can differ)
 - **BM25 keyword relevance** (exact tokens like IDs, env vars, code symbols)
 
-If full-text search is unavailable on your platform, OpenClaw falls back to vector-only search.
+If full-text search is unavailable on your platform, AetherBot falls back to vector-only search.
 
 #### Why hybrid?
 
@@ -439,7 +439,7 @@ agents: {
 
 ### Embedding cache
 
-OpenClaw can cache **chunk embeddings** in SQLite so reindexing and frequent updates (especially session transcripts) don't re-embed unchanged text.
+AetherBot can cache **chunk embeddings** in SQLite so reindexing and frequent updates (especially session transcripts) don't re-embed unchanged text.
 
 Config:
 
@@ -500,7 +500,7 @@ agents: {
 
 ### SQLite vector acceleration (sqlite-vec)
 
-When the sqlite-vec extension is available, OpenClaw stores embeddings in a
+When the sqlite-vec extension is available, AetherBot stores embeddings in a
 SQLite virtual table (`vec0`) and performs vector distance queries in the
 database. This keeps search fast without loading every embedding into JS.
 
@@ -525,7 +525,7 @@ Notes:
 
 - `enabled` defaults to true; when disabled, search falls back to in-process
   cosine similarity over stored embeddings.
-- If the sqlite-vec extension is missing or fails to load, OpenClaw logs the
+- If the sqlite-vec extension is missing or fails to load, AetherBot logs the
   error and continues with the JS fallback (no vector table).
 - `extensionPath` overrides the bundled sqlite-vec path (useful for custom builds
   or non-standard install locations).

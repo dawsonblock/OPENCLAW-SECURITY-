@@ -33,7 +33,7 @@ Troubleshooting: [/automation/troubleshooting](/automation/troubleshooting)
 Create a one-shot reminder, verify it exists, and run it immediately:
 
 ```bash
-openclaw cron add \
+aetherbot cron add \
   --name "Reminder" \
   --at "2026-02-01T16:00:00Z" \
   --session main \
@@ -41,15 +41,15 @@ openclaw cron add \
   --wake now \
   --delete-after-run
 
-openclaw cron list
-openclaw cron run <job-id>
-openclaw cron runs --id <job-id>
+aetherbot cron list
+aetherbot cron run <job-id>
+aetherbot cron runs --id <job-id>
 ```
 
 Schedule a recurring isolated job with delivery:
 
 ```bash
-openclaw cron add \
+aetherbot cron add \
   --name "Morning brief" \
   --cron "0 7 * * *" \
   --tz "America/Los_Angeles" \
@@ -68,7 +68,7 @@ For the canonical JSON shapes and examples, see [JSON schema for tool calls](/au
 
 Cron jobs are persisted on the Gateway host at `~/.openclaw/cron/jobs.json` by default.
 The Gateway loads the file into memory and writes it back on changes, so manual edits
-are only safe when the Gateway is stopped. Prefer `openclaw cron add/edit` or the cron
+are only safe when the Gateway is stopped. Prefer `aetherbot cron add/edit` or the cron
 tool call API for changes.
 
 ## Beginner-friendly overview
@@ -173,7 +173,7 @@ Delivery config (isolated jobs only):
 Announce delivery suppresses messaging tool sends for the run; use `delivery.channel`/`delivery.to`
 to target the chat instead. When `delivery.mode = "none"`, no summary is posted to the main session.
 
-If `delivery` is omitted for isolated jobs, OpenClaw defaults to `announce`.
+If `delivery` is omitted for isolated jobs, AetherBot defaults to `announce`.
 
 #### Announce delivery flow
 
@@ -347,7 +347,7 @@ Disable cron entirely:
 One-shot reminder (UTC ISO, auto-delete after success):
 
 ```bash
-openclaw cron add \
+aetherbot cron add \
   --name "Send reminder" \
   --at "2026-01-12T18:00:00Z" \
   --session main \
@@ -359,7 +359,7 @@ openclaw cron add \
 One-shot reminder (main session, wake immediately):
 
 ```bash
-openclaw cron add \
+aetherbot cron add \
   --name "Calendar check" \
   --at "20m" \
   --session main \
@@ -370,7 +370,7 @@ openclaw cron add \
 Recurring isolated job (announce to WhatsApp):
 
 ```bash
-openclaw cron add \
+aetherbot cron add \
   --name "Morning status" \
   --cron "0 7 * * *" \
   --tz "America/Los_Angeles" \
@@ -384,7 +384,7 @@ openclaw cron add \
 Recurring isolated job (deliver to a Telegram topic):
 
 ```bash
-openclaw cron add \
+aetherbot cron add \
   --name "Nightly summary (topic)" \
   --cron "0 22 * * *" \
   --tz "America/Los_Angeles" \
@@ -398,7 +398,7 @@ openclaw cron add \
 Isolated job with model and thinking override:
 
 ```bash
-openclaw cron add \
+aetherbot cron add \
   --name "Deep analysis" \
   --cron "0 6 * * 1" \
   --tz "America/Los_Angeles" \
@@ -415,24 +415,24 @@ Agent selection (multi-agent setups):
 
 ```bash
 # Pin a job to agent "ops" (falls back to default if that agent is missing)
-openclaw cron add --name "Ops sweep" --cron "0 6 * * *" --session isolated --message "Check ops queue" --agent ops
+aetherbot cron add --name "Ops sweep" --cron "0 6 * * *" --session isolated --message "Check ops queue" --agent ops
 
 # Switch or clear the agent on an existing job
-openclaw cron edit <jobId> --agent ops
-openclaw cron edit <jobId> --clear-agent
+aetherbot cron edit <jobId> --agent ops
+aetherbot cron edit <jobId> --clear-agent
 ```
 
 Manual run (force is the default, use `--due` to only run when due):
 
 ```bash
-openclaw cron run <jobId>
-openclaw cron run <jobId> --due
+aetherbot cron run <jobId>
+aetherbot cron run <jobId> --due
 ```
 
 Edit an existing job (patch fields):
 
 ```bash
-openclaw cron edit <jobId> \
+aetherbot cron edit <jobId> \
   --message "Updated prompt" \
   --model "opus" \
   --thinking low
@@ -441,20 +441,20 @@ openclaw cron edit <jobId> \
 Run history:
 
 ```bash
-openclaw cron runs --id <jobId> --limit 50
+aetherbot cron runs --id <jobId> --limit 50
 ```
 
 Immediate system event without creating a job:
 
 ```bash
-openclaw system event --mode now --text "Next heartbeat: check battery."
+aetherbot system event --mode now --text "Next heartbeat: check battery."
 ```
 
 ## Gateway API surface
 
 - `cron.list`, `cron.status`, `cron.add`, `cron.update`, `cron.remove`
 - `cron.run` (force or due), `cron.runs`
-  For immediate system events without a job, use [`openclaw system event`](/cli/system).
+  For immediate system events without a job, use [`aetherbot system event`](/cli/system).
 
 ## Troubleshooting
 
@@ -466,7 +466,7 @@ openclaw system event --mode now --text "Next heartbeat: check battery."
 
 ### A recurring job keeps delaying after failures
 
-- OpenClaw applies exponential retry backoff for recurring jobs after consecutive errors:
+- AetherBot applies exponential retry backoff for recurring jobs after consecutive errors:
   30s, 1m, 5m, 15m, then 60m between retries.
 - Backoff resets automatically after the next successful run.
 - One-shot (`at`) jobs disable after a terminal run (`ok`, `error`, or `skipped`) and do not retry.

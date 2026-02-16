@@ -1,5 +1,5 @@
 ---
-summary: "Use OpenCode Zen (curated models) with OpenClaw"
+summary: "Use OpenCode Zen (curated models) with AetherBot"
 read_when:
   - You want OpenCode Zen for model access
   - You want a curated list of coding-friendly models
@@ -15,9 +15,9 @@ Zen is currently in beta.
 ## CLI setup
 
 ```bash
-openclaw onboard --auth-choice opencode-zen
+aetherbot onboard --auth-choice opencode-zen
 # or non-interactive
-openclaw onboard --opencode-zen-api-key "$OPENCODE_API_KEY"
+aetherbot onboard --opencode-zen-api-key "$OPENCODE_API_KEY"
 ```
 
 ## Config snippet

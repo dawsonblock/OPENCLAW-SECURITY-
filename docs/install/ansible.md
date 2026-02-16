@@ -1,5 +1,5 @@
 ---
-summary: "Automated, hardened OpenClaw installation with Ansible, Tailscale VPN, and firewall isolation"
+summary: "Automated, hardened AetherBot installation with Ansible, Tailscale VPN, and firewall isolation"
 read_when:
   - You want automated server deployment with security hardening
   - You need firewall-isolated setup with VPN access
@@ -9,7 +9,7 @@ title: "Ansible"
 
 # Ansible Installation
 
-The recommended way to deploy OpenClaw to production servers is via **[openclaw-ansible](https://github.com/openclaw/openclaw-ansible)** — an automated installer with security-first architecture.
+The recommended way to deploy AetherBot to production servers is via **[openclaw-ansible](https://github.com/openclaw/openclaw-ansible)** — an automated installer with security-first architecture.
 
 ## Quick Start
 
@@ -47,22 +47,22 @@ The Ansible playbook installs and configures:
 2. **UFW firewall** (SSH + Tailscale ports only)
 3. **Docker CE + Compose V2** (for agent sandboxes)
 4. **Node.js 22.x + pnpm** (runtime dependencies)
-5. **OpenClaw** (host-based, not containerized)
+5. **AetherBot** (host-based, not containerized)
 6. **Systemd service** (auto-start with security hardening)
 
 Note: The gateway runs **directly on the host** (not in Docker), but agent sandboxes use Docker for isolation. See [Sandboxing](/gateway/sandboxing) for details.
 
 ## Post-Install Setup
 
-After installation completes, switch to the openclaw user:
+After installation completes, switch to the aetherbot user:
 
 ```bash
-sudo -i -u openclaw
+sudo -i -u aetherbot
 ```
 
 The post-install script will guide you through:
 
-1. **Onboarding wizard**: Configure OpenClaw settings
+1. **Onboarding wizard**: Configure AetherBot settings
 2. **Provider login**: Connect WhatsApp/Telegram/Discord/Signal
 3. **Gateway testing**: Verify the installation
 4. **Tailscale setup**: Connect to your VPN mesh
@@ -71,17 +71,17 @@ The post-install script will guide you through:
 
 ```bash
 # Check service status
-sudo systemctl status openclaw
+sudo systemctl status aetherbot
 
 # View live logs
-sudo journalctl -u openclaw -f
+sudo journalctl -u aetherbot -f
 
 # Restart gateway
-sudo systemctl restart openclaw
+sudo systemctl restart aetherbot
 
-# Provider login (run as openclaw user)
-sudo -i -u openclaw
-openclaw channels login
+# Provider login (run as aetherbot user)
+sudo -i -u aetherbot
+aetherbot channels login
 ```
 
 ## Security Architecture
@@ -127,13 +127,13 @@ ansible-galaxy collection install -r requirements.yml
 # 4. Run playbook
 ./run-playbook.sh
 
-# Or run directly (then manually execute /tmp/openclaw-setup.sh after)
+# Or run directly (then manually execute /tmp/aetherbot-setup.sh after)
 # ansible-playbook playbook.yml --ask-become-pass
 ```
 
-## Updating OpenClaw
+## Updating AetherBot
 
-The Ansible installer sets up OpenClaw for manual updates. See [Updating](/install/updating) for the standard update flow.
+The Ansible installer sets up AetherBot for manual updates. See [Updating](/install/updating) for the standard update flow.
 
 To re-run the Ansible playbook (e.g., for configuration changes):
 
@@ -158,14 +158,14 @@ If you're locked out:
 
 ```bash
 # Check logs
-sudo journalctl -u openclaw -n 100
+sudo journalctl -u aetherbot -n 100
 
 # Verify permissions
-sudo ls -la /opt/openclaw
+sudo ls -la /opt/aetherbot
 
 # Test manual start
-sudo -i -u openclaw
-cd ~/openclaw
+sudo -i -u aetherbot
+cd ~/aetherbot
 pnpm start
 ```
 
@@ -179,8 +179,8 @@ sudo systemctl status docker
 sudo docker images | grep openclaw-sandbox
 
 # Build sandbox image if missing
-cd /opt/openclaw/openclaw
-sudo -u openclaw ./scripts/sandbox-setup.sh
+cd /opt/openclaw/aetherbot
+sudo -u aetherbot ./scripts/sandbox-setup.sh
 ```
 
 ### Provider login fails
@@ -188,8 +188,8 @@ sudo -u openclaw ./scripts/sandbox-setup.sh
 Make sure you're running as the `openclaw` user:
 
 ```bash
-sudo -i -u openclaw
-openclaw channels login
+sudo -i -u aetherbot
+aetherbot channels login
 ```
 
 ## Advanced Configuration

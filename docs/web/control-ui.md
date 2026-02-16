@@ -21,7 +21,7 @@ If the Gateway is running on the same computer, open:
 
 - [http://127.0.0.1:18789/](http://127.0.0.1:18789/) (or [http://localhost:18789/](http://localhost:18789/))
 
-If the page fails to load, start the Gateway first: `openclaw gateway`.
+If the page fails to load, start the Gateway first: `aetherbot gateway`.
 
 Auth is supplied during the WebSocket handshake via:
 
@@ -43,14 +43,14 @@ unauthorized access.
 
 ```bash
 # List pending requests
-openclaw devices list
+aetherbot devices list
 
 # Approve by request ID
-openclaw devices approve <requestId>
+aetherbot devices approve <requestId>
 ```
 
 Once approved, the device is remembered and won't require re-approval unless
-you revoke it with `openclaw devices revoke --device <id> --role <role>`. See
+you revoke it with `aetherbot devices revoke --device <id> --role <role>`. See
 [Devices CLI](/cli/devices) for token rotation and revocation.
 
 **Notes:**
@@ -101,7 +101,7 @@ Cron jobs panel notes:
 Keep the Gateway on loopback and let Tailscale Serve proxy it with HTTPS:
 
 ```bash
-openclaw gateway --tailscale serve
+aetherbot gateway --tailscale serve
 ```
 
 Open:
@@ -109,7 +109,7 @@ Open:
 - `https://<magicdns>/` (or your configured `gateway.controlUi.basePath`)
 
 By default, Serve requests can authenticate via Tailscale identity headers
-(`tailscale-user-login`) when `gateway.auth.allowTailscale` is `true`. OpenClaw
+(`tailscale-user-login`) when `gateway.auth.allowTailscale` is `true`. AetherBot
 verifies the identity by resolving the `x-forwarded-for` address with
 `tailscale whois` and matching it to the header, and only accepts these when the
 request hits loopback with Tailscale’s `x-forwarded-*` headers. Set
@@ -119,7 +119,7 @@ if you want to require a token/password even for Serve traffic.
 ### Bind to tailnet + token
 
 ```bash
-openclaw gateway --bind tailnet --token "$(openssl rand -hex 32)"
+aetherbot gateway --bind tailnet --token "$(openssl rand -hex 32)"
 ```
 
 Then open:
@@ -132,7 +132,7 @@ Paste the token into the UI settings (sent as `connect.params.auth.token`).
 
 If you open the dashboard over plain HTTP (`http://<lan-ip>` or `http://<tailscale-ip>`),
 the browser runs in a **non-secure context** and blocks WebCrypto. By default,
-OpenClaw **blocks** Control UI connections without device identity.
+AetherBot **blocks** Control UI connections without device identity.
 
 **Recommended fix:** use HTTPS (Tailscale Serve) or open the UI locally:
 

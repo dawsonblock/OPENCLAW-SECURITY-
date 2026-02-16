@@ -8,14 +8,14 @@ title: "Hooks"
 
 # Hooks
 
-Hooks provide an extensible event-driven system for automating actions in response to agent commands and events. Hooks are automatically discovered from directories and can be managed via CLI commands, similar to how skills work in OpenClaw.
+Hooks provide an extensible event-driven system for automating actions in response to agent commands and events. Hooks are automatically discovered from directories and can be managed via CLI commands, similar to how skills work in AetherBot.
 
 ## Getting Oriented
 
 Hooks are small scripts that run when something happens. There are two kinds:
 
 - **Hooks** (this page): run inside the Gateway when agent events fire, like `/new`, `/reset`, `/stop`, or lifecycle events.
-- **Webhooks**: external HTTP webhooks that let other systems trigger work in OpenClaw. See [Webhook Hooks](/automation/webhook) or use `openclaw webhooks` for Gmail helper commands.
+- **Webhooks**: external HTTP webhooks that let other systems trigger work in AetherBot. See [Webhook Hooks](/automation/webhook) or use `aetherbot webhooks` for Gmail helper commands.
 
 Hooks can also be bundled inside plugins; see [Plugins](/tools/plugin#plugin-hooks).
 
@@ -35,13 +35,13 @@ The hooks system allows you to:
 - Save session context to memory when `/new` is issued
 - Log all commands for auditing
 - Trigger custom automations on agent lifecycle events
-- Extend OpenClaw's behavior without modifying core code
+- Extend AetherBot's behavior without modifying core code
 
 ## Getting Started
 
 ### Bundled Hooks
 
-OpenClaw ships with four bundled hooks that are automatically discovered:
+AetherBot ships with four bundled hooks that are automatically discovered:
 
 - **💾 session-memory**: Saves session context to your agent workspace (default `~/.openclaw/workspace/memory/`) when you issue `/new`
 - **📝 command-logger**: Logs all command events to `~/.openclaw/logs/commands.log`
@@ -51,30 +51,30 @@ OpenClaw ships with four bundled hooks that are automatically discovered:
 List available hooks:
 
 ```bash
-openclaw hooks list
+aetherbot hooks list
 ```
 
 Enable a hook:
 
 ```bash
-openclaw hooks enable session-memory
+aetherbot hooks enable session-memory
 ```
 
 Check hook status:
 
 ```bash
-openclaw hooks check
+aetherbot hooks check
 ```
 
 Get detailed information:
 
 ```bash
-openclaw hooks info session-memory
+aetherbot hooks info session-memory
 ```
 
 ### Onboarding
 
-During onboarding (`openclaw onboard`), you'll be prompted to enable recommended hooks. The wizard automatically discovers eligible hooks and presents them for selection.
+During onboarding (`aetherbot onboard`), you'll be prompted to enable recommended hooks. The wizard automatically discovers eligible hooks and presents them for selection.
 
 ## Hook Discovery
 
@@ -82,7 +82,7 @@ Hooks are automatically discovered from three directories (in order of precedenc
 
 1. **Workspace hooks**: `<workspace>/hooks/` (per-agent, highest precedence)
 2. **Managed hooks**: `~/.openclaw/hooks/` (user-installed, shared across workspaces)
-3. **Bundled hooks**: `<openclaw>/dist/hooks/bundled/` (shipped with OpenClaw)
+3. **Bundled hooks**: `<openclaw>/dist/hooks/bundled/` (shipped with AetherBot)
 
 Managed hook directories can be either a **single hook** or a **hook pack** (package directory).
 
@@ -100,7 +100,7 @@ Hook packs are standard npm packages that export one or more hooks via `openclaw
 `package.json`. Install them with:
 
 ```bash
-openclaw hooks install <path-or-spec>
+aetherbot hooks install <path-or-spec>
 ```
 
 Example `package.json`:
@@ -214,7 +214,7 @@ Each event includes:
     senderId?: string,
     workspaceDir?: string,
     bootstrapFiles?: WorkspaceBootstrapFile[],
-    cfg?: OpenClawConfig
+    cfg?: AetherBotConfig
   }
 }
 ```
@@ -242,7 +242,7 @@ Triggered when the gateway starts:
 
 ### Tool Result Hooks (Plugin API)
 
-These hooks are not event-stream listeners; they let plugins synchronously adjust tool results before OpenClaw persists them.
+These hooks are not event-stream listeners; they let plugins synchronously adjust tool results before AetherBot persists them.
 
 - **`tool_result_persist`**: transform tool results before they are written to the session transcript. Must be synchronous; return the updated tool result payload or `undefined` to keep it as-is. See [Agent Loop](/concepts/agent-loop).
 
@@ -305,10 +305,10 @@ export default handler;
 
 ```bash
 # Verify hook is discovered
-openclaw hooks list
+aetherbot hooks list
 
 # Enable it
-openclaw hooks enable my-hook
+aetherbot hooks enable my-hook
 
 # Restart your gateway process (menu bar app restart on macOS, or restart your dev process)
 
@@ -402,46 +402,46 @@ The old config format still works for backwards compatibility:
 
 ```bash
 # List all hooks
-openclaw hooks list
+aetherbot hooks list
 
 # Show only eligible hooks
-openclaw hooks list --eligible
+aetherbot hooks list --eligible
 
 # Verbose output (show missing requirements)
-openclaw hooks list --verbose
+aetherbot hooks list --verbose
 
 # JSON output
-openclaw hooks list --json
+aetherbot hooks list --json
 ```
 
 ### Hook Information
 
 ```bash
 # Show detailed info about a hook
-openclaw hooks info session-memory
+aetherbot hooks info session-memory
 
 # JSON output
-openclaw hooks info session-memory --json
+aetherbot hooks info session-memory --json
 ```
 
 ### Check Eligibility
 
 ```bash
 # Show eligibility summary
-openclaw hooks check
+aetherbot hooks check
 
 # JSON output
-openclaw hooks check --json
+aetherbot hooks check --json
 ```
 
 ### Enable/Disable
 
 ```bash
 # Enable a hook
-openclaw hooks enable session-memory
+aetherbot hooks enable session-memory
 
 # Disable a hook
-openclaw hooks disable command-logger
+aetherbot hooks disable command-logger
 ```
 
 ## Bundled hook reference
@@ -482,7 +482,7 @@ Saves session context to memory when you issue `/new`.
 **Enable**:
 
 ```bash
-openclaw hooks enable session-memory
+aetherbot hooks enable session-memory
 ```
 
 ### command-logger
@@ -524,7 +524,7 @@ grep '"action":"new"' ~/.openclaw/logs/commands.log | jq .
 **Enable**:
 
 ```bash
-openclaw hooks enable command-logger
+aetherbot hooks enable command-logger
 ```
 
 ### soul-evil
@@ -540,7 +540,7 @@ Swaps injected `SOUL.md` content with `SOUL_EVIL.md` during a purge window or by
 **Enable**:
 
 ```bash
-openclaw hooks enable soul-evil
+aetherbot hooks enable soul-evil
 ```
 
 **Config**:
@@ -581,7 +581,7 @@ Internal hooks must be enabled for this to run.
 **Enable**:
 
 ```bash
-openclaw hooks enable boot-md
+aetherbot hooks enable boot-md
 ```
 
 ## Best Practices
@@ -664,7 +664,7 @@ Registered hook: boot-md -> gateway:startup
 List all discovered hooks:
 
 ```bash
-openclaw hooks list --verbose
+aetherbot hooks list --verbose
 ```
 
 ### Check Registration
@@ -683,7 +683,7 @@ const handler: HookHandler = async (event) => {
 Check why a hook isn't eligible:
 
 ```bash
-openclaw hooks info my-hook
+aetherbot hooks info my-hook
 ```
 
 Look for missing requirements in the output.
@@ -789,7 +789,7 @@ Session reset
 3. List all discovered hooks:
 
    ```bash
-   openclaw hooks list
+   aetherbot hooks list
    ```
 
 ### Hook Not Eligible
@@ -797,7 +797,7 @@ Session reset
 Check requirements:
 
 ```bash
-openclaw hooks info my-hook
+aetherbot hooks info my-hook
 ```
 
 Look for missing:
@@ -812,7 +812,7 @@ Look for missing:
 1. Verify hook is enabled:
 
    ```bash
-   openclaw hooks list
+   aetherbot hooks list
    # Should show ✓ next to enabled hooks
    ```
 
@@ -896,7 +896,7 @@ node -e "import('./path/to/handler.ts').then(console.log)"
 4. Verify and restart your gateway process:
 
    ```bash
-   openclaw hooks list
+   aetherbot hooks list
    # Should show: 🎯 my-hook ✓
    ```
 

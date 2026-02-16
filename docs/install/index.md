@@ -1,5 +1,5 @@
 ---
-summary: "Install OpenClaw — installer script, npm/pnpm, from source, Docker, and more"
+summary: "Install AetherBot — installer script, npm/pnpm, from source, Docker, and more"
 read_when:
   - You need an install method other than the Getting Started quickstart
   - You want to deploy to a cloud platform
@@ -18,13 +18,13 @@ Already followed [Getting Started](/start/getting-started)? You're all set — t
 - `pnpm` only if you build from source
 
 <Note>
-On Windows, we strongly recommend running OpenClaw under [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install).
+On Windows, we strongly recommend running AetherBot under [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install).
 </Note>
 
 ## Install methods
 
 <Tip>
-The **installer script** is the recommended way to install OpenClaw. It handles Node detection, installation, and onboarding in one step.
+The **installer script** is the recommended way to install AetherBot. It handles Node detection, installation, and onboarding in one step.
 </Tip>
 
 <AccordionGroup>
@@ -71,15 +71,15 @@ The **installer script** is the recommended way to install OpenClaw. It handles 
     <Tabs>
       <Tab title="npm">
         ```bash
-        npm install -g openclaw@latest
-        openclaw onboard --install-daemon
+        npm install -g aetherbot@latest
+        aetherbot onboard --install-daemon
         ```
 
         <Accordion title="sharp build errors?">
           If you have libvips installed globally (common on macOS via Homebrew) and `sharp` fails, force prebuilt binaries:
 
           ```bash
-          SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm install -g openclaw@latest
+          SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm install -g aetherbot@latest
           ```
 
           If you see `sharp: Please add node-gyp to your dependencies`, either install build tooling (macOS: Xcode CLT + `npm install -g node-gyp`) or use the env var above.
@@ -88,8 +88,8 @@ The **installer script** is the recommended way to install OpenClaw. It handles 
       <Tab title="pnpm">
         ```bash
         pnpm add -g openclaw@latest
-        pnpm approve-builds -g        # approve openclaw, node-llama-cpp, sharp, etc.
-        openclaw onboard --install-daemon
+        pnpm approve-builds -g        # approve aetherbot, node-llama-cpp, sharp, etc.
+        aetherbot onboard --install-daemon
         ```
 
         <Note>
@@ -105,11 +105,11 @@ The **installer script** is the recommended way to install OpenClaw. It handles 
 
     <Steps>
       <Step title="Clone and build">
-        Clone the [OpenClaw repo](https://github.com/openclaw/openclaw) and build:
+        Clone the [AetherBot repo](https://github.com/openclaw/openclaw) and build:
 
         ```bash
         git clone https://github.com/openclaw/openclaw.git
-        cd openclaw
+        cd aetherbot
         pnpm install
         pnpm ui:build
         pnpm build
@@ -122,11 +122,11 @@ The **installer script** is the recommended way to install OpenClaw. It handles 
         pnpm link --global
         ```
 
-        Alternatively, skip the link and run commands via `pnpm openclaw ...` from inside the repo.
+        Alternatively, skip the link and run commands via `pnpm aetherbot ...` from inside the repo.
       </Step>
       <Step title="Run onboarding">
         ```bash
-        openclaw onboard --install-daemon
+        aetherbot onboard --install-daemon
         ```
       </Step>
     </Steps>
@@ -158,9 +158,9 @@ The **installer script** is the recommended way to install OpenClaw. It handles 
 Verify everything is working:
 
 ```bash
-openclaw doctor         # check for config issues
-openclaw status         # gateway status
-openclaw dashboard      # open the browser UI
+aetherbot doctor         # check for config issues
+aetherbot status         # gateway status
+aetherbot dashboard      # open the browser UI
 ```
 
 If you need custom runtime paths, use:
@@ -171,7 +171,7 @@ If you need custom runtime paths, use:
 
 See [Environment vars](/help/environment) for precedence and full details.
 
-## Troubleshooting: `openclaw` not found
+## Troubleshooting: `aetherbot` not found
 
 <Accordion title="PATH diagnosis and fix">
   Quick diagnosis:
@@ -200,12 +200,12 @@ Then open a new terminal (or `rehash` in zsh / `hash -r` in bash).
 
 <CardGroup cols={3}>
   <Card title="Updating" href="/install/updating" icon="refresh-cw">
-    Keep OpenClaw up to date.
+    Keep AetherBot up to date.
   </Card>
   <Card title="Migrating" href="/install/migrating" icon="arrow-right">
     Move to a new machine.
   </Card>
   <Card title="Uninstall" href="/install/uninstall" icon="trash-2">
-    Remove OpenClaw completely.
+    Remove AetherBot completely.
   </Card>
 </CardGroup>

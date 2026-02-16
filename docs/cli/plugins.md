@@ -1,12 +1,12 @@
 ---
-summary: "CLI reference for `openclaw plugins` (list, install, enable/disable, doctor)"
+summary: "CLI reference for `aetherbot plugins` (list, install, enable/disable, doctor)"
 read_when:
   - You want to install or manage in-process Gateway plugins
   - You want to debug plugin load failures
 title: "plugins"
 ---
 
-# `openclaw plugins`
+# `aetherbot plugins`
 
 Manage Gateway plugins/extensions (loaded in-process).
 
@@ -19,16 +19,16 @@ Related:
 ## Commands
 
 ```bash
-openclaw plugins list
-openclaw plugins info <id>
-openclaw plugins enable <id>
-openclaw plugins disable <id>
-openclaw plugins doctor
-openclaw plugins update <id>
-openclaw plugins update --all
+aetherbot plugins list
+aetherbot plugins info <id>
+aetherbot plugins enable <id>
+aetherbot plugins disable <id>
+aetherbot plugins doctor
+aetherbot plugins update <id>
+aetherbot plugins update --all
 ```
 
-Bundled plugins ship with OpenClaw but start disabled. Use `plugins enable` to
+Bundled plugins ship with AetherBot but start disabled. Use `plugins enable` to
 activate them.
 
 All plugins must ship a `openclaw.plugin.json` file with an inline JSON Schema
@@ -38,7 +38,7 @@ the plugin from loading and fail config validation.
 ### Install
 
 ```bash
-openclaw plugins install <path-or-spec>
+aetherbot plugins install <path-or-spec>
 ```
 
 Security note: treat plugin installs like running code. Prefer pinned versions.
@@ -48,15 +48,15 @@ Supported archives: `.zip`, `.tgz`, `.tar.gz`, `.tar`.
 Use `--link` to avoid copying a local directory (adds to `plugins.load.paths`):
 
 ```bash
-openclaw plugins install -l ./my-plugin
+aetherbot plugins install -l ./my-plugin
 ```
 
 ### Update
 
 ```bash
-openclaw plugins update <id>
-openclaw plugins update --all
-openclaw plugins update <id> --dry-run
+aetherbot plugins update <id>
+aetherbot plugins update --all
+aetherbot plugins update <id> --dry-run
 ```
 
 Updates only apply to plugins installed from npm (tracked in `plugins.installs`).

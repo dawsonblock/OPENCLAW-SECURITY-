@@ -2,7 +2,7 @@
 summary: "Webhook ingress for wake and isolated agent runs"
 read_when:
   - Adding or changing webhook endpoints
-  - Wiring external systems into OpenClaw
+  - Wiring external systems into AetherBot
 title: "Webhooks"
 ---
 
@@ -106,7 +106,7 @@ Mapping options (summary):
   (`channel` defaults to `last` and falls back to WhatsApp).
 - `allowUnsafeExternalContent: true` disables the external content safety wrapper for that hook
   (dangerous; only for trusted internal sources).
-- `openclaw webhooks gmail setup` writes `hooks.gmail` config for `openclaw webhooks gmail run`.
+- `aetherbot webhooks gmail setup` writes `hooks.gmail` config for `aetherbot webhooks gmail run`.
   See [Gmail Pub/Sub](/automation/gmail-pubsub) for the full Gmail watch flow.
 
 ## Responses

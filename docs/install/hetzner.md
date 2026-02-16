@@ -1,28 +1,28 @@
 ---
-summary: "Run OpenClaw Gateway 24/7 on a cheap Hetzner VPS (Docker) with durable state and baked-in binaries"
+summary: "Run AetherBot Gateway 24/7 on a cheap Hetzner VPS (Docker) with durable state and baked-in binaries"
 read_when:
-  - You want OpenClaw running 24/7 on a cloud VPS (not your laptop)
+  - You want AetherBot running 24/7 on a cloud VPS (not your laptop)
   - You want a production-grade, always-on Gateway on your own VPS
   - You want full control over persistence, binaries, and restart behavior
-  - You are running OpenClaw in Docker on Hetzner or a similar provider
+  - You are running AetherBot in Docker on Hetzner or a similar provider
 title: "Hetzner"
 ---
 
-# OpenClaw on Hetzner (Docker, Production VPS Guide)
+# AetherBot on Hetzner (Docker, Production VPS Guide)
 
 ## Goal
 
-Run a persistent OpenClaw Gateway on a Hetzner VPS using Docker, with durable state, baked-in binaries, and safe restart behavior.
+Run a persistent AetherBot Gateway on a Hetzner VPS using Docker, with durable state, baked-in binaries, and safe restart behavior.
 
-If you want “OpenClaw 24/7 for ~$5”, this is the simplest reliable setup.
+If you want “AetherBot 24/7 for ~$5”, this is the simplest reliable setup.
 Hetzner pricing changes; pick the smallest Debian/Ubuntu VPS and scale up if you hit OOMs.
 
 ## What are we doing (simple terms)?
 
 - Rent a small Linux server (Hetzner VPS)
 - Install Docker (isolated app runtime)
-- Start the OpenClaw Gateway in Docker
-- Persist `~/.openclaw` + `~/.openclaw/workspace` on the host (survives restarts/rebuilds)
+- Start the AetherBot Gateway in Docker
+- Persist `~/.aetherbot` + `~/.openclaw/workspace` on the host (survives restarts/rebuilds)
 - Access the Control UI from your laptop via an SSH tunnel
 
 The Gateway can be accessed via:
@@ -40,7 +40,7 @@ For the generic Docker flow, see [Docker](/install/docker).
 
 1. Provision Hetzner VPS
 2. Install Docker
-3. Clone OpenClaw repository
+3. Clone AetherBot repository
 4. Create persistent host directories
 5. Configure `.env` and `docker-compose.yml`
 6. Bake required binaries into the image
@@ -96,11 +96,11 @@ docker compose version
 
 ---
 
-## 3) Clone the OpenClaw repository
+## 3) Clone the AetherBot repository
 
 ```bash
 git clone https://github.com/openclaw/openclaw.git
-cd openclaw
+cd aetherbot
 ```
 
 This guide assumes you will build a custom image to guarantee binary persistence.
@@ -116,7 +116,7 @@ All long-lived state must live on the host.
 mkdir -p /root/.openclaw/workspace
 
 # Set ownership to the container user (uid 1000):
-chown -R 1000:1000 /root/.openclaw
+chown -R 1000:1000 /root/.aetherbot
 ```
 
 ---
@@ -131,11 +131,11 @@ OPENCLAW_GATEWAY_TOKEN=change-me-now
 OPENCLAW_GATEWAY_BIND=lan
 OPENCLAW_GATEWAY_PORT=18789
 
-OPENCLAW_CONFIG_DIR=/root/.openclaw
+OPENCLAW_CONFIG_DIR=/root/.aetherbot
 OPENCLAW_WORKSPACE_DIR=/root/.openclaw/workspace
 
 GOG_KEYRING_PASSWORD=change-me-now
-XDG_CONFIG_HOME=/home/node/.openclaw
+XDG_CONFIG_HOME=/home/node/.aetherbot
 ```
 
 Generate strong secrets:
@@ -171,7 +171,7 @@ services:
       - XDG_CONFIG_HOME=${XDG_CONFIG_HOME}
       - PATH=/home/linuxbrew/.linuxbrew/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     volumes:
-      - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
+      - ${OPENCLAW_CONFIG_DIR}:/home/node/.aetherbot
       - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
     ports:
       # Recommended: keep the Gateway loopback-only on the VPS; access via SSH tunnel.
@@ -314,7 +314,7 @@ Paste your gateway token.
 
 ## What persists where (source of truth)
 
-OpenClaw runs in Docker, but Docker is not the source of truth.
+AetherBot runs in Docker, but Docker is not the source of truth.
 All long-lived state must survive restarts, rebuilds, and reboots.
 
 | Component           | Location                          | Persistence mechanism  | Notes                            |

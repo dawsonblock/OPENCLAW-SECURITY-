@@ -40,14 +40,14 @@ reach other host locations unless sandboxing is enabled. See
 ## Paths (quick map)
 
 - Config: `~/.openclaw/openclaw.json` (or `OPENCLAW_CONFIG_PATH`)
-- State dir: `~/.openclaw` (or `OPENCLAW_STATE_DIR`)
+- State dir: `~/.aetherbot` (or `OPENCLAW_STATE_DIR`)
 - Workspace: `~/.openclaw/workspace` (or `~/.openclaw/workspace-<agentId>`)
 - Agent dir: `~/.openclaw/agents/<agentId>/agent` (or `agents.list[].agentDir`)
 - Sessions: `~/.openclaw/agents/<agentId>/sessions`
 
 ### Single-agent mode (default)
 
-If you do nothing, OpenClaw runs a single agent:
+If you do nothing, AetherBot runs a single agent:
 
 - `agentId` defaults to **`main`**.
 - Sessions are keyed as `agent:main:<mainKey>`.
@@ -59,7 +59,7 @@ If you do nothing, OpenClaw runs a single agent:
 Use the agent wizard to add a new isolated agent:
 
 ```bash
-openclaw agents add work
+aetherbot agents add work
 ```
 
 Then add `bindings` (or let the wizard do it) to route inbound messages.
@@ -67,7 +67,7 @@ Then add `bindings` (or let the wizard do it) to route inbound messages.
 Verify with:
 
 ```bash
-openclaw agents list --bindings
+aetherbot agents list --bindings
 ```
 
 ## Multiple agents = multiple people, multiple personalities

@@ -1,12 +1,12 @@
 ---
-summary: "CLI reference for `openclaw hooks` (agent hooks)"
+summary: "CLI reference for `aetherbot hooks` (agent hooks)"
 read_when:
   - You want to manage agent hooks
   - You want to install or update hooks
 title: "hooks"
 ---
 
-# `openclaw hooks`
+# `aetherbot hooks`
 
 Manage agent hooks (event-driven automations for commands like `/new`, `/reset`, and gateway startup).
 
@@ -18,7 +18,7 @@ Related:
 ## List All Hooks
 
 ```bash
-openclaw hooks list
+aetherbot hooks list
 ```
 
 List all discovered hooks from workspace, managed, and bundled directories.
@@ -44,7 +44,7 @@ Ready:
 **Example (verbose):**
 
 ```bash
-openclaw hooks list --verbose
+aetherbot hooks list --verbose
 ```
 
 Shows missing requirements for ineligible hooks.
@@ -52,7 +52,7 @@ Shows missing requirements for ineligible hooks.
 **Example (JSON):**
 
 ```bash
-openclaw hooks list --json
+aetherbot hooks list --json
 ```
 
 Returns structured JSON for programmatic use.
@@ -60,7 +60,7 @@ Returns structured JSON for programmatic use.
 ## Get Hook Information
 
 ```bash
-openclaw hooks info <name>
+aetherbot hooks info <name>
 ```
 
 Show detailed information about a specific hook.
@@ -76,7 +76,7 @@ Show detailed information about a specific hook.
 **Example:**
 
 ```bash
-openclaw hooks info session-memory
+aetherbot hooks info session-memory
 ```
 
 **Output:**
@@ -100,7 +100,7 @@ Requirements:
 ## Check Hooks Eligibility
 
 ```bash
-openclaw hooks check
+aetherbot hooks check
 ```
 
 Show summary of hook eligibility status (how many are ready vs. not ready).
@@ -122,12 +122,12 @@ Not ready: 0
 ## Enable a Hook
 
 ```bash
-openclaw hooks enable <name>
+aetherbot hooks enable <name>
 ```
 
 Enable a specific hook by adding it to your config (`~/.openclaw/config.json`).
 
-**Note:** Hooks managed by plugins show `plugin:<id>` in `openclaw hooks list` and
+**Note:** Hooks managed by plugins show `plugin:<id>` in `aetherbot hooks list` and
 can’t be enabled/disabled here. Enable/disable the plugin instead.
 
 **Arguments:**
@@ -137,7 +137,7 @@ can’t be enabled/disabled here. Enable/disable the plugin instead.
 **Example:**
 
 ```bash
-openclaw hooks enable session-memory
+aetherbot hooks enable session-memory
 ```
 
 **Output:**
@@ -159,7 +159,7 @@ openclaw hooks enable session-memory
 ## Disable a Hook
 
 ```bash
-openclaw hooks disable <name>
+aetherbot hooks disable <name>
 ```
 
 Disable a specific hook by updating your config.
@@ -171,7 +171,7 @@ Disable a specific hook by updating your config.
 **Example:**
 
 ```bash
-openclaw hooks disable command-logger
+aetherbot hooks disable command-logger
 ```
 
 **Output:**
@@ -187,7 +187,7 @@ openclaw hooks disable command-logger
 ## Install Hooks
 
 ```bash
-openclaw hooks install <path-or-spec>
+aetherbot hooks install <path-or-spec>
 ```
 
 Install a hook pack from a local folder/archive or npm.
@@ -208,23 +208,23 @@ Install a hook pack from a local folder/archive or npm.
 
 ```bash
 # Local directory
-openclaw hooks install ./my-hook-pack
+aetherbot hooks install ./my-hook-pack
 
 # Local archive
-openclaw hooks install ./my-hook-pack.zip
+aetherbot hooks install ./my-hook-pack.zip
 
 # NPM package
-openclaw hooks install @openclaw/my-hook-pack
+aetherbot hooks install @openclaw/my-hook-pack
 
 # Link a local directory without copying
-openclaw hooks install -l ./my-hook-pack
+aetherbot hooks install -l ./my-hook-pack
 ```
 
 ## Update Hooks
 
 ```bash
-openclaw hooks update <id>
-openclaw hooks update --all
+aetherbot hooks update <id>
+aetherbot hooks update --all
 ```
 
 Update installed hook packs (npm installs only).
@@ -243,7 +243,7 @@ Saves session context to memory when you issue `/new`.
 **Enable:**
 
 ```bash
-openclaw hooks enable session-memory
+aetherbot hooks enable session-memory
 ```
 
 **Output:** `~/.openclaw/workspace/memory/YYYY-MM-DD-slug.md`
@@ -257,7 +257,7 @@ Logs all command events to a centralized audit file.
 **Enable:**
 
 ```bash
-openclaw hooks enable command-logger
+aetherbot hooks enable command-logger
 ```
 
 **Output:** `~/.openclaw/logs/commands.log`
@@ -284,7 +284,7 @@ Swaps injected `SOUL.md` content with `SOUL_EVIL.md` during a purge window or by
 **Enable:**
 
 ```bash
-openclaw hooks enable soul-evil
+aetherbot hooks enable soul-evil
 ```
 
 **See:** [SOUL Evil Hook](/hooks/soul-evil)
@@ -298,7 +298,7 @@ Runs `BOOT.md` when the gateway starts (after channels start).
 **Enable**:
 
 ```bash
-openclaw hooks enable boot-md
+aetherbot hooks enable boot-md
 ```
 
 **See:** [boot-md documentation](/automation/hooks#boot-md)

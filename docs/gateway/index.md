@@ -12,17 +12,17 @@ Last updated: 2025-12-09
 ## What it is
 
 - The always-on process that owns the single Baileys/Telegram connection and the control/event plane.
-- Replaces the legacy `gateway` command. CLI entry point: `openclaw gateway`.
+- Replaces the legacy `gateway` command. CLI entry point: `aetherbot gateway`.
 - Runs until stopped; exits non-zero on fatal errors so the supervisor restarts it.
 
 ## How to run (local)
 
 ```bash
-openclaw gateway --port 18789
+aetherbot gateway --port 18789
 # for full debug/trace logs in stdio:
-openclaw gateway --port 18789 --verbose
+aetherbot gateway --port 18789 --verbose
 # if the port is busy, terminate listeners then start:
-openclaw gateway --force
+aetherbot gateway --force
 # dev loop (auto-reload on TS changes):
 pnpm gateway:watch
 ```
@@ -67,7 +67,7 @@ Service names are profile-aware:
 
 - macOS: `bot.molt.<profile>` (legacy `com.openclaw.*` may still exist)
 - Linux: `openclaw-gateway-<profile>.service`
-- Windows: `OpenClaw Gateway (<profile>)`
+- Windows: `AetherBot Gateway (<profile>)`
 
 Install metadata is embedded in the service config:
 
@@ -82,17 +82,17 @@ Rescue-Bot Pattern: keep a second Gateway isolated with its own profile, state d
 Fast path: run a fully-isolated dev instance (config/state/workspace) without touching your primary setup.
 
 ```bash
-openclaw --dev setup
-openclaw --dev gateway --allow-unconfigured
+aetherbot --dev setup
+aetherbot --dev gateway --allow-unconfigured
 # then target the dev instance:
-openclaw --dev status
-openclaw --dev health
+aetherbot --dev status
+aetherbot --dev health
 ```
 
 Defaults (can be overridden via env/flags/config):
 
-- `OPENCLAW_STATE_DIR=~/.openclaw-dev`
-- `OPENCLAW_CONFIG_PATH=~/.openclaw-dev/openclaw.json`
+- `OPENCLAW_STATE_DIR=~/.aetherbot-dev`
+- `OPENCLAW_CONFIG_PATH=~/.aetherbot-dev/openclaw.json`
 - `OPENCLAW_GATEWAY_PORT=19001` (Gateway WS + HTTP)
 - browser control service port = `19003` (derived: `gateway.port+2`, loopback only)
 - `canvasHost.port=19005` (derived: `gateway.port+4`)
@@ -116,15 +116,15 @@ Checklist per instance:
 Service install per profile:
 
 ```bash
-openclaw --profile main gateway install
-openclaw --profile rescue gateway install
+aetherbot --profile main gateway install
+aetherbot --profile rescue gateway install
 ```
 
 Example:
 
 ```bash
-OPENCLAW_CONFIG_PATH=~/.openclaw/a.json OPENCLAW_STATE_DIR=~/.openclaw-a openclaw gateway --port 19001
-OPENCLAW_CONFIG_PATH=~/.openclaw/b.json OPENCLAW_STATE_DIR=~/.openclaw-b openclaw gateway --port 19002
+OPENCLAW_CONFIG_PATH=~/.openclaw/a.json OPENCLAW_STATE_DIR=~/.aetherbot-a aetherbot gateway --port 19001
+OPENCLAW_CONFIG_PATH=~/.openclaw/b.json OPENCLAW_STATE_DIR=~/.aetherbot-b aetherbot gateway --port 19002
 ```
 
 ## Protocol (operator view)
@@ -140,7 +140,7 @@ OPENCLAW_CONFIG_PATH=~/.openclaw/b.json OPENCLAW_STATE_DIR=~/.openclaw-b opencla
 
 ## Methods (initial set)
 
-- `health` — full health snapshot (same shape as `openclaw health --json`).
+- `health` — full health snapshot (same shape as `aetherbot health --json`).
 - `status` — short summary.
 - `system-presence` — current presence list.
 - `system-event` — post a presence/system note (structured).
@@ -206,20 +206,20 @@ See also: [Presence](/concepts/presence) for how presence is produced/deduped an
   - StandardOut/Err: file paths or `syslog`
 - On failure, launchd restarts; fatal misconfig should keep exiting so the operator notices.
 - LaunchAgents are per-user and require a logged-in session; for headless setups use a custom LaunchDaemon (not shipped).
-  - `openclaw gateway install` writes `~/Library/LaunchAgents/bot.molt.gateway.plist`
+  - `aetherbot gateway install` writes `~/Library/LaunchAgents/bot.molt.gateway.plist`
     (or `bot.molt.<profile>.plist`; legacy `com.openclaw.*` is cleaned up).
-  - `openclaw doctor` audits the LaunchAgent config and can update it to current defaults.
+  - `aetherbot doctor` audits the LaunchAgent config and can update it to current defaults.
 
 ## Gateway service management (CLI)
 
 Use the Gateway CLI for install/start/stop/restart/status:
 
 ```bash
-openclaw gateway status
-openclaw gateway install
-openclaw gateway stop
-openclaw gateway restart
-openclaw logs --follow
+aetherbot gateway status
+aetherbot gateway install
+aetherbot gateway stop
+aetherbot gateway restart
+aetherbot logs --follow
 ```
 
 Notes:
@@ -232,35 +232,35 @@ Notes:
 - `gateway status` prints config path + probe target to avoid “localhost vs LAN bind” confusion and profile mismatches.
 - `gateway status` includes the last gateway error line when the service looks running but the port is closed.
 - `logs` tails the Gateway file log via RPC (no manual `tail`/`grep` needed).
-- If other gateway-like services are detected, the CLI warns unless they are OpenClaw profile services.
+- If other gateway-like services are detected, the CLI warns unless they are AetherBot profile services.
   We still recommend **one gateway per machine** for most setups; use isolated profiles/ports for redundancy or a rescue bot. See [Multiple gateways](/gateway/multiple-gateways).
-  - Cleanup: `openclaw gateway uninstall` (current service) and `openclaw doctor` (legacy migrations).
-- `gateway install` is a no-op when already installed; use `openclaw gateway install --force` to reinstall (profile/env/path changes).
+  - Cleanup: `aetherbot gateway uninstall` (current service) and `aetherbot doctor` (legacy migrations).
+- `gateway install` is a no-op when already installed; use `aetherbot gateway install --force` to reinstall (profile/env/path changes).
 
 Bundled mac app:
 
-- OpenClaw.app can bundle a Node-based gateway relay and install a per-user LaunchAgent labeled
+- AetherBot.app can bundle a Node-based gateway relay and install a per-user LaunchAgent labeled
   `bot.molt.gateway` (or `bot.molt.<profile>`; legacy `com.openclaw.*` labels still unload cleanly).
-- To stop it cleanly, use `openclaw gateway stop` (or `launchctl bootout gui/$UID/bot.molt.gateway`).
-- To restart, use `openclaw gateway restart` (or `launchctl kickstart -k gui/$UID/bot.molt.gateway`).
-  - `launchctl` only works if the LaunchAgent is installed; otherwise use `openclaw gateway install` first.
+- To stop it cleanly, use `aetherbot gateway stop` (or `launchctl bootout gui/$UID/bot.molt.gateway`).
+- To restart, use `aetherbot gateway restart` (or `launchctl kickstart -k gui/$UID/bot.molt.gateway`).
+  - `launchctl` only works if the LaunchAgent is installed; otherwise use `aetherbot gateway install` first.
   - Replace the label with `bot.molt.<profile>` when running a named profile.
 
 ## Supervision (systemd user unit)
 
-OpenClaw installs a **systemd user service** by default on Linux/WSL2. We
+AetherBot installs a **systemd user service** by default on Linux/WSL2. We
 recommend user services for single-user machines (simpler env, per-user config).
 Use a **system service** for multi-user or always-on servers (no lingering
 required, shared supervision).
 
-`openclaw gateway install` writes the user unit. `openclaw doctor` audits the
+`aetherbot gateway install` writes the user unit. `aetherbot doctor` audits the
 unit and can update it to match the current recommended defaults.
 
 Create `~/.config/systemd/user/openclaw-gateway[-<profile>].service`:
 
 ```
 [Unit]
-Description=OpenClaw Gateway (profile: <profile>, v<version>)
+Description=AetherBot Gateway (profile: <profile>, v<version>)
 After=network-online.target
 Wants=network-online.target
 
@@ -317,14 +317,14 @@ Windows installs should use **WSL2** and follow the Linux systemd section above.
 
 ## CLI helpers
 
-- `openclaw gateway health|status` — request health/status over the Gateway WS.
-- `openclaw message send --target <num> --message "hi" [--media ...]` — send via Gateway (idempotent for WhatsApp).
-- `openclaw agent --message "hi" --to <num>` — run an agent turn (waits for final by default).
-- `openclaw gateway call <method> --params '{"k":"v"}'` — raw method invoker for debugging.
-- `openclaw gateway stop|restart` — stop/restart the supervised gateway service (launchd/systemd).
+- `aetherbot gateway health|status` — request health/status over the Gateway WS.
+- `aetherbot message send --target <num> --message "hi" [--media ...]` — send via Gateway (idempotent for WhatsApp).
+- `aetherbot agent --message "hi" --to <num>` — run an agent turn (waits for final by default).
+- `aetherbot gateway call <method> --params '{"k":"v"}'` — raw method invoker for debugging.
+- `aetherbot gateway stop|restart` — stop/restart the supervised gateway service (launchd/systemd).
 - Gateway helper subcommands assume a running gateway on `--url`; they no longer auto-spawn one.
 
 ## Migration guidance
 
-- Retire uses of `openclaw gateway` and the legacy TCP control port.
+- Retire uses of `aetherbot gateway` and the legacy TCP control port.
 - Update clients to speak the WS protocol with mandatory connect and structured presence.

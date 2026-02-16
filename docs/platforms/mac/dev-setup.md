@@ -1,5 +1,5 @@
 ---
-summary: "Setup guide for developers working on the OpenClaw macOS app"
+summary: "Setup guide for developers working on the AetherBot macOS app"
 read_when:
   - Setting up the macOS development environment
 title: "macOS Dev Setup"
@@ -7,7 +7,7 @@ title: "macOS Dev Setup"
 
 # macOS Developer Setup
 
-This guide covers the necessary steps to build and run the OpenClaw macOS application from source.
+This guide covers the necessary steps to build and run the AetherBot macOS application from source.
 
 ## Prerequisites
 
@@ -26,7 +26,7 @@ pnpm install
 
 ## 2. Build and Package the App
 
-To build the macOS app and package it into `dist/OpenClaw.app`, run:
+To build the macOS app and package it into `dist/AetherBot.app`, run:
 
 ```bash
 ./scripts/package-mac-app.sh
@@ -45,14 +45,14 @@ The macOS app expects a global `openclaw` CLI install to manage background tasks
 
 **To install it (recommended):**
 
-1. Open the OpenClaw app.
+1. Open the AetherBot app.
 2. Go to the **General** settings tab.
 3. Click **"Install CLI"**.
 
 Alternatively, install it manually:
 
 ```bash
-npm install -g openclaw@<version>
+npm install -g aetherbot@<version>
 ```
 
 ## Troubleshooting
@@ -94,8 +94,8 @@ If the app crashes when you try to allow **Speech Recognition** or **Microphone*
 If the gateway status stays on "Starting...", check if a zombie process is holding the port:
 
 ```bash
-openclaw gateway status
-openclaw gateway stop
+aetherbot gateway status
+aetherbot gateway stop
 
 # If you’re not using a LaunchAgent (dev mode / manual runs), find the listener:
 lsof -nP -iTCP:18789 -sTCP:LISTEN
