@@ -129,7 +129,7 @@ export async function maybeRemoveDeprecatedCliAuthProfiles(
   const lines = ["Deprecated external CLI auth profiles detected (no longer supported):"];
   if (deprecated.has(CLAUDE_CLI_PROFILE_ID)) {
     lines.push(
-      `- ${CLAUDE_CLI_PROFILE_ID} (Anthropic): use setup-token → ${formatCliCommand("openclaw models auth setup-token")}`,
+      `- ${CLAUDE_CLI_PROFILE_ID} (Anthropic): use setup-token → ${formatCliCommand("aetherbot models auth setup-token")}`,
     );
   }
   if (deprecated.has(CODEX_CLI_PROFILE_ID)) {
@@ -208,16 +208,16 @@ type AuthIssue = {
 
 function formatAuthIssueHint(issue: AuthIssue): string | null {
   if (issue.provider === "anthropic" && issue.profileId === CLAUDE_CLI_PROFILE_ID) {
-    return `Deprecated profile. Use ${formatCliCommand("openclaw models auth setup-token")} or ${formatCliCommand(
-      "openclaw configure",
+    return `Deprecated profile. Use ${formatCliCommand("aetherbot models auth setup-token")} or ${formatCliCommand(
+      "aetherbot configure",
     )}.`;
   }
   if (issue.provider === "openai-codex" && issue.profileId === CODEX_CLI_PROFILE_ID) {
     return `Deprecated profile. Use ${formatCliCommand(
-      "openclaw models auth login --provider openai-codex",
-    )} or ${formatCliCommand("openclaw configure")}.`;
+      "aetherbot models auth login --provider openai-codex",
+    )} or ${formatCliCommand("aetherbot configure")}.`;
   }
-  return `Re-auth via \`${formatCliCommand("openclaw configure")}\` or \`${formatCliCommand("openclaw onboard")}\`.`;
+  return `Re-auth via \`${formatCliCommand("aetherbot configure")}\` or \`${formatCliCommand("aetherbot onboard")}\`.`;
 }
 
 function formatAuthIssueLine(issue: AuthIssue): string {

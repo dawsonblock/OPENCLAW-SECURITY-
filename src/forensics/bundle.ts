@@ -29,7 +29,7 @@ export async function exportIncidentBundle(
         version: "1.0",
         sessionId,
         timestamp,
-        generator: "openclaw-forensics-bundle",
+        generator: "aetherbot-forensics-bundle",
       },
       null,
       2,
