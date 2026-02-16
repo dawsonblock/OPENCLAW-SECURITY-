@@ -126,10 +126,10 @@ const UPDATE_QUIPS = [
 ];
 
 const MAX_LOG_CHARS = 8000;
-const DEFAULT_PACKAGE_NAME = "openclaw";
+const DEFAULT_PACKAGE_NAME = "aetherbot";
 const CORE_PACKAGE_NAMES = new Set([DEFAULT_PACKAGE_NAME]);
 const CLI_NAME = resolveCliName();
-const OPENCLAW_REPO_URL = "https://github.com/openclaw/openclaw.git";
+const AETHERBOT_REPO_URL = "https://github.com/AetheronResearch/aetherbot.git";
 
 function normalizeTag(value?: string | null): string | null {
   if (!value) {
@@ -138,6 +138,9 @@ function normalizeTag(value?: string | null): string | null {
   const trimmed = value.trim();
   if (!trimmed) {
     return null;
+  }
+  if (trimmed.startsWith("aetherbot@")) {
+    return trimmed.slice("aetherbot@".length);
   }
   if (trimmed.startsWith("openclaw@")) {
     return trimmed.slice("openclaw@".length);
@@ -396,7 +399,7 @@ async function ensureGitCheckout(params: {
   if (!dirExists) {
     return await runUpdateStep({
       name: "git clone",
-      argv: ["git", "clone", OPENCLAW_REPO_URL, params.dir],
+      argv: ["git", "clone", AETHERBOT_REPO_URL, params.dir],
       timeoutMs: params.timeoutMs,
       progress: params.progress,
     });
@@ -406,12 +409,12 @@ async function ensureGitCheckout(params: {
     const empty = await isEmptyDir(params.dir);
     if (!empty) {
       throw new Error(
-        `OPENCLAW_GIT_DIR points at a non-git directory: ${params.dir}. Set OPENCLAW_GIT_DIR to an empty folder or an openclaw checkout.`,
+        `OPENCLAW_GIT_DIR points at a non-git directory: ${params.dir}. Set OPENCLAW_GIT_DIR to an empty folder or an aetherbot checkout.`,
       );
     }
     return await runUpdateStep({
       name: "git clone",
-      argv: ["git", "clone", OPENCLAW_REPO_URL, params.dir],
+      argv: ["git", "clone", AETHERBOT_REPO_URL, params.dir],
       cwd: params.dir,
       timeoutMs: params.timeoutMs,
       progress: params.progress,
@@ -553,7 +556,7 @@ export async function updateStatusCommand(opts: UpdateStatusOptions): Promise<vo
     },
   ];
 
-  defaultRuntime.log(theme.heading("OpenClaw update status"));
+  defaultRuntime.log(theme.heading("AetherBot update status"));
   defaultRuntime.log("");
   defaultRuntime.log(
     renderTable({
@@ -827,7 +830,7 @@ export async function updateCommand(opts: UpdateCommandOptions): Promise<void> {
   const showProgress = !opts.json && process.stdout.isTTY;
 
   if (!opts.json) {
-    defaultRuntime.log(theme.heading("Updating OpenClaw..."));
+    defaultRuntime.log(theme.heading("Updating AetherBot..."));
     defaultRuntime.log("");
   }
 
@@ -1144,7 +1147,7 @@ export async function updateCommand(opts: UpdateCommandOptions): Promise<void> {
 export async function updateWizardCommand(opts: UpdateWizardOptions = {}): Promise<void> {
   if (!process.stdin.isTTY) {
     defaultRuntime.error(
-      "Update wizard requires a TTY. Use `openclaw update --channel <stable|beta|dev>` instead.",
+      "Update wizard requires a TTY. Use `aetherbot update --channel <stable|beta|dev>` instead.",
     );
     defaultRuntime.exit(1);
     return;
@@ -1280,7 +1283,7 @@ export async function updateWizardCommand(opts: UpdateWizardOptions = {}): Promi
 export function registerUpdateCli(program: Command) {
   const update = program
     .command("update")
-    .description("Update OpenClaw to the latest version")
+    .description("Update AetherBot to the latest version")
     .option("--json", "Output result as JSON", false)
     .option("--no-restart", "Skip restarting the gateway service after a successful update")
     .option("--channel <stable|beta|dev>", "Persist update channel (git + npm)")
@@ -1289,15 +1292,15 @@ export function registerUpdateCli(program: Command) {
     .option("--yes", "Skip confirmation prompts (non-interactive)", false)
     .addHelpText("after", () => {
       const examples = [
-        ["openclaw update", "Update a source checkout (git)"],
-        ["openclaw update --channel beta", "Switch to beta channel (git + npm)"],
-        ["openclaw update --channel dev", "Switch to dev channel (git + npm)"],
-        ["openclaw update --tag beta", "One-off update to a dist-tag or version"],
-        ["openclaw update --no-restart", "Update without restarting the service"],
-        ["openclaw update --json", "Output result as JSON"],
-        ["openclaw update --yes", "Non-interactive (accept downgrade prompts)"],
-        ["openclaw update wizard", "Interactive update wizard"],
-        ["openclaw --update", "Shorthand for openclaw update"],
+        ["aetherbot update", "Update a source checkout (git)"],
+        ["aetherbot update --channel beta", "Switch to beta channel (git + npm)"],
+        ["aetherbot update --channel dev", "Switch to dev channel (git + npm)"],
+        ["aetherbot update --tag beta", "One-off update to a dist-tag or version"],
+        ["aetherbot update --no-restart", "Update without restarting the service"],
+        ["aetherbot update --json", "Output result as JSON"],
+        ["aetherbot update --yes", "Non-interactive (accept downgrade prompts)"],
+        ["aetherbot update wizard", "Interactive update wizard"],
+        ["aetherbot --update", "Shorthand for aetherbot update"],
       ] as const;
       const fmtExamples = examples
         .map(([cmd, desc]) => `  ${theme.command(cmd)} ${theme.muted(`# ${desc}`)}`)
