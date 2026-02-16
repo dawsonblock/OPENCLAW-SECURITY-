@@ -64,7 +64,7 @@ export function resolveUnsafeBrowserEvalDecision(params: {
     return {
       allowed: false,
       reason:
-        "browser unsafe eval is blocked for Chrome extension profiles. Use an isolated openclaw profile.",
+        "browser unsafe eval is blocked for Chrome extension profiles. Use an isolated aetherbot profile.",
     };
   }
   return { allowed: true };

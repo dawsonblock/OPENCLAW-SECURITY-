@@ -34,14 +34,14 @@ function isAuthorized(req) {
 
 function denyHttp(res) {
   res.statusCode = 401;
-  res.setHeader("www-authenticate", 'Bearer realm="openclaw-browser"');
+  res.setHeader("www-authenticate", 'Bearer realm="aetherbot-browser"');
   res.end("Unauthorized");
 }
 
 function denySocket(socket) {
   socket.write(
     "HTTP/1.1 401 Unauthorized\r\n" +
-      'WWW-Authenticate: Bearer realm="openclaw-browser"\r\n' +
+      'WWW-Authenticate: Bearer realm="aetherbot-browser"\r\n' +
       "Connection: close\r\n" +
       "\r\n",
   );

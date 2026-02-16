@@ -34,7 +34,7 @@ import {
 import { stylePromptMessage } from "../src/terminal/prompt-style.js";
 import { theme } from "../src/terminal/theme.js";
 
-const CLI_NAME = "openclaw";
+const CLI_NAME = "aetherbot";
 
 interface Options {
   checkOnly: boolean;
@@ -67,7 +67,7 @@ function printHelp(): void {
 ${theme.heading("Shell Completion Test Script")}
 
 This script simulates the shell completion checks that run during
-\`openclaw update\`, \`openclaw doctor\`, and \`openclaw onboard\`.
+\`aetherbot update\`, \`aetherbot doctor\`, and \`aetherbot onboard\`.
 
 ${theme.heading("Usage (run from repo root):")}
   node --import tsx scripts/test-shell-completion.ts [options]
@@ -198,7 +198,7 @@ async function main() {
   });
 
   if (isCancel(shouldInstall) || !shouldInstall) {
-    console.log(theme.muted(`Skipped. Run \`openclaw completion --install\` later to enable.`));
+    console.log(theme.muted(`Skipped. Run \`aetherbot completion --install\` later to enable.`));
     return;
   }
 

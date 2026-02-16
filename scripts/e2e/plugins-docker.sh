@@ -128,7 +128,7 @@ console.log("ok");
 NODE
 
   echo "Testing install from local folder (plugins.load.paths)..."
-  dir_plugin="$(mktemp -d "/tmp/openclaw-plugin-dir.XXXXXX")"
+  dir_plugin="$(mktemp -d "/tmp/aetherbot-plugin-dir.XXXXXX")"
   cat > "$dir_plugin/package.json" <<'"'"'JSON'"'"'
 {
   "name": "@openclaw/demo-plugin-dir",
@@ -174,7 +174,7 @@ console.log("ok");
 NODE
 
   echo "Testing install from npm spec (file:)..."
-  file_pack_dir="$(mktemp -d "/tmp/openclaw-plugin-filepack.XXXXXX")"
+  file_pack_dir="$(mktemp -d "/tmp/aetherbot-plugin-filepack.XXXXXX")"
   mkdir -p "$file_pack_dir/package"
   cat > "$file_pack_dir/package/package.json" <<'"'"'JSON'"'"'
 {

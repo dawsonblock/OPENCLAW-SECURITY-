@@ -10,7 +10,7 @@ async function main() {
 
   const workspaceDir = tmpDir;
   const sessionId = "test-session";
-  const ledgerPath = path.join(workspaceDir, ".openclaw", "ledger", `${sessionId}.jsonl`);
+  const ledgerPath = path.join(workspaceDir, ".aetherbot", "ledger", `${sessionId}.jsonl`);
 
   console.log("Appending entries...");
   await appendLedgerEntry({

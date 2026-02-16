@@ -184,11 +184,11 @@ async function main() {
     maxProtocol: 3,
     client: {
       id: "cli",
-      displayName: "openclaw ios node e2e",
+      displayName: "aetherbot ios node e2e",
       version: "dev",
       platform: "dev",
       mode: "cli",
-      instanceId: "openclaw-dev-ios-node-e2e",
+      instanceId: "aetherbot-dev-ios-node-e2e",
     },
     locale: "en-US",
     userAgent: "ios-node-e2e",
