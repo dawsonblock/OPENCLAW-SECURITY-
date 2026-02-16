@@ -2,7 +2,7 @@
  * Test script for shell completion installation feature.
  *
  * This script simulates the shell completion prompt that appears during
- * `openclaw update`. Use it to verify the completion installation flow
+ * `aetherbot update`. Use it to verify the completion installation flow
  * without running a full update.
  *
  * Run from repo root:

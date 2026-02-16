@@ -49,7 +49,7 @@ export function registerBrowserManageCommands(
         const detectedDisplay = detectedPath ? shortenHomePath(detectedPath) : "auto";
         defaultRuntime.log(
           [
-            `profile: ${status.profile ?? "openclaw"}`,
+            `profile: ${status.profile ?? "aetherbot"}`,
             `enabled: ${status.enabled}`,
             `running: ${status.running}`,
             `cdpPort: ${status.cdpPort}`,
@@ -93,7 +93,7 @@ export function registerBrowserManageCommands(
           defaultRuntime.log(JSON.stringify(status, null, 2));
           return;
         }
-        const name = status.profile ?? "openclaw";
+        const name = status.profile ?? "aetherbot";
         defaultRuntime.log(info(`🦞 browser [${name}] running: ${status.running}`));
       });
     });
@@ -127,7 +127,7 @@ export function registerBrowserManageCommands(
           defaultRuntime.log(JSON.stringify(status, null, 2));
           return;
         }
-        const name = status.profile ?? "openclaw";
+        const name = status.profile ?? "aetherbot";
         defaultRuntime.log(info(`🦞 browser [${name}] running: ${status.running}`));
       });
     });
