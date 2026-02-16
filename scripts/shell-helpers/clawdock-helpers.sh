@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# ClawDock - Docker helpers for OpenClaw
-# Inspired by Simon Willison's "Running OpenClaw in Docker"
-# https://til.simonwillison.net/llms/openclaw-docker
+# ClawDock - Docker helpers for AetherBot
+# Inspired by Simon Willison's "Running AetherBot in Docker"
 #
 # Installation:
-#   mkdir -p ~/.clawdock && curl -sL https://raw.githubusercontent.com/openclaw/openclaw/main/scripts/shell-helpers/clawdock-helpers.sh -o ~/.clawdock/clawdock-helpers.sh
+#   mkdir -p ~/.clawdock && curl -sL https://raw.githubusercontent.com/AetheronResearch/aetherbot/main/scripts/shell-helpers/clawdock-helpers.sh -o ~/.clawdock/clawdock-helpers.sh
 #   echo 'source ~/.clawdock/clawdock-helpers.sh' >> ~/.zshrc
 #
 # Usage:
@@ -38,14 +37,15 @@ _cmd() {
 # =============================================================================
 CLAWDOCK_CONFIG="${HOME}/.clawdock/config"
 
-# Common paths to check for OpenClaw
+# Common paths to check for AetherBot
 CLAWDOCK_COMMON_PATHS=(
+  "${HOME}/aetherbot"
+  "${HOME}/workspace/aetherbot"
+  "${HOME}/projects/aetherbot"
+  "${HOME}/dev/aetherbot"
+  "${HOME}/code/aetherbot"
+  "${HOME}/src/aetherbot"
   "${HOME}/openclaw"
-  "${HOME}/workspace/openclaw"
-  "${HOME}/projects/openclaw"
-  "${HOME}/dev/openclaw"
-  "${HOME}/code/openclaw"
-  "${HOME}/src/openclaw"
 )
 
 _clawdock_filter_warnings() {
@@ -97,24 +97,24 @@ _clawdock_ensure_dir() {
 
   if [[ -n "$found_path" ]]; then
     echo ""
-    echo "🦞 Found OpenClaw at: $found_path"
+    echo "🦞 Found AetherBot at: $found_path"
     echo -n "   Use this location? [Y/n] "
     read -r response
     if [[ "$response" =~ ^[Nn] ]]; then
       echo ""
       echo "Set CLAWDOCK_DIR manually:"
-      echo "  export CLAWDOCK_DIR=/path/to/openclaw"
+      echo "  export CLAWDOCK_DIR=/path/to/aetherbot"
       return 1
     fi
     CLAWDOCK_DIR="$found_path"
   else
     echo ""
-    echo "❌ OpenClaw not found in common locations."
+    echo "❌ AetherBot not found in common locations."
     echo ""
     echo "Clone it first:"
     echo ""
-    echo "  git clone https://github.com/openclaw/openclaw.git ~/openclaw"
-    echo "  cd ~/openclaw && ./docker-setup.sh"
+    echo "  git clone https://github.com/AetheronResearch/aetherbot.git ~/aetherbot"
+    echo "  cd ~/aetherbot && ./docker-setup.sh"
     echo ""
     echo "Or set CLAWDOCK_DIR if it's elsewhere:"
     echo ""
@@ -180,17 +180,17 @@ clawdock-cd() {
 }
 
 clawdock-config() {
-  cd ~/.openclaw
+  cd ~/.aetherbot
 }
 
 clawdock-workspace() {
-  cd ~/.openclaw/workspace
+  cd ~/.aetherbot/workspace
 }
 
 # Container Access
 clawdock-shell() {
   _clawdock_compose exec aetherbot-gateway \
-    bash -c 'echo "alias openclaw=\"./aetherbot.mjs\"" > /tmp/.bashrc_openclaw && bash --rcfile /tmp/.bashrc_openclaw'
+    bash -c 'echo "alias aetherbot=\"./aetherbot.mjs\"" > /tmp/.bashrc_aetherbot && bash --rcfile /tmp/.bashrc_aetherbot'
 }
 
 clawdock-exec() {
@@ -276,7 +276,7 @@ clawdock-dashboard() {
 
   echo "🦞 Getting dashboard URL..."
   local output status url
-  output=$(_clawdock_compose run --rm openclaw-cli dashboard --no-open 2>&1)
+  output=$(_clawdock_compose run --rm aetherbot-cli dashboard --no-open 2>&1)
   status=$?
   url=$(printf "%s\n" "$output" | _clawdock_filter_warnings | grep -o 'http[s]\?://[^[:space:]]*' | head -n 1)
   if [[ $status -ne 0 ]]; then
@@ -314,7 +314,7 @@ clawdock-devices() {
     echo -e "   1. Verify token is set: $(_cmd clawdock-token)"
     echo "   2. Try manual config inside container:"
     echo -e "      $(_cmd clawdock-shell)"
-    echo -e "      $(_cmd 'openclaw config get gateway.remote.token')"
+    echo -e "      $(_cmd 'aetherbot config get gateway.remote.token')"
     return 1
   fi
 
@@ -350,7 +350,7 @@ clawdock-approve() {
 
 # Show all available clawdock helper commands
 clawdock-help() {
-  echo -e "\n${_CLR_BOLD}${_CLR_CYAN}🦞 ClawDock - Docker Helpers for OpenClaw${_CLR_RESET}\n"
+  echo -e "\n${_CLR_BOLD}${_CLR_CYAN}🦞 AetherBot - Docker Helpers${_CLR_RESET}\n"
 
   echo -e "${_CLR_BOLD}${_CLR_MAGENTA}⚡ Basic Operations${_CLR_RESET}"
   echo -e "  $(_cmd clawdock-start)       ${_CLR_DIM}Start the gateway${_CLR_RESET}"
@@ -361,7 +361,7 @@ clawdock-help() {
   echo ""
 
   echo -e "${_CLR_BOLD}${_CLR_MAGENTA}🐚 Container Access${_CLR_RESET}"
-  echo -e "  $(_cmd clawdock-shell)       ${_CLR_DIM}Shell into container (openclaw alias ready)${_CLR_RESET}"
+  echo -e "  $(_cmd clawdock-shell)       ${_CLR_DIM}Shell into container (aetherbot alias ready)${_CLR_RESET}"
   echo -e "  $(_cmd clawdock-cli)         ${_CLR_DIM}Run CLI commands (e.g., clawdock-cli status)${_CLR_RESET}"
   echo -e "  $(_cmd clawdock-exec) ${_CLR_CYAN}<cmd>${_CLR_RESET}  ${_CLR_DIM}Execute command in gateway container${_CLR_RESET}"
   echo ""
@@ -384,12 +384,14 @@ clawdock-help() {
   echo -e "${_CLR_BOLD}${_CLR_MAGENTA}🛠️  Utilities${_CLR_RESET}"
   echo -e "  $(_cmd clawdock-health)      ${_CLR_DIM}Run health check${_CLR_RESET}"
   echo -e "  $(_cmd clawdock-token)       ${_CLR_DIM}Show gateway auth token${_CLR_RESET}"
-  echo -e "  $(_cmd clawdock-cd)          ${_CLR_DIM}Jump to openclaw project directory${_CLR_RESET}"
-  echo -e "  $(_cmd clawdock-config)      ${_CLR_DIM}Open config directory (~/.openclaw)${_CLR_RESET}"
+  echo -e "  $(_cmd clawdock-cd)          ${_CLR_DIM}Jump to aetherbot project directory${_CLR_RESET}"
+  echo -e "  $(_cmd clawdock-config)      ${_CLR_DIM}Open config directory (~/.aetherbot)${_CLR_RESET}"
   echo -e "  $(_cmd clawdock-workspace)   ${_CLR_DIM}Open workspace directory${_CLR_RESET}"
   echo ""
 
   echo -e "${_CLR_BOLD}${_CLR_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${_CLR_RESET}"
+  echo ""
+
   echo -e "${_CLR_BOLD}${_CLR_GREEN}🚀 First Time Setup${_CLR_RESET}"
   echo -e "${_CLR_CYAN}  1.${_CLR_RESET} $(_cmd clawdock-start)          ${_CLR_DIM}# Start the gateway${_CLR_RESET}"
   echo -e "${_CLR_CYAN}  2.${_CLR_RESET} $(_cmd clawdock-fix-token)      ${_CLR_DIM}# Configure token${_CLR_RESET}"
@@ -400,8 +402,8 @@ clawdock-help() {
 
   echo -e "${_CLR_BOLD}${_CLR_GREEN}💬 WhatsApp Setup${_CLR_RESET}"
   echo -e "  $(_cmd clawdock-shell)"
-  echo -e "    ${_CLR_BLUE}>${_CLR_RESET} $(_cmd 'openclaw channels login --channel whatsapp')"
-  echo -e "    ${_CLR_BLUE}>${_CLR_RESET} $(_cmd 'openclaw status')"
+  echo -e "    ${_CLR_BLUE}>${_CLR_RESET} $(_cmd 'aetherbot channels login --channel whatsapp')"
+  echo -e "    ${_CLR_BLUE}>${_CLR_RESET} $(_cmd 'aetherbot status')"
   echo ""
 
   echo -e "${_CLR_BOLD}${_CLR_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${_CLR_RESET}"
