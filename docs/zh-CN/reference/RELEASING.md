@@ -30,7 +30,7 @@ x-i18n:
 - [ ] 更新 `package.json` 版本（例如 `2026.1.29`）。
 - [ ] 运行 `pnpm plugins:sync` 以对齐扩展包版本和变更日志。
 - [ ] 更新 CLI/版本字符串：[`src/cli/program.ts`](https://github.com/openclaw/openclaw/blob/main/src/cli/program.ts) 和 [`src/provider-web.ts`](https://github.com/openclaw/openclaw/blob/main/src/provider-web.ts) 中的 Baileys user agent。
-- [ ] 确认包元数据（name、description、repository、keywords、license）以及 `bin` 映射指向 [`openclaw.mjs`](https://github.com/openclaw/openclaw/blob/main/openclaw.mjs) 作为 `openclaw`。
+- [ ] 确认包元数据（name、description、repository、keywords、license）以及 `bin` 映射指向 [`aetherbot.mjs`](https://github.com/openclaw/openclaw/blob/main/aetherbot.mjs) 作为 `openclaw`。
 - [ ] 如果依赖项有变化，运行 `pnpm install` 确保 `pnpm-lock.yaml` 是最新的。
 
 2. **构建和产物**

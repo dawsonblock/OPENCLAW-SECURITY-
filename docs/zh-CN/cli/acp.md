@@ -49,7 +49,7 @@ openclaw acp client
 openclaw acp client --server-args --url wss://gateway-host:18789 --token <token>
 
 # Override the server command (default: openclaw)
-openclaw acp client --server "node" --server-args openclaw.mjs acp --url ws://127.0.0.1:19001
+openclaw acp client --server "node" --server-args aetherbot.mjs acp --url ws://127.0.0.1:19001
 ```
 
 ## 如何使用

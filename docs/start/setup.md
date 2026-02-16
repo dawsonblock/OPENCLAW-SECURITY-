@@ -53,7 +53,7 @@ If you don’t have a global install yet, run it via `pnpm openclaw setup`.
 After `pnpm build`, you can run the packaged CLI directly:
 
 ```bash
-node openclaw.mjs gateway --port 18789 --verbose
+node aetherbot.mjs gateway --port 18789 --verbose
 ```
 
 ## Stable workflow (macOS app first)

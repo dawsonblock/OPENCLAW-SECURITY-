@@ -182,7 +182,7 @@ openclaw onboard --install-daemon
 Gateway 网关（从此仓库）：
 
 ```bash
-node openclaw.mjs gateway --port 18789 --verbose
+node aetherbot.mjs gateway --port 18789 --verbose
 ```
 
 ## 7) 验证端到端

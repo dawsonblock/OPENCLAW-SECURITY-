@@ -41,11 +41,11 @@ describe("run-node script", () => {
         await fs.writeFile(indexPath, "<html>sentinel</html>\n", "utf-8");
 
         await fs.writeFile(
-          path.join(tmp, "openclaw.mjs"),
+          path.join(tmp, "aetherbot.mjs"),
           "#!/usr/bin/env node\nif (process.argv.includes('--version')) console.log('9.9.9-test');\n",
           "utf-8",
         );
-        await fs.chmod(path.join(tmp, "openclaw.mjs"), 0o755);
+        await fs.chmod(path.join(tmp, "aetherbot.mjs"), 0o755);
 
         const fakePnpm = `#!/usr/bin/env node
 const fs = require("node:fs");

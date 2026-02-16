@@ -101,11 +101,11 @@ describe("control UI assets helpers", () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-ui-"));
     try {
       await fs.writeFile(path.join(tmp, "package.json"), JSON.stringify({ name: "openclaw" }));
-      await fs.writeFile(path.join(tmp, "openclaw.mjs"), "export {};\n");
+      await fs.writeFile(path.join(tmp, "aetherbot.mjs"), "export {};\n");
       await fs.mkdir(path.join(tmp, "dist", "control-ui"), { recursive: true });
       await fs.writeFile(path.join(tmp, "dist", "control-ui", "index.html"), "<html></html>\n");
 
-      expect(await resolveControlUiDistIndexPath(path.join(tmp, "openclaw.mjs"))).toBe(
+      expect(await resolveControlUiDistIndexPath(path.join(tmp, "aetherbot.mjs"))).toBe(
         path.join(tmp, "dist", "control-ui", "index.html"),
       );
     } finally {
@@ -117,11 +117,11 @@ describe("control UI assets helpers", () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-ui-"));
     try {
       await fs.writeFile(path.join(tmp, "package.json"), JSON.stringify({ name: "openclaw" }));
-      await fs.writeFile(path.join(tmp, "openclaw.mjs"), "export {};\n");
+      await fs.writeFile(path.join(tmp, "aetherbot.mjs"), "export {};\n");
       await fs.mkdir(path.join(tmp, "dist", "control-ui"), { recursive: true });
       await fs.writeFile(path.join(tmp, "dist", "control-ui", "index.html"), "<html></html>\n");
 
-      expect(resolveControlUiRootSync({ argv1: path.join(tmp, "openclaw.mjs") })).toBe(
+      expect(resolveControlUiRootSync({ argv1: path.join(tmp, "aetherbot.mjs") })).toBe(
         path.join(tmp, "dist", "control-ui"),
       );
     } finally {
@@ -153,11 +153,11 @@ describe("control UI assets helpers", () => {
     try {
       // Package named "openclaw" but resolveOpenClawPackageRoot failed for other reasons
       await fs.writeFile(path.join(tmp, "package.json"), JSON.stringify({ name: "openclaw" }));
-      await fs.writeFile(path.join(tmp, "openclaw.mjs"), "export {};\n");
+      await fs.writeFile(path.join(tmp, "aetherbot.mjs"), "export {};\n");
       await fs.mkdir(path.join(tmp, "dist", "control-ui"), { recursive: true });
       await fs.writeFile(path.join(tmp, "dist", "control-ui", "index.html"), "<html></html>\n");
 
-      expect(await resolveControlUiDistIndexPath(path.join(tmp, "openclaw.mjs"))).toBe(
+      expect(await resolveControlUiDistIndexPath(path.join(tmp, "aetherbot.mjs"))).toBe(
         path.join(tmp, "dist", "control-ui", "index.html"),
       );
     } finally {

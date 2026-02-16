@@ -173,7 +173,7 @@ export function resolveControlUiRootSync(opts: ControlUiRootResolveOptions = {})
     addCandidate(candidates, path.join(moduleDir, "../../dist/control-ui"));
   }
   if (argv1Dir) {
-    // openclaw.mjs or dist/<bundle>.js
+    // aetherbot.mjs or dist/<bundle>.js
     addCandidate(candidates, path.join(argv1Dir, "dist", "control-ui"));
     addCandidate(candidates, path.join(argv1Dir, "control-ui"));
   }

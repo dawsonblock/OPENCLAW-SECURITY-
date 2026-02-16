@@ -1,12 +1,12 @@
 {
-  "name": "openclaw",
+  "name": "aetherbot",
   "version": "2026.2.9",
-  "description": "Multi-channel AI gateway with extensible messaging integrations",
+  "description": "AetherBot — Multi-channel AI gateway with extensible messaging integrations",
   "keywords": [],
   "license": "MIT",
   "author": "",
   "bin": {
-    "openclaw": "openclaw.mjs"
+    "aetherbot": "aetherbot.mjs"
   },
   "files": [
     "assets/",
@@ -15,7 +15,7 @@
     "docs/",
     "extensions/",
     "LICENSE",
-    "openclaw.mjs",
+    "aetherbot.mjs",
     "README-header.png",
     "README.md",
     "skills/"
@@ -25,9 +25,11 @@
   "exports": {
     ".": "./dist/index.js",
     "./plugin-sdk": "./dist/plugin-sdk/index.js",
-    "./cli-entry": "./openclaw.mjs"
+    "./cli-entry": "./aetherbot.mjs"
   },
   "scripts": {
+    "aetherbot": "node scripts/run-node.mjs",
+    "aetherbot:rpc": "node scripts/run-node.mjs agent --mode rpc --json",
     "android:assemble": "cd apps/android && ./gradlew :app:assembleDebug",
     "android:install": "cd apps/android && ./gradlew :app:installDebug",
     "android:run": "cd apps/android && ./gradlew :app:installDebug && adb shell am start -n ai.openclaw.android/.MainActivity",
@@ -66,8 +68,6 @@
     "mac:package": "bash scripts/package-mac-app.sh",
     "mac:restart": "bash scripts/restart-mac.sh",
     "moltbot:rpc": "node scripts/run-node.mjs agent --mode rpc --json",
-    "openclaw": "node scripts/run-node.mjs",
-    "openclaw:rpc": "node scripts/run-node.mjs agent --mode rpc --json",
     "plugins:sync": "node --import tsx scripts/sync-plugin-versions.ts",
     "prepack": "pnpm build && pnpm ui:build",
     "prepare": "command -v git >/dev/null 2>&1 && git config core.hooksPath git-hooks || exit 0",

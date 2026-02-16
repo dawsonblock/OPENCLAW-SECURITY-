@@ -27,7 +27,7 @@ describe("runGatewayUpdate", () => {
 
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-update-"));
-    await fs.writeFile(path.join(tempDir, "openclaw.mjs"), "export {};\n", "utf-8");
+    await fs.writeFile(path.join(tempDir, "aetherbot.mjs"), "export {};\n", "utf-8");
   });
 
   afterEach(async () => {
@@ -116,7 +116,7 @@ describe("runGatewayUpdate", () => {
       "pnpm install": { stdout: "" },
       "pnpm build": { stdout: "" },
       "pnpm ui:build": { stdout: "" },
-      [`${process.execPath} ${path.join(tempDir, "openclaw.mjs")} doctor --non-interactive`]: {
+      [`${process.execPath} ${path.join(tempDir, "aetherbot.mjs")} doctor --non-interactive`]: {
         stdout: "",
       },
     });
@@ -490,14 +490,14 @@ describe("runGatewayUpdate", () => {
     expect(calls.some((call) => call.includes("status --porcelain"))).toBe(false);
   });
 
-  it("fails with a clear reason when openclaw.mjs is missing", async () => {
+  it("fails with a clear reason when aetherbot.mjs is missing", async () => {
     await fs.mkdir(path.join(tempDir, ".git"));
     await fs.writeFile(
       path.join(tempDir, "package.json"),
       JSON.stringify({ name: "openclaw", version: "1.0.0", packageManager: "pnpm@8.0.0" }),
       "utf-8",
     );
-    await fs.rm(path.join(tempDir, "openclaw.mjs"), { force: true });
+    await fs.rm(path.join(tempDir, "aetherbot.mjs"), { force: true });
 
     const stableTag = "v1.0.1-1";
     const { runner } = createRunner({
@@ -573,7 +573,8 @@ describe("runGatewayUpdate", () => {
         return { stdout: "", stderr: "", code: 0 };
       }
       if (
-        key === `${process.execPath} ${path.join(tempDir, "openclaw.mjs")} doctor --non-interactive`
+        key ===
+        `${process.execPath} ${path.join(tempDir, "aetherbot.mjs")} doctor --non-interactive`
       ) {
         await fs.rm(path.join(tempDir, "dist", "control-ui"), { recursive: true, force: true });
         return { stdout: "", stderr: "", code: 0 };
@@ -592,7 +593,7 @@ describe("runGatewayUpdate", () => {
     expect(uiBuildCount).toBe(2);
     expect(await pathExists(uiIndexPath)).toBe(true);
     expect(calls).toContain(
-      `${process.execPath} ${path.join(tempDir, "openclaw.mjs")} doctor --non-interactive`,
+      `${process.execPath} ${path.join(tempDir, "aetherbot.mjs")} doctor --non-interactive`,
     );
   });
 
@@ -644,7 +645,8 @@ describe("runGatewayUpdate", () => {
         return { stdout: "", stderr: "", code: 0 };
       }
       if (
-        key === `${process.execPath} ${path.join(tempDir, "openclaw.mjs")} doctor --non-interactive`
+        key ===
+        `${process.execPath} ${path.join(tempDir, "aetherbot.mjs")} doctor --non-interactive`
       ) {
         await fs.rm(path.join(tempDir, "dist", "control-ui"), { recursive: true, force: true });
         return { stdout: "", stderr: "", code: 0 };
