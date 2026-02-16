@@ -244,7 +244,7 @@ async function main() {
     {
       id: "system.notify",
       command: "system.notify",
-      params: { title: "OpenClaw E2E", body: `ios-node-e2e @ ${isoNow()}`, delivery: "system" },
+      params: { title: "AetherBot E2E", body: `ios-node-e2e @ ${isoNow()}`, delivery: "system" },
     },
     {
       id: "contacts.search",

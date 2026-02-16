@@ -252,7 +252,7 @@ else
   fi
 fi
 
-echo "⏹  Stopping any running OpenClaw"
+echo "⏹  Stopping any running AetherBot"
 killall -q OpenClaw 2>/dev/null || true
 
 echo "🔏 Signing bundle (auto-selects signing identity if SIGN_IDENTITY is unset)"

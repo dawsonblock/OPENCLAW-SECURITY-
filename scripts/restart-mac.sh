@@ -149,7 +149,7 @@ stop_launch_agent() {
 }
 
 # 1) Kill all running instances first.
-log "==> Killing existing OpenClaw instances"
+log "==> Killing existing AetherBot instances"
 kill_all_openclaw
 stop_launch_agent
 
@@ -261,7 +261,7 @@ run_step "launch app" env -i \
 # 5) Verify the app is alive.
 sleep 1.5
 if pgrep -f "${APP_PROCESS_PATTERN}" >/dev/null 2>&1; then
-  log "OK: OpenClaw is running."
+  log "OK: AetherBot is running."
 else
   fail "App exited immediately. Check ${LOG_PATH} or Console.app (User Reports)."
 fi
