@@ -2,7 +2,7 @@
 set -euo pipefail
 
 INSTALL_URL="${OPENCLAW_INSTALL_URL:-https://openclaw.bot/install.sh}"
-DEFAULT_PACKAGE="openclaw"
+DEFAULT_PACKAGE="aetherbot"
 PACKAGE_NAME="${OPENCLAW_INSTALL_PACKAGE:-$DEFAULT_PACKAGE}"
 
 echo "==> Pre-flight: ensure git absent"
