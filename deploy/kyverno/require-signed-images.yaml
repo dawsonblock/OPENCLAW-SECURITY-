@@ -1,0 +1,23 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-signed-openclaw-images
+spec:
+  validationFailureAction: Enforce
+  rules:
+    - name: verify-openclaw-images
+      match:
+        resources:
+          kinds:
+            - Pod
+      verifyImages:
+        - imageReferences:
+            - "yourrepo/openclaw*"
+            - "yourrepo/openclaw-executor*"
+          attestors:
+            - entries:
+                - keys:
+                    publicKeys: |-
+                      -----BEGIN PUBLIC KEY-----
+                      REPLACE_WITH_COSIGN_PUBKEY
+                      -----END PUBLIC KEY-----
