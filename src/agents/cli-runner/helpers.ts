@@ -99,7 +99,7 @@ function tokenToRegex(token: string): string {
 }
 
 /**
- * Cleanup suspended OpenClaw CLI processes that have accumulated.
+ * Cleanup suspended AetherBot CLI processes that have accumulated.
  * Only cleans up if there are more than the threshold (default: 10).
  */
 export async function cleanupSuspendedCliProcesses(
@@ -222,7 +222,7 @@ export function buildSystemPrompt(params: {
     workspaceDir: params.workspaceDir,
     cwd: process.cwd(),
     runtime: {
-      host: "openclaw",
+      host: "aetherbot",
       os: `${os.type()} ${os.release()}`,
       arch: os.arch(),
       node: process.version,

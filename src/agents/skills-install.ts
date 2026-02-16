@@ -127,7 +127,7 @@ async function collectSkillInstallScanOutcome(entry: SkillEntry): Promise<{
       );
     } else if (summary.warn > 0) {
       warnings.push(
-        `Skill "${skillName}" has ${summary.warn} suspicious code pattern(s). Run "openclaw security audit --deep" for details.`,
+        `Skill "${skillName}" has ${summary.warn} suspicious code pattern(s). Run "aetherbot security audit --deep" for details.`,
       );
     }
   } catch (err) {
