@@ -136,7 +136,7 @@ describe("web auto-reply", () => {
       runtime as never,
       controller.signal,
       {
-        heartbeatSeconds: 1,
+        heartbeatSeconds: 3600,
         reconnect: { initialMs: 10, maxMs: 10, maxAttempts: 3, factor: 1.1 },
         sleep,
       },

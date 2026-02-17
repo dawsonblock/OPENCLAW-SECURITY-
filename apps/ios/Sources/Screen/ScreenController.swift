@@ -331,8 +331,6 @@ final class ScreenController {
         if host.hasSuffix(".local") { return true }
         if host.hasSuffix(".ts.net") { return true }
         if host.hasSuffix(".tailscale.net") { return true }
-        // Allow MagicDNS / LAN hostnames like "peters-mac-studio-1".
-        if !host.contains("."), !host.contains(":") { return true }
         if let ipv4 = Self.parseIPv4(host) {
             return Self.isLocalNetworkIPv4(ipv4)
         }

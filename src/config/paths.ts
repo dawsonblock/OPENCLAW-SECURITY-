@@ -17,11 +17,11 @@ export function resolveIsNixMode(env: NodeJS.ProcessEnv = process.env): boolean 
 
 export const isNixMode = resolveIsNixMode();
 
-const LEGACY_STATE_DIRNAMES = [".openclaw", ".clawdbot", ".moltbot", ".moldbot"] as const;
-const NEW_STATE_DIRNAME = ".aetherbot";
-const CONFIG_FILENAME = "aetherbot.json";
+const LEGACY_STATE_DIRNAMES = [".aetherbot", ".clawdbot", ".moltbot", ".moldbot"] as const;
+const NEW_STATE_DIRNAME = ".openclaw";
+const CONFIG_FILENAME = "openclaw.json";
 const LEGACY_CONFIG_FILENAMES = [
-  "openclaw.json",
+  "aetherbot.json",
   "clawdbot.json",
   "moltbot.json",
   "moldbot.json",

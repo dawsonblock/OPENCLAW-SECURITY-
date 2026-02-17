@@ -351,15 +351,15 @@ private fun isTrustedCanvasHttpHost(hostRaw: String?): Boolean {
     host == "localhost" ||
     host.endsWith(".localhost") ||
     host.endsWith(".local") ||
-    host.endsWith(".lan") ||
-    host.endsWith(".internal")
+    host.endsWith(".ts.net") ||
+    host.endsWith(".tailscale.net")
   ) {
     return true
   }
   if (isTrustedCanvasIpv4Host(host) || isTrustedCanvasIpv6Host(host)) {
     return true
   }
-  return !host.contains(".")
+  return false
 }
 
 private fun isTrustedCanvasUrl(rawUrl: String?): Boolean {

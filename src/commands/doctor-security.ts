@@ -207,7 +207,7 @@ export async function noteSecurityWarnings(cfg: OpenClawConfig) {
     }
     // One-way toggle: OPENCLAW_ALLOW_UNSAFE_CONFIG requires double-confirm
     const unsafeCfg = activeBreakGlass.find((v) => v.key === "OPENCLAW_ALLOW_UNSAFE_CONFIG");
-    if (unsafeCfg && !isLoopback) {
+    if (unsafeCfg && isExposed) {
       const confirm = process.env.OPENCLAW_I_UNDERSTAND_THIS_IS_UNSAFE?.trim().toLowerCase();
       if (confirm !== "1" && confirm !== "true") {
         warnings.push(

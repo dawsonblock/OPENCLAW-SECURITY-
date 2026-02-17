@@ -119,7 +119,6 @@ final class CanvasA2UIActionMessageHandler: NSObject, WKScriptMessageHandler {
         if host.hasSuffix(".local") { return true }
         if host.hasSuffix(".ts.net") { return true }
         if host.hasSuffix(".tailscale.net") { return true }
-        if !host.contains("."), !host.contains(":") { return true }
         if let ipv4 = Self.parseIPv4(host) {
             return Self.isLocalNetworkIPv4(ipv4)
         }

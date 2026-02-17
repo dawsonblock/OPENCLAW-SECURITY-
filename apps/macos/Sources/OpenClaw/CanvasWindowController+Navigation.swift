@@ -36,8 +36,6 @@ extension CanvasWindowController {
             || scheme == "http"
             || scheme == "about"
             || scheme == "blob"
-            || scheme == "data"
-            || scheme == "javascript"
         {
             decisionHandler(.allow)
             return

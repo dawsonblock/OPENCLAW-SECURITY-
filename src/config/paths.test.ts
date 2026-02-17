@@ -50,11 +50,11 @@ describe("state + config path candidates", () => {
     } as NodeJS.ProcessEnv;
 
     const resolvedHome = path.resolve("/srv/openclaw-home");
-    // New default is .aetherbot
-    expect(resolveStateDir(env)).toBe(path.join(resolvedHome, ".aetherbot"));
+    // Primary state dir is .openclaw
+    expect(resolveStateDir(env)).toBe(path.join(resolvedHome, ".openclaw"));
 
     const candidates = resolveDefaultConfigCandidates(env);
-    expect(candidates[0]).toBe(path.join(resolvedHome, ".aetherbot", "aetherbot.json"));
+    expect(candidates[0]).toBe(path.join(resolvedHome, ".openclaw", "openclaw.json"));
   });
 
   it("prefers OPENCLAW_HOME over HOME for default state/config locations", () => {
@@ -64,10 +64,10 @@ describe("state + config path candidates", () => {
     } as NodeJS.ProcessEnv;
 
     const resolvedHome = path.resolve("/srv/openclaw-home");
-    expect(resolveStateDir(env)).toBe(path.join(resolvedHome, ".aetherbot"));
+    expect(resolveStateDir(env)).toBe(path.join(resolvedHome, ".openclaw"));
 
     const candidates = resolveDefaultConfigCandidates(env);
-    expect(candidates[0]).toBe(path.join(resolvedHome, ".aetherbot", "aetherbot.json"));
+    expect(candidates[0]).toBe(path.join(resolvedHome, ".openclaw", "openclaw.json"));
   });
 
   it("orders default config candidates in a stable order", () => {
@@ -75,28 +75,28 @@ describe("state + config path candidates", () => {
     const resolvedHome = path.resolve(home);
     const candidates = resolveDefaultConfigCandidates({} as NodeJS.ProcessEnv, () => home);
     const expected = [
-      path.join(resolvedHome, ".aetherbot", "aetherbot.json"),
-      path.join(resolvedHome, ".aetherbot", "openclaw.json"),
-      path.join(resolvedHome, ".aetherbot", "clawdbot.json"),
-      path.join(resolvedHome, ".aetherbot", "moltbot.json"),
-      path.join(resolvedHome, ".aetherbot", "moldbot.json"),
-      path.join(resolvedHome, ".openclaw", "aetherbot.json"),
       path.join(resolvedHome, ".openclaw", "openclaw.json"),
+      path.join(resolvedHome, ".openclaw", "aetherbot.json"),
       path.join(resolvedHome, ".openclaw", "clawdbot.json"),
       path.join(resolvedHome, ".openclaw", "moltbot.json"),
       path.join(resolvedHome, ".openclaw", "moldbot.json"),
-      path.join(resolvedHome, ".clawdbot", "aetherbot.json"),
+      path.join(resolvedHome, ".aetherbot", "openclaw.json"),
+      path.join(resolvedHome, ".aetherbot", "aetherbot.json"),
+      path.join(resolvedHome, ".aetherbot", "clawdbot.json"),
+      path.join(resolvedHome, ".aetherbot", "moltbot.json"),
+      path.join(resolvedHome, ".aetherbot", "moldbot.json"),
       path.join(resolvedHome, ".clawdbot", "openclaw.json"),
+      path.join(resolvedHome, ".clawdbot", "aetherbot.json"),
       path.join(resolvedHome, ".clawdbot", "clawdbot.json"),
       path.join(resolvedHome, ".clawdbot", "moltbot.json"),
       path.join(resolvedHome, ".clawdbot", "moldbot.json"),
-      path.join(resolvedHome, ".moltbot", "aetherbot.json"),
       path.join(resolvedHome, ".moltbot", "openclaw.json"),
+      path.join(resolvedHome, ".moltbot", "aetherbot.json"),
       path.join(resolvedHome, ".moltbot", "clawdbot.json"),
       path.join(resolvedHome, ".moltbot", "moltbot.json"),
       path.join(resolvedHome, ".moltbot", "moldbot.json"),
-      path.join(resolvedHome, ".moldbot", "aetherbot.json"),
       path.join(resolvedHome, ".moldbot", "openclaw.json"),
+      path.join(resolvedHome, ".moldbot", "aetherbot.json"),
       path.join(resolvedHome, ".moldbot", "clawdbot.json"),
       path.join(resolvedHome, ".moldbot", "moltbot.json"),
       path.join(resolvedHome, ".moldbot", "moldbot.json"),
@@ -200,8 +200,8 @@ describe("state + config path candidates", () => {
       const overrideDir = path.join(root, "override");
       const env = { OPENCLAW_STATE_DIR: overrideDir } as NodeJS.ProcessEnv;
       const resolved = resolveConfigPath(env, overrideDir, () => root);
-      // New default config filename is aetherbot.json
-      expect(resolved).toBe(path.join(overrideDir, "aetherbot.json"));
+      // Default config filename is openclaw.json
+      expect(resolved).toBe(path.join(overrideDir, "openclaw.json"));
     } finally {
       await fs.rm(root, { recursive: true, force: true });
     }
