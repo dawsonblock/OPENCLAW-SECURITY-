@@ -2,4 +2,4 @@
 
 Tlon/Urbit channel plugin for AetherBot. Supports DMs, group mentions, and thread replies.
 
-Docs: https://docs.openclaw.ai/channels/tlon
+Docs: https://docs.aetherbot.ai/channels/tlon

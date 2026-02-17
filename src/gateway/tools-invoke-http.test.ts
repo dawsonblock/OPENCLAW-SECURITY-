@@ -368,7 +368,7 @@ describe("POST /tools/invoke", () => {
       headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
       body: JSON.stringify({
         tool: "web_fetch",
-        args: { url: "https://docs.openclaw.ai/configuration" },
+        args: { url: "https://docs.aetherbot.ai/configuration" },
         sessionKey: "main",
       }),
     });
@@ -404,7 +404,7 @@ describe("POST /tools/invoke", () => {
       headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
       body: JSON.stringify({
         tool: "web_fetch",
-        args: { url: "https://docs.openclaw.ai/configuration" },
+        args: { url: "https://docs.aetherbot.ai/configuration" },
         sessionKey: "main",
       }),
     });

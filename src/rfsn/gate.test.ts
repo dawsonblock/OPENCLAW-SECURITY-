@@ -171,7 +171,7 @@ describe("evaluateGate", () => {
       policy: deniedPolicy,
       proposal: buildProposal({
         toolName: "web_fetch",
-        args: { url: "https://docs.openclaw.ai/configuration" },
+        args: { url: "https://docs.aetherbot.ai/configuration" },
       }),
       sandboxed: true,
     });
@@ -181,19 +181,19 @@ describe("evaluateGate", () => {
     const allowedPolicy = createDefaultRfsnPolicy({
       mode: "allowlist",
       allowTools: ["web_fetch"],
-      fetchAllowedDomains: ["docs.openclaw.ai"],
+      fetchAllowedDomains: ["docs.aetherbot.ai"],
       grantedCapabilities: ["net:outbound"],
     });
     const allowed = evaluateGate({
       policy: allowedPolicy,
       proposal: buildProposal({
         toolName: "web_fetch",
-        args: { url: "https://docs.openclaw.ai/configuration" },
+        args: { url: "https://docs.aetherbot.ai/configuration" },
       }),
       sandboxed: true,
     });
     expect(allowed.verdict).toBe("allow");
-    expect(allowed.capsGranted).toContain("net:outbound:docs.openclaw.ai");
+    expect(allowed.capsGranted).toContain("net:outbound:docs.aetherbot.ai");
   });
 
   test("supports wildcard capability grants", () => {

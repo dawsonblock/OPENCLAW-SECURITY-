@@ -100,7 +100,7 @@ async function promptWebToolsConfig(
     [
       "Web search lets your agent look things up online using the `web_search` tool.",
       "It requires a Brave Search API key (you can store it in the config or set BRAVE_API_KEY in the Gateway environment).",
-      "Docs: https://docs.openclaw.ai/tools/web",
+      "Docs: https://docs.aetherbot.ai/tools/web",
     ].join("\n"),
     "Web search",
   );
@@ -136,7 +136,7 @@ async function promptWebToolsConfig(
         [
           "No key stored yet, so web_search will stay unavailable.",
           "Store a key here or set BRAVE_API_KEY in the Gateway environment.",
-          "Docs: https://docs.openclaw.ai/tools/web",
+          "Docs: https://docs.aetherbot.ai/tools/web",
         ].join("\n"),
         "Web search",
       );
@@ -189,7 +189,7 @@ export async function runConfigureWizard(
           [
             ...snapshot.issues.map((iss) => `- ${iss.path}: ${iss.message}`),
             "",
-            "Docs: https://docs.openclaw.ai/gateway/configuration",
+            "Docs: https://docs.aetherbot.ai/gateway/configuration",
           ].join("\n"),
           "Config issues",
         );
@@ -393,8 +393,8 @@ export async function runConfigureWizard(
           note(
             [
               "Docs:",
-              "https://docs.openclaw.ai/gateway/health",
-              "https://docs.openclaw.ai/gateway/troubleshooting",
+              "https://docs.aetherbot.ai/gateway/health",
+              "https://docs.aetherbot.ai/gateway/troubleshooting",
             ].join("\n"),
             "Health check help",
           );
@@ -520,8 +520,8 @@ export async function runConfigureWizard(
             note(
               [
                 "Docs:",
-                "https://docs.openclaw.ai/gateway/health",
-                "https://docs.openclaw.ai/gateway/troubleshooting",
+                "https://docs.aetherbot.ai/gateway/health",
+                "https://docs.aetherbot.ai/gateway/troubleshooting",
               ].join("\n"),
               "Health check help",
             );
@@ -579,7 +579,7 @@ export async function runConfigureWizard(
         `Web UI: ${links.httpUrl}`,
         `Gateway WS: ${links.wsUrl}`,
         gatewayStatusLine,
-        "Docs: https://docs.openclaw.ai/web/control-ui",
+        "Docs: https://docs.aetherbot.ai/web/control-ui",
       ].join("\n"),
       "Control UI",
     );

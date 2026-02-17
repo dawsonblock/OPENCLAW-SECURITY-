@@ -116,7 +116,7 @@ If you used a profile, delete the matching task name and `~\.openclaw-<profile>\
 
 ### Normal install (install.sh / npm / pnpm / bun)
 
-If you used `https://openclaw.ai/install.sh` or `install.ps1`, the CLI was installed with `npm install -g aetherbot@latest`.
+If you used `https://aetherbot.ai/install.sh` or `install.ps1`, the CLI was installed with `npm install -g aetherbot@latest`.
 Remove it with `npm rm -g aetherbot` (or `pnpm remove -g` / `bun remove -g` if you installed that way).
 
 ### Source checkout (git clone)

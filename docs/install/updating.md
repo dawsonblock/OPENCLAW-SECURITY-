@@ -17,7 +17,7 @@ detects existing installs, upgrades in place, and runs `aetherbot doctor` when
 needed.
 
 ```bash
-curl -fsSL https://openclaw.ai/install.sh | bash
+curl -fsSL https://aetherbot.ai/install.sh | bash
 ```
 
 Notes:
@@ -26,7 +26,7 @@ Notes:
 - For **source installs**, use:
 
   ```bash
-  curl -fsSL https://openclaw.ai/install.sh | bash -s -- --install-method git --no-onboard
+  curl -fsSL https://aetherbot.ai/install.sh | bash -s -- --install-method git --no-onboard
   ```
 
   The installer will `git pull --rebase` **only** if the repo is clean.

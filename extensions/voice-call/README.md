@@ -9,8 +9,8 @@ Providers:
 - **Plivo** (Voice API + XML transfer + GetInput speech)
 - **Mock** (dev/no network)
 
-Docs: `https://docs.openclaw.ai/plugins/voice-call`
-Plugin system: `https://docs.openclaw.ai/plugin`
+Docs: `https://docs.aetherbot.ai/plugins/voice-call`
+Plugin system: `https://docs.aetherbot.ai/plugin`
 
 ## Install (local dev)
 

@@ -99,7 +99,7 @@ tailscale status
 ## 5) Install AetherBot
 
 ```bash
-curl -fsSL https://openclaw.ai/install.sh | bash
+curl -fsSL https://aetherbot.ai/install.sh | bash
 source ~/.bashrc
 ```
 

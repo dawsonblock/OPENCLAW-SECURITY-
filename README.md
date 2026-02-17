@@ -200,9 +200,9 @@ gh pr create --title "fix: resolve security vulnerabilities"
 
 ---
 
-## 🛍️ ClawHub Skill Marketplace
+## 🛍️ AetherHub Skill Marketplace
 
-Install community skills from [clawhub.ai](https://clawhub.ai) with automatic security scanning:
+Install community skills from [aetherhub.ai](https://aetherhub.ai) with automatic security scanning:
 
 ### Features
 
@@ -215,20 +215,20 @@ Install community skills from [clawhub.ai](https://clawhub.ai) with automatic se
 ### Usage
 
 ```bash
-# Install ClawHub CLI
-npm i -g clawhub
+# Install AetherHub CLI
+npm i -g aetherhub
 
 # Search for skills
-clawhub search "postgres backup"
+aetherhub search "postgres backup"
 
 # Install a skill
-clawhub install postgres-backup-tool
+aetherhub install postgres-backup-tool
 
 # Update all skills
-clawhub update --all
+aetherhub update --all
 
 # Publish your own skill
-clawhub publish ./my-skill --slug my-skill --version 1.0.0
+aetherhub publish ./my-skill --slug my-skill --version 1.0.0
 ```
 
 ### Security Model
@@ -239,7 +239,7 @@ Every skill installation automatically:
 2. Checks binary/env requirements
 3. Validates against allowlists
 4. Isolates to agent workspace
-5. Records version in `.clawhub/lock.json`
+5. Records version in `.aetherhub/lock.json`
 
 Agents can autonomously search and install skills with built-in protection.
 
@@ -573,34 +573,34 @@ Supported channels with dedicated integrations:
 
 ### Getting Started
 
-- [Getting Started Guide](https://docs.openclaw.ai/start/getting-started) — auth, pairing, channels
-- [Onboarding Wizard](https://docs.openclaw.ai/start/wizard) — step-by-step guided setup
-- [FAQ](https://docs.openclaw.ai/start/faq) — common questions answered
-- [Updating](https://docs.openclaw.ai/install/updating) — upgrade instructions
+- [Getting Started Guide](https://docs.aetherbot.ai/start/getting-started) — auth, pairing, channels
+- [Onboarding Wizard](https://docs.aetherbot.ai/start/wizard) — step-by-step guided setup
+- [FAQ](https://docs.aetherbot.ai/start/faq) — common questions answered
+- [Updating](https://docs.aetherbot.ai/install/updating) — upgrade instructions
 
 ### Reference
 
-- [Configuration](https://docs.openclaw.ai/gateway/configuration) — every key and example
-- [Architecture](https://docs.openclaw.ai/concepts/architecture) — gateway + protocol model
-- [Security Guide](https://docs.openclaw.ai/gateway/security) — security model deep-dive
-- [Models](https://docs.openclaw.ai/concepts/models) — LLM provider setup
-- [Model Failover](https://docs.openclaw.ai/concepts/model-failover) — OAuth vs API keys + fallbacks
+- [Configuration](https://docs.aetherbot.ai/gateway/configuration) — every key and example
+- [Architecture](https://docs.aetherbot.ai/concepts/architecture) — gateway + protocol model
+- [Security Guide](https://docs.aetherbot.ai/gateway/security) — security model deep-dive
+- [Models](https://docs.aetherbot.ai/concepts/models) — LLM provider setup
+- [Model Failover](https://docs.aetherbot.ai/concepts/model-failover) — OAuth vs API keys + fallbacks
 
 ### Tools & Automation
 
-- [Browser Control](https://docs.openclaw.ai/tools/browser) — managed Chrome/Chromium with CDP
-- [Skills Platform](https://docs.openclaw.ai/tools/skills) — bundled, managed, and workspace skills
-- [Cron Jobs](https://docs.openclaw.ai/automation/cron-jobs) — scheduled tasks
-- [Webhooks](https://docs.openclaw.ai/automation/webhook) — external trigger surface
-- [Gmail Pub/Sub](https://docs.openclaw.ai/automation/gmail-pubsub) — email triggers
+- [Browser Control](https://docs.aetherbot.ai/tools/browser) — managed Chrome/Chromium with CDP
+- [Skills Platform](https://docs.aetherbot.ai/tools/skills) — bundled, managed, and workspace skills
+- [Cron Jobs](https://docs.aetherbot.ai/automation/cron-jobs) — scheduled tasks
+- [Webhooks](https://docs.aetherbot.ai/automation/webhook) — external trigger surface
+- [Gmail Pub/Sub](https://docs.aetherbot.ai/automation/gmail-pubsub) — email triggers
 
 ### Platform Guides
 
-- [macOS](https://docs.openclaw.ai/platforms/macos) · [iOS](https://docs.openclaw.ai/platforms/ios) · [Android](https://docs.openclaw.ai/platforms/android) · [Linux](https://docs.openclaw.ai/platforms/linux) · [Windows (WSL2)](https://docs.openclaw.ai/platforms/windows)
+- [macOS](https://docs.aetherbot.ai/platforms/macos) · [iOS](https://docs.aetherbot.ai/platforms/ios) · [Android](https://docs.aetherbot.ai/platforms/android) · [Linux](https://docs.aetherbot.ai/platforms/linux) · [Windows (WSL2)](https://docs.aetherbot.ai/platforms/windows)
 
 ### Operations
 
-- [Health Checks](https://docs.openclaw.ai/gateway/health) · [Logging](https://docs.openclaw.ai/logging) · [Doctor](https://docs.openclaw.ai/gateway/doctor) · [Troubleshooting](https://docs.openclaw.ai/channels/troubleshooting)
+- [Health Checks](https://docs.aetherbot.ai/gateway/health) · [Logging](https://docs.aetherbot.ai/logging) · [Doctor](https://docs.aetherbot.ai/gateway/doctor) · [Troubleshooting](https://docs.aetherbot.ai/channels/troubleshooting)
 
 ---
 

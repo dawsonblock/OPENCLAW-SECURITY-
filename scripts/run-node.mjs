@@ -75,7 +75,7 @@ const findLatestMtime = (dirPath, shouldSkip) => {
 };
 
 const shouldBuild = () => {
-  if (env.OPENCLAW_FORCE_BUILD === "1") {
+  if (env.AETHERBOT_FORCE_BUILD === "1" || env.OPENCLAW_FORCE_BUILD === "1") {
     return true;
   }
   const stampMtime = statMtime(buildStampPath);
@@ -101,7 +101,7 @@ const shouldBuild = () => {
 };
 
 const logRunner = (message) => {
-  if (env.OPENCLAW_RUNNER_LOG === "0") {
+  if (env.AETHERBOT_RUNNER_LOG === "0" || env.OPENCLAW_RUNNER_LOG === "0") {
     return;
   }
   process.stderr.write(`[aetherbot] ${message}\n`);

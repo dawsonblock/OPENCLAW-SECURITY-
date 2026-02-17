@@ -56,7 +56,7 @@ aetherbot browser --browser-profile work tabs
 
 ```bash
 aetherbot browser tabs
-aetherbot browser open https://docs.openclaw.ai
+aetherbot browser open https://docs.aetherbot.ai
 aetherbot browser focus <targetId>
 aetherbot browser close <targetId>
 ```

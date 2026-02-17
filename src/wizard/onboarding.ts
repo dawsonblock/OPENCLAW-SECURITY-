@@ -73,7 +73,7 @@ async function requireRiskAcknowledgement(params: {
       "aetherbot security audit --deep",
       "aetherbot security audit --fix",
       "",
-      "Must read: https://docs.openclaw.ai/gateway/security",
+      "Must read: https://docs.aetherbot.ai/gateway/security",
     ].join("\n"),
     "Security",
   );
@@ -106,7 +106,7 @@ export async function runOnboardingWizard(
         [
           ...snapshot.issues.map((iss) => `- ${iss.path}: ${iss.message}`),
           "",
-          "Docs: https://docs.openclaw.ai/gateway/configuration",
+          "Docs: https://docs.aetherbot.ai/gateway/configuration",
         ].join("\n"),
         "Config issues",
       );

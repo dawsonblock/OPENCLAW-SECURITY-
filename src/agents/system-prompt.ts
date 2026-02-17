@@ -151,7 +151,7 @@ function buildDocsSection(params: { docsPath?: string; isMinimal: boolean; readT
   return [
     "## Documentation",
     `AetherBot docs: ${docsPath}`,
-    "Mirror: https://docs.openclaw.ai", // legacy URL
+    "Mirror: https://docs.aetherbot.ai", // legacy URL
     "Source: https://github.com/AetheronResearch/aetherbot",
     "Community: https://discord.com/invite/clawd",
     "Find new skills: https://clawhub.com",

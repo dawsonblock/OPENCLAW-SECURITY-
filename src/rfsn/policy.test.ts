@@ -50,13 +50,13 @@ describe("createDefaultRfsnPolicy", () => {
   });
 
   test("applies env overrides for fetch domains and booleans", () => {
-    process.env.OPENCLAW_RFSN_FETCH_ALLOW_DOMAINS = "docs.openclaw.ai,*.github.com";
+    process.env.OPENCLAW_RFSN_FETCH_ALLOW_DOMAINS = "docs.aetherbot.ai,*.github.com";
     process.env.OPENCLAW_RFSN_FETCH_ALLOW_SUBDOMAINS = "0";
     process.env.OPENCLAW_RFSN_ENFORCE_FETCH_DOMAIN_ALLOWLIST = "0";
     process.env.OPENCLAW_RFSN_BLOCK_EXEC_COMMAND_SUBSTITUTION = "0";
 
     const policy = createDefaultRfsnPolicy();
-    expect(policy.fetchAllowedDomains.has("docs.openclaw.ai")).toBe(true);
+    expect(policy.fetchAllowedDomains.has("docs.aetherbot.ai")).toBe(true);
     expect(policy.fetchAllowedDomains.has("*.github.com")).toBe(true);
     expect(policy.fetchAllowSubdomains).toBe(false);
     expect(policy.enforceFetchDomainAllowlist).toBe(false);
@@ -78,7 +78,7 @@ describe("createDefaultRfsnPolicy", () => {
       denyTools: [],
       grantedCapabilities: ["fs:read:workspace"],
       execSafeBins: ["rg"],
-      fetchAllowedDomains: ["docs.openclaw.ai"],
+      fetchAllowedDomains: ["docs.aetherbot.ai"],
     });
 
     expect(policy.mode).toBe("allowlist");
@@ -88,7 +88,7 @@ describe("createDefaultRfsnPolicy", () => {
     expect(policy.grantedCapabilities.has("net:gateway")).toBe(false);
     expect(policy.execSafeBins.has("curl")).toBe(false);
     expect(policy.fetchAllowedDomains.has("example.com")).toBe(false);
-    expect(policy.fetchAllowedDomains.has("docs.openclaw.ai")).toBe(true);
+    expect(policy.fetchAllowedDomains.has("docs.aetherbot.ai")).toBe(true);
   });
 
   test("can create minimal policies without default granted caps/bins", () => {

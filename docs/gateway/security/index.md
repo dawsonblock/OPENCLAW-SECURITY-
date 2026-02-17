@@ -830,7 +830,7 @@ flowchart TB
 
 Found a vulnerability in AetherBot? Please report responsibly:
 
-1. Email: [security@openclaw.ai](mailto:security@openclaw.ai)
+1. Email: [security@aetherbot.ai](mailto:security@aetherbot.ai)
 2. Don't post publicly until fixed
 3. We'll credit you (unless you prefer anonymity)
 

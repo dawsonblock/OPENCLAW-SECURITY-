@@ -196,8 +196,8 @@ export function formatControlUiSshHint(params: {
     localUrl,
     params.token ? "Then authenticate in Control UI with your gateway token." : undefined,
     "Docs:",
-    "https://docs.openclaw.ai/gateway/remote",
-    "https://docs.openclaw.ai/web/control-ui",
+    "https://docs.aetherbot.ai/gateway/remote",
+    "https://docs.aetherbot.ai/web/control-ui",
   ]
     .filter(Boolean)
     .join("\n");

@@ -67,7 +67,7 @@ curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
 apt install -y nodejs
 
 # Install AetherBot
-curl -fsSL https://openclaw.ai/install.sh | bash
+curl -fsSL https://aetherbot.ai/install.sh | bash
 
 # Verify
 aetherbot --version

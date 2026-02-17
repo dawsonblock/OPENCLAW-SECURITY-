@@ -1,6 +1,6 @@
 # AetherBot Security & Trust
 
-**Live:** [trust.openclaw.ai](https://trust.openclaw.ai)
+**Live:** [trust.aetherbot.ai](https://trust.aetherbot.ai)
 
 ## Documents
 
@@ -9,7 +9,7 @@
 
 ## Reporting Vulnerabilities
 
-See the [Trust page](https://trust.openclaw.ai) for full reporting instructions covering all repos.
+See the [Trust page](https://trust.aetherbot.ai) for full reporting instructions covering all repos.
 
 ## Contact
 
