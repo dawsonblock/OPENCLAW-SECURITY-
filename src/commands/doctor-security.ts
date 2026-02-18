@@ -248,7 +248,7 @@ export async function noteSecurityWarnings(cfg: OpenClawConfig) {
     warnings.push("- Auth token: NOT SET — fix with aetherbot doctor --fix");
   } else if (resolvedAuth.mode === "password" && !hasPassword && isExposed) {
     warnings.push("- Auth password: NOT SET — fix with aetherbot configure");
-  } else if (resolvedAuth.mode === "none") {
+  } else if ((resolvedAuth.mode as string) === "none") {
     if (isExposed) {
       warnings.push("- CRITICAL: Auth disabled on exposed gateway");
     }

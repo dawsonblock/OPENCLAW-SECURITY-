@@ -67,8 +67,15 @@ export async function verifyLedger(path: string): Promise<LedgerVerifyResult> {
       };
     }
 
+    interface LedgerEntry {
+      hash: string;
+      prevHash: string;
+      payload: unknown;
+    }
+    const typedEntry = entry as LedgerEntry;
+
     // Check header pointers
-    const expectedPrev = entry.prevHash || "";
+    const expectedPrev = typedEntry.prevHash || "";
     if (expectedPrev !== prevHash) {
       return {
         ok: false,
@@ -82,19 +89,19 @@ export async function verifyLedger(path: string): Promise<LedgerVerifyResult> {
     // entry.payload should be the redacted, canonical payload we wrote.
     // verify hash = sha256(prevHash + canonicalJson(payload))
     // Note: The ledger writing code uses `canonicalJson(payload)` on the payload object.
-    const computed = sha256Hex(prevHash + canonicalJson(entry.payload));
+    const computed = sha256Hex(prevHash + canonicalJson(typedEntry.payload));
 
-    if (computed !== entry.hash) {
+    if (computed !== typedEntry.hash) {
       return {
         ok: false,
         entries: lineNum,
         tipHash: lastHash,
-        error: `Entry hash mismatch at line ${lineNum}. Computed '${computed}', recorded '${entry.hash}'`,
+        error: `Entry hash mismatch at line ${lineNum}. Computed '${computed}', recorded '${typedEntry.hash}'`,
       };
     }
 
-    prevHash = entry.hash;
-    lastHash = entry.hash;
+    prevHash = typedEntry.hash;
+    lastHash = typedEntry.hash;
   }
 
   // Check sidecar

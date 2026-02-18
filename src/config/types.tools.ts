@@ -1,5 +1,6 @@
 import type { ChatType } from "../channels/chat-type.js";
 import type { AgentElevatedAllowFromConfig, SessionSendPolicyAction } from "./types.base.js";
+import type { SandboxExecutionBudgetSettings, SandboxFileSystemSettings } from "./types.sandbox.js";
 
 export type MediaUnderstandingScopeMatch = {
   channel?: string;
@@ -192,6 +193,11 @@ export type ExecToolConfig = {
      * Accepts either raw ids (e.g. "gpt-5.2") or full ids (e.g. "openai/gpt-5.2").
      */
     allowModels?: string[];
+  };
+  /** Sandbox configuration for exec. */
+  sandbox?: {
+    fs?: SandboxFileSystemSettings;
+    executionBudget?: SandboxExecutionBudgetSettings;
   };
 };
 

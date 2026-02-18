@@ -16,7 +16,8 @@ export function resolveExecToolDefaults(config?: OpenClawConfig): ExecToolDefaul
   if (!tools?.exec) {
     return undefined;
   }
-  return tools.exec;
+  const { sandbox: _policySandbox, ...defaults } = tools.exec;
+  return defaults;
 }
 
 export function describeUnknownError(error: unknown): string {

@@ -7,8 +7,8 @@ import {
   validateEgressTarget,
   type ResolvedEgressPolicy,
 } from "../../security/network-egress-policy.js";
-import { jsonResult, readStringParam } from "./common.js";
 import { type AnyAgentTool } from "../pi-tools.types.js";
+import { jsonResult, readStringParam } from "./common.js";
 
 const NetworkProxySchema = Type.Object({
   url: Type.String({ description: "HTTP or HTTPS URL to fetch." }),
