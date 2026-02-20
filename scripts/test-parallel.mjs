@@ -6,15 +6,15 @@ const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const runs = [
   {
     name: "unit",
-    args: ["vitest", "run", "--config", "vitest.unit.config.ts"],
+    args: ["vitest", "run", "--config", "config/vitest/unit.config.ts"],
   },
   {
     name: "extensions",
-    args: ["vitest", "run", "--config", "vitest.extensions.config.ts"],
+    args: ["vitest", "run", "--config", "config/vitest/extensions.config.ts"],
   },
   {
     name: "gateway",
-    args: ["vitest", "run", "--config", "vitest.gateway.config.ts"],
+    args: ["vitest", "run", "--config", "config/vitest/gateway.config.ts"],
   },
 ];
 
