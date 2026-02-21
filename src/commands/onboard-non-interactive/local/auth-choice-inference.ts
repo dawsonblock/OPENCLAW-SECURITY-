@@ -1,13 +1,13 @@
 import { type OnboardOptions, type AuthChoice } from "../../onboard-types.js";
 
 export function inferAuthChoiceFromFlags(opts: OnboardOptions): {
-  matches: Array<{ label: string; value: string }>;
-  choice?: string;
+  matches: Array<{ label: string; value: AuthChoice }>;
+  choice?: AuthChoice;
 } {
-  const matches: Array<{ label: string; value: string }> = [];
+  const matches: Array<{ label: string; value: AuthChoice }> = [];
 
   if (opts.anthropicApiKey) {
-    matches.push({ label: "--anthropic-api-key", value: "anthropic-api-key" });
+    matches.push({ label: "--anthropic-api-key", value: "apiKey" });
   }
   if (opts.openaiApiKey) {
     matches.push({ label: "--openai-api-key", value: "openai-api-key" });
@@ -40,7 +40,7 @@ export function inferAuthChoiceFromFlags(opts: OnboardOptions): {
     matches.push({ label: "--xiaomi-api-key", value: "xiaomi-api-key" });
   }
   if (opts.minimaxApiKey) {
-    matches.push({ label: "--minimax-api-key", value: "minimax-api-key" });
+    matches.push({ label: "--minimax-api-key", value: "minimax-api" });
   }
   if (opts.syntheticApiKey) {
     matches.push({ label: "--synthetic-api-key", value: "synthetic-api-key" });
@@ -61,9 +61,9 @@ export function inferAuthChoiceFromFlags(opts: OnboardOptions): {
     matches.push({ label: "--qianfan-api-key", value: "qianfan-api-key" });
   }
 
-  let choice: AuthChoice | undefined = opts.authChoice as AuthChoice | undefined;
+  let choice: AuthChoice | undefined = opts.authChoice;
   if (!choice && matches.length === 1) {
-    choice = matches[0]!.value as AuthChoice;
+    choice = matches[0].value;
   }
 
   if (opts.authChoice) {

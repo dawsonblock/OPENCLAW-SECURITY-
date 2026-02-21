@@ -110,7 +110,7 @@ export async function applyNonInteractiveAuthChoice(params: {
 
     return result.config;
   } catch (err) {
-    runtime.error(`Failed to apply auth choice non-interactively: ${err}`);
+    runtime.error(`Failed to apply auth choice non-interactively: ${(err as Error).message}`);
     runtime.exit(1);
     return;
   }
