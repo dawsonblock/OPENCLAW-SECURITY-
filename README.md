@@ -164,7 +164,7 @@ Automatically download repositories and fix security vulnerabilities using the *
 "Clone https://github.com/owner/repo and fix all security vulnerabilities"
 ```
 
-### Features
+### Fixer Features
 
 - **Automatic cloning** to isolated temp directories
 - **Multi-package manager support** (npm, pnpm, yarn, bun)
@@ -173,7 +173,7 @@ Automatically download repositories and fix security vulnerabilities using the *
 - **PR creation** with automated fix descriptions
 - **Test verification** before committing
 
-### Workflow
+### Fixer UsageWorkflow
 
 1. Clone repository to temp directory
 2. Auto-detect package manager
@@ -210,7 +210,7 @@ gh pr create --title "fix: resolve security vulnerabilities"
 
 Install community skills from [clawhub.ai](https://clawhub.ai) with automatic security scanning:
 
-### Features
+### ClawHub Features
 
 - **Semantic search** for skills (vector-based, not just keywords)
 - **Automatic code scanning** on install (detects command injection, file manipulation, etc.)
@@ -218,7 +218,7 @@ Install community skills from [clawhub.ai](https://clawhub.ai) with automatic se
 - **Community moderation** (auto-hide after 3+ reports)
 - **Per-agent installation** for workspace isolation
 
-### Usage
+### ClawHub Usage
 
 ```bash
 # Install ClawHub CLI
@@ -416,6 +416,15 @@ The crown jewel of the hardening — continuous runtime integrity monitoring:
 | `resource-governor.ts` | Resource limits enforcement            |
 | `runtime-assert.ts`    | Runtime assertion helpers              |
 | `secret-scrubber.ts`   | Final-pass secret scrubbing            |
+
+### Phase 8 — Performance & Build Optimization
+
+This phase resolved long-standing technical debt and build configuration sprawl:
+
+- **Build Reorganization**: Consolidated scattered `vitest.*.config.ts` and `tsconfig.*.json` files into dedicated `config/vitest/` and `config/typescript/` directories for a cleaner repository root.
+- **Runtime Performance**: Replaced lingering Keep-Alive HTTP connection hangs with immediate `closeAllConnections` flush, plummeting `server.*.test.ts` test execution time by **70–80%** (20s+ to ~5s).
+- **Test Optimization**: Eliminated dangling `TypingController` `setInterval` loops causing multi-second test runner leak hangs by injecting teardowns in mocked dispatchers. Fixed `Promise.all` sync I/O bottlenecks in RFSN analysis suites yielding a **36%** speedup.
+- **Strict Typing Zero-Error**: Hardened all Gateway schema inputs (`ExecToolConfig` and `OnboardOptions`) eliminating all `tsc --noEmit` build failures to prevent undefined object literal mutations.
 
 ### Security Audit Summary
 
