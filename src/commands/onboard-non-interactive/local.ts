@@ -68,7 +68,6 @@ export async function runNonInteractiveOnboardingLocal(params: {
     authChoice,
     opts,
     runtime,
-    baseConfig,
   });
   if (!nextConfigAfterAuth) {
     return;

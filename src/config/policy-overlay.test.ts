@@ -40,13 +40,13 @@ describe("Tighten-only Overlay", () => {
 
   it("validates filesystem allowlist subset", () => {
     const current: OpenClawConfig = {
-      tools: { exec: { sandbox: { fs: { allow: ["/tmp", "/var"] } } } },
+      agents: { defaults: { sandbox: { fs: { allow: ["/tmp", "/var"] } } } },
     };
     const proposedValid: OpenClawConfig = {
-      tools: { exec: { sandbox: { fs: { allow: ["/tmp"] } } } },
+      agents: { defaults: { sandbox: { fs: { allow: ["/tmp"] } } } },
     };
     const proposedInvalid: OpenClawConfig = {
-      tools: { exec: { sandbox: { fs: { allow: ["/tmp", "/etc"] } } } },
+      agents: { defaults: { sandbox: { fs: { allow: ["/tmp", "/etc"] } } } },
     };
 
     expect(() => validateTightenOnly(current, proposedValid)).not.toThrow();
@@ -57,13 +57,13 @@ describe("Tighten-only Overlay", () => {
 
   it("validates execution budget tightening", () => {
     const current: OpenClawConfig = {
-      tools: { exec: { sandbox: { executionBudget: { timeoutMs: 1000 } } } },
+      agents: { defaults: { sandbox: { executionBudget: { timeoutMs: 1000 } } } },
     };
     const proposedValid: OpenClawConfig = {
-      tools: { exec: { sandbox: { executionBudget: { timeoutMs: 500 } } } },
+      agents: { defaults: { sandbox: { executionBudget: { timeoutMs: 500 } } } },
     };
     const proposedInvalid: OpenClawConfig = {
-      tools: { exec: { sandbox: { executionBudget: { timeoutMs: 2000 } } } },
+      agents: { defaults: { sandbox: { executionBudget: { timeoutMs: 2000 } } } },
     };
 
     expect(() => validateTightenOnly(current, proposedValid)).not.toThrow();

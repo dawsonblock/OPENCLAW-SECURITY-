@@ -1,4 +1,4 @@
-import type { OnboardOptions } from "../../onboard-types.js";
+import { type OnboardOptions, type AuthChoice } from "../../onboard-types.js";
 
 export function inferAuthChoiceFromFlags(opts: OnboardOptions): {
   matches: Array<{ label: string; value: string }>;
@@ -61,9 +61,9 @@ export function inferAuthChoiceFromFlags(opts: OnboardOptions): {
     matches.push({ label: "--qianfan-api-key", value: "qianfan-api-key" });
   }
 
-  let choice = opts.authChoice;
+  let choice: AuthChoice | undefined = opts.authChoice as AuthChoice | undefined;
   if (!choice && matches.length === 1) {
-    choice = matches[0]!.value;
+    choice = matches[0]!.value as AuthChoice;
   }
 
   if (opts.authChoice) {
@@ -73,6 +73,6 @@ export function inferAuthChoiceFromFlags(opts: OnboardOptions): {
 
   return {
     matches,
-    choice: choice as any,
+    choice,
   };
 }

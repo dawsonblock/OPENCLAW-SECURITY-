@@ -47,12 +47,12 @@ function validateNetworkAllowlist(current: OpenClawConfig, proposed: OpenClawCon
 }
 
 function validateFsAllowlist(current: OpenClawConfig, proposed: OpenClawConfig) {
-  const currentFs = current.tools?.exec?.sandbox?.fs?.allow;
-  const proposedFs = proposed.tools?.exec?.sandbox?.fs?.allow;
+  const currentFs = current.agents?.defaults?.sandbox?.fs?.allow;
+  const proposedFs = proposed.agents?.defaults?.sandbox?.fs?.allow;
 
   if (!currentFs) {
-    return;
-  } // Current allows everything (or default)
+    return; // Current allows everything (or default)
+  }
 
   if (!proposedFs) {
     throw new PolicyError("Cannot remove filesystem allowlist (would relax security).");
@@ -66,8 +66,8 @@ function validateFsAllowlist(current: OpenClawConfig, proposed: OpenClawConfig) 
 }
 
 function validateExecutionBudget(current: OpenClawConfig, proposed: OpenClawConfig) {
-  const currentBudget = current.tools?.exec?.sandbox?.executionBudget;
-  const proposedBudget = proposed.tools?.exec?.sandbox?.executionBudget;
+  const currentBudget = current.agents?.defaults?.sandbox?.executionBudget;
+  const proposedBudget = proposed.agents?.defaults?.sandbox?.executionBudget;
 
   if (!currentBudget) {
     return;

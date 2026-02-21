@@ -235,6 +235,7 @@ const entries: SubCliEntry[] = [
     name: "completion",
     description: "Generate shell completion script",
     register: async (program) => {
+      const mod = await import("../completion-cli.js");
       mod.registerCompletionCli(program);
     },
   },

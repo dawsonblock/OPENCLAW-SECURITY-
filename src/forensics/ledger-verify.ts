@@ -55,15 +55,30 @@ export async function verifyLedger(path: string): Promise<LedgerVerifyResult> {
       continue;
     }
 
-    let entry: unknown;
+    let entry: { prevHash?: string; payload: unknown; hash: string };
     try {
-      entry = JSON.parse(line);
+      entry = JSON.parse(line) as { prevHash?: string; payload: unknown; hash: string };
     } catch (e) {
       return {
         ok: false,
         entries: lineNum,
         tipHash: lastHash,
         error: `JSON parse error at line ${lineNum}: ${String(e)}`,
+      };
+    }
+
+    if (
+      !entry ||
+      typeof entry !== "object" ||
+      !("hash" in entry) ||
+      !("payload" in entry) ||
+      typeof entry.hash !== "string"
+    ) {
+      return {
+        ok: false,
+        entries: lineNum,
+        tipHash: lastHash,
+        error: `Invalid ledger entry format at line ${lineNum}`,
       };
     }
 
@@ -88,8 +103,8 @@ export async function verifyLedger(path: string): Promise<LedgerVerifyResult> {
       return {
         ok: false,
         entries: lineNum,
-        tipHash: lastHash,
         error: `Entry hash mismatch at line ${lineNum}. Computed '${computed}', recorded '${entry.hash}'`,
+        tipHash: lastHash,
       };
     }
 

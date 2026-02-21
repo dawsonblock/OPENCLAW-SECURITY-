@@ -207,7 +207,7 @@ export async function noteSecurityWarnings(cfg: OpenClawConfig) {
     }
     // One-way toggle: OPENCLAW_ALLOW_UNSAFE_CONFIG requires double-confirm
     const unsafeCfg = activeBreakGlass.find((v) => v.key === "OPENCLAW_ALLOW_UNSAFE_CONFIG");
-    if (unsafeCfg && !isLoopback) {
+    if (unsafeCfg && isExposed) {
       const confirm = process.env.OPENCLAW_I_UNDERSTAND_THIS_IS_UNSAFE?.trim().toLowerCase();
       if (confirm !== "1" && confirm !== "true") {
         warnings.push(
@@ -248,10 +248,6 @@ export async function noteSecurityWarnings(cfg: OpenClawConfig) {
     warnings.push("- Auth token: NOT SET — fix with openclaw doctor --fix");
   } else if (resolvedAuth.mode === "password" && !hasPassword && isExposed) {
     warnings.push("- Auth password: NOT SET — fix with openclaw configure");
-  } else if (resolvedAuth.mode === "none") {
-    if (isExposed) {
-      warnings.push("- CRITICAL: Auth disabled on exposed gateway");
-    }
   }
 
   const lines = warnings.length > 0 ? warnings : ["- No channel security warnings detected."];

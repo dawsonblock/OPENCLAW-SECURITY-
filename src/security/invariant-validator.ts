@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../config/config.js";
 import { DEFAULT_DANGEROUS_NODE_COMMANDS } from "../gateway/node-command-policy.js";
 
 export type InvariantCheckResult = {
@@ -42,7 +42,9 @@ export function validateStartupInvariants(params: {
   // 3. Dangerous Commands in Config
   // Ensure no "always allowed" dangerous commands are present in the config if running in production
   const allowedCommands = params.cfg.gateway?.nodes?.allowCommands ?? [];
-  const dangerous = allowedCommands.filter((cmd) => DEFAULT_DANGEROUS_NODE_COMMANDS.includes(cmd));
+  const dangerous = allowedCommands.filter((cmd: string) =>
+    DEFAULT_DANGEROUS_NODE_COMMANDS.includes(cmd),
+  );
   if (dangerous.length > 0 && isProduction) {
     errors.push(
       `Critical Invariant Failed: Dangerous commands allowed in production config: ${dangerous.join(", ")}`,
