@@ -9,6 +9,7 @@ const ALLOWED_TOOL_EXECUTE_FILES = new Set([
   "src/rfsn/dispatch.ts",
   "src/agents/pi-tool-definition-adapter.ts",
   "src/agents/pi-tools.read.ts",
+  "src/agents/pi-tools.replay.ts",
 ]);
 
 const ALLOWED_NODE_INVOKE_FILES = new Set(["src/gateway/node-command-kernel-gate.ts"]);

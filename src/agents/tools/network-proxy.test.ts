@@ -23,7 +23,7 @@ describe("network_proxy tool", () => {
 
   const mockSuccess = () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (fetchGuard.fetchWithSsrFGuard as any).mockResolvedValue({
       response: {
         ok: true,
@@ -58,7 +58,7 @@ describe("network_proxy tool", () => {
 
     const result = await tool.execute("id", { url: "https://example.com/foo" });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const content = (result as any).content[0].text;
     const data = JSON.parse(content);
     expect(data).toHaveProperty("content", "Mock Content");
@@ -89,7 +89,7 @@ describe("network_proxy tool", () => {
 
     const result = await tool.execute("id", { url: "https://random.com" });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const content = (result as any).content[0].text;
     const data = JSON.parse(content);
     expect(data).toHaveProperty("content", "Mock Content");

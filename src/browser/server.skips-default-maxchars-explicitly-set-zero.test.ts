@@ -10,7 +10,7 @@ let createTargetId: string | null = null;
 let prevGatewayPort: string | undefined;
 
 const cdpMocks = vi.hoisted(() => ({
-  createTargetViaCdp: vi.fn(async () => {
+  createTargetViaCdp: vi.fn(async (): Promise<{ targetId: string }> => {
     throw new Error("cdp disabled");
   }),
   snapshotAria: vi.fn(async () => ({
@@ -47,7 +47,7 @@ const pwMocks = vi.hoisted(() => ({
   resizeViewportViaPlaywright: vi.fn(async () => {}),
   selectOptionViaPlaywright: vi.fn(async () => {}),
   setInputFilesViaPlaywright: vi.fn(async () => {}),
-  snapshotAiViaPlaywright: vi.fn(async () => ({ snapshot: "ok" })),
+  snapshotAiViaPlaywright: vi.fn(async (_opts?: unknown) => ({ snapshot: "ok" })),
   takeScreenshotViaPlaywright: vi.fn(async () => ({
     buffer: Buffer.from("png"),
   })),
@@ -286,7 +286,7 @@ describe("browser control server", () => {
     expect(snapAi.ok).toBe(true);
     expect(snapAi.format).toBe("ai");
 
-    const [call] = pwMocks.snapshotAiViaPlaywright.mock.calls.at(-1) ?? [];
+    const [call] = pwMocks.snapshotAiViaPlaywright.mock.calls.at(-1) ?? ([] as unknown[]);
     expect(call).toEqual({
       cdpUrl: cdpBaseUrl,
       targetId: "abcd1234",
@@ -425,6 +425,10 @@ describe("browser control server", () => {
         noSandbox: false,
         attachOnly: true,
         defaultProfile: "openclaw",
+        allowDomains: [],
+        evaluateEnabled: true,
+        remoteCdpTimeoutMs: 30000,
+        remoteCdpHandshakeTimeoutMs: 10000,
         profiles: {
           openclaw: { cdpPort: testPort + 1, color: "#FF4500" },
         },
@@ -434,6 +438,7 @@ describe("browser control server", () => {
 
     const started = (await realFetch(`${bridge.baseUrl}/start`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
     }).then((r) => r.json())) as { ok?: boolean; error?: string };
     expect(started.error).toBeUndefined();
     expect(started.ok).toBe(true);

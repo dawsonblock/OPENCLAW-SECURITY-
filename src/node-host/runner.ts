@@ -42,10 +42,7 @@ import {
 import { getMachineDisplayName } from "../infra/machine-name.js";
 import { ensureOpenClawCliOnPath } from "../infra/path-env.js";
 import { detectMime } from "../media/mime.js";
-import {
-  enforceSafeBudget,
-  type ExecBudget,
-} from "../security/exec-budgets.js";
+import { enforceSafeBudget, type ExecBudget } from "../security/exec-budgets.js";
 import { SAFE_ENV_KEYS } from "../security/exec-env-allowlist.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
 import { VERSION } from "../version.js";

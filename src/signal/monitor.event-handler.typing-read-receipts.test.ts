@@ -12,8 +12,11 @@ vi.mock("./send.js", () => ({
 vi.mock("../auto-reply/dispatch.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../auto-reply/dispatch.js")>();
   const dispatchInboundMessage = vi.fn(
-    async (params: { replyOptions?: { onReplyStart?: () => void } }) => {
+    async (params: {
+      replyOptions?: { onReplyStart?: () => void; onTypingCleanup?: () => void };
+    }) => {
       await Promise.resolve(params.replyOptions?.onReplyStart?.());
+      params.replyOptions?.onTypingCleanup?.();
       return { queuedFinal: false, counts: { tool: 0, block: 0, final: 0 } };
     },
   );
@@ -69,7 +72,7 @@ describe("signal event handler typing + read receipts", () => {
       deliverReplies: async () => {},
       resolveSignalReactionTargets: () => [],
       // oxlint-disable-next-line typescript/no-explicit-any
-      isSignalReactionMessage: () => false as any,
+      isSignalReactionMessage: (_msg: any): _msg is any => false,
       shouldEmitSignalReactionNotification: () => false,
       buildSignalReactionSystemEventText: () => "reaction",
     });

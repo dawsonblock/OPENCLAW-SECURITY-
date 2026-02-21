@@ -37,6 +37,7 @@ describe("sandbox config merges", () => {
 
     const resolved = resolveSandboxDockerConfig({
       scope: "agent",
+      fsAllow: ["/var/run/docker.sock", "/home/user/source"],
       globalDocker: {
         binds: ["/var/run/docker.sock:/var/run/docker.sock"],
       },
@@ -68,6 +69,7 @@ describe("sandbox config merges", () => {
 
     const resolved = resolveSandboxDockerConfig({
       scope: "shared",
+      fsAllow: ["/var/run/docker.sock", "/home/user/source"],
       globalDocker: {
         binds: ["/var/run/docker.sock:/var/run/docker.sock"],
       },

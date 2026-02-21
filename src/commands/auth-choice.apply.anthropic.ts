@@ -17,27 +17,38 @@ export async function applyAuthChoiceAnthropic(
     params.authChoice === "token"
   ) {
     let nextConfig = params.config;
-    await params.prompter.note(
-      ["Run `claude setup-token` in your terminal.", "Then paste the generated token below."].join(
-        "\n",
-      ),
-      "Anthropic setup-token",
-    );
+    let token = "";
+    let profileNameRaw = "";
 
-    const tokenRaw = await params.prompter.text({
-      message: "Paste Anthropic setup-token",
-      validate: (value) => validateAnthropicSetupToken(String(value ?? "")),
-    });
-    const token = String(tokenRaw).trim();
+    if (params.opts?.token && params.opts?.tokenProvider === "anthropic") {
+      token = params.opts.token;
+      profileNameRaw = params.opts.tokenProfileId?.replace("anthropic:", "") ?? "";
+    } else {
+      await params.prompter.note(
+        [
+          "Run `claude setup-token` in your terminal.",
+          "Then paste the generated token below.",
+        ].join("\n"),
+        "Anthropic setup-token",
+      );
 
-    const profileNameRaw = await params.prompter.text({
-      message: "Token name (blank = default)",
-      placeholder: "default",
-    });
+      const tokenRaw = await params.prompter.text({
+        message: "Paste Anthropic setup-token",
+        validate: (value) => validateAnthropicSetupToken(String(value ?? "")),
+      });
+      token = String(tokenRaw).trim();
+
+      const nameRaw = await params.prompter.text({
+        message: "Token name (blank = default)",
+        placeholder: "default",
+      });
+      profileNameRaw = String(nameRaw ?? "");
+    }
+
     const provider = "anthropic";
     const namedProfileId = buildTokenProfileId({
       provider,
-      name: String(profileNameRaw ?? ""),
+      name: profileNameRaw,
     });
 
     upsertAuthProfile({
