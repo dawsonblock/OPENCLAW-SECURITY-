@@ -21,7 +21,7 @@ COPY ui/package.json ./ui/package.json
 COPY patches ./patches
 COPY scripts ./scripts
 
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store pnpm config set store-dir /root/.local/share/pnpm/store && pnpm install --frozen-lockfile
 
 COPY . .
 RUN pnpm build
