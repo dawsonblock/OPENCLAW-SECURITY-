@@ -36,10 +36,14 @@ export async function respondUnavailableOnThrow(respond: RespondFn, fn: () => Pr
 }
 
 export function uniqueSortedStrings(values: unknown[]) {
-  return [...new Set(values.filter((v) => typeof v === "string"))]
-    .map((v) => v.trim())
-    .filter(Boolean)
-    .toSorted();
+  return [
+    ...new Set(
+      values
+        .filter((v): v is string => typeof v === "string")
+        .map((v) => v.trim())
+        .filter(Boolean),
+    ),
+  ].toSorted();
 }
 
 export function safeParseJson(value: string | null | undefined): unknown {

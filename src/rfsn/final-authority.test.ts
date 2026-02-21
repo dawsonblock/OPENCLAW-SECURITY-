@@ -238,10 +238,15 @@ describe("RFSN final authority", () => {
     const files = await listRuntimeTsFiles(SRC_ROOT);
     const violations: string[] = [];
 
-    for (const absPath of files) {
-      const relPath = toPosixRelative(absPath);
-      const content = await fs.readFile(absPath, "utf8");
+    const fileContents = await Promise.all(
+      files.map(async (absPath) => ({
+        absPath,
+        relPath: toPosixRelative(absPath),
+        content: await fs.readFile(absPath, "utf8"),
+      })),
+    );
 
+    for (const { relPath, content } of fileContents) {
       const hasNodeInvoke = /\bnodeRegistry\.invoke\(/.test(content);
       if (hasNodeInvoke && !ALLOWED_NODE_INVOKE_FILES.has(relPath)) {
         violations.push(`${relPath}: nodeRegistry.invoke bypasses kernel gate`);
