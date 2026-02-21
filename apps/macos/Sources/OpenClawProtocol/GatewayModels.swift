@@ -2341,6 +2341,8 @@ public struct ExecApprovalsSnapshot: Codable, Sendable {
 public struct ExecApprovalRequestParams: Codable, Sendable {
     public let id: String?
     public let command: String
+    public let commandargv: AnyCodable?
+    public let commandenv: AnyCodable?
     public let cwd: AnyCodable?
     public let host: AnyCodable?
     public let security: AnyCodable?
@@ -2353,6 +2355,8 @@ public struct ExecApprovalRequestParams: Codable, Sendable {
     public init(
         id: String?,
         command: String,
+        commandargv: AnyCodable?,
+        commandenv: AnyCodable?,
         cwd: AnyCodable?,
         host: AnyCodable?,
         security: AnyCodable?,
@@ -2364,6 +2368,8 @@ public struct ExecApprovalRequestParams: Codable, Sendable {
     ) {
         self.id = id
         self.command = command
+        self.commandargv = commandargv
+        self.commandenv = commandenv
         self.cwd = cwd
         self.host = host
         self.security = security
@@ -2376,6 +2382,8 @@ public struct ExecApprovalRequestParams: Codable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case id
         case command
+        case commandargv = "commandArgv"
+        case commandenv = "commandEnv"
         case cwd
         case host
         case security
@@ -2401,6 +2409,43 @@ public struct ExecApprovalResolveParams: Codable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case id
         case decision
+    }
+}
+
+public struct CapabilityApprovalRequestParams: Codable, Sendable {
+    public let id: String?
+    public let capability: String
+    public let subject: String
+    public let payloadhash: String
+    public let agentid: AnyCodable?
+    public let sessionkey: AnyCodable?
+    public let timeoutms: Int?
+
+    public init(
+        id: String?,
+        capability: String,
+        subject: String,
+        payloadhash: String,
+        agentid: AnyCodable?,
+        sessionkey: AnyCodable?,
+        timeoutms: Int?
+    ) {
+        self.id = id
+        self.capability = capability
+        self.subject = subject
+        self.payloadhash = payloadhash
+        self.agentid = agentid
+        self.sessionkey = sessionkey
+        self.timeoutms = timeoutms
+    }
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case capability
+        case subject
+        case payloadhash = "payloadHash"
+        case agentid = "agentId"
+        case sessionkey = "sessionKey"
+        case timeoutms = "timeoutMs"
     }
 }
 
