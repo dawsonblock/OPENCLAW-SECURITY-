@@ -1,0 +1,46 @@
+module hgate_props (
+    input clk,
+    input rst_n,
+    input [7:0] cmd,
+    input cmd_valid,
+    input [255:0] pcr,
+    input [63:0] counter,
+    input locked
+);
+
+    // --- Property 1: PCR Monotonicity (Write-Once / Extend-Only) ---
+    // The PCR registers cannot be arbitrarily overwritten once the boot chain progresses,
+    // they can only be mathematically extended (PCR_next = SHA256(PCR_prev || data)).
+    property pcr_extend_only;
+        @(posedge clk) disable iff (!rst_n)
+        ($changed(pcr)) |-> (cmd == 8'h02) && !locked; // CMD_PCR_EXTEND
+    endproperty
+    assert property(pcr_extend_only) else $error("SECURITY VIOLATION: Arbitrary PCR write detected.");
+
+    // --- Property 2: Counter Anti-Rollback ---
+    // The anti-rollback counter must strictly increase or stay the same. It can never decrement.
+    property counter_monotonic;
+        @(posedge clk) disable iff (!rst_n)
+        (counter >= $past(counter));
+    endproperty
+    assert property(counter_monotonic) else $error("SECURITY VIOLATION: Counter rollback detected.");
+
+    // --- Property 3: No Crypto Execution While Locked ---
+    // If the H-Gate enters a locked/fault state (e.g., failed signature verification),
+    // no further cryptographic signatures can be generated until a hard reset.
+    property no_sign_when_locked;
+        @(posedge clk) disable iff (!rst_n)
+        locked |-> !(cmd == 8'h03 && cmd_valid); // CMD_SIGN
+    endproperty
+    assert property(no_sign_when_locked) else $error("SECURITY VIOLATION: Cryptographic operation executed while locked.");
+
+    // --- Property 4: Constant-Time Execution Guarantee ---
+    // A cryptographic command must take an exact, deterministic number of cycles to complete.
+    // Example for Ed25519 scalar multiplication (assuming 15,000 cycles for this specific microarchitecture):
+    property constant_time_sign;
+        @(posedge clk) disable iff (!rst_n)
+        (cmd == 8'h03 && cmd_valid) |=> ##15000 ready;
+    endproperty
+    assert property(constant_time_sign) else $error("TIMING VIOLATION: Variable latency detected in signature generation.");
+
+endmodule

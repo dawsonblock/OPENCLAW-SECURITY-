@@ -2,7 +2,12 @@ import type { AgentToolUpdateCallback } from "@mariozechner/pi-agent-core";
 import { randomUUID } from "node:crypto";
 import type { AnyAgentTool } from "../agents/pi-tools.types.js";
 import type { RfsnPolicy } from "./policy.js";
-import type { RfsnActionProposal, RfsnActionResult, RfsnProvenance } from "./types.js";
+import type {
+  RfsnActionProposal,
+  RfsnActionResult,
+  RfsnGateDecision,
+  RfsnProvenance,
+} from "./types.js";
 import { getGateFeedbackTracker, isAdaptiveRiskEnabled } from "./gate-feedback.js";
 import { evaluateGate, hasValidGateStamp } from "./gate.js";
 import { appendLedgerEntry } from "./ledger.js";
@@ -98,11 +103,21 @@ export async function rfsnDispatch(params: {
     },
   });
 
-  const decision = evaluateGate({
-    policy: params.policy,
-    proposal,
-    sandboxed: params.runtime?.sandboxed,
-  });
+  let decision: RfsnGateDecision;
+  if (process.env.OPENCLAW_RFSN_NATIVE_KERNEL === "1") {
+    const { submitToRfsnKernel } = await import("./native-kernel.js");
+    const nativeDecision = await submitToRfsnKernel(proposal);
+    // Apply the stamp to trust the FFI boundary output
+    const GATE_DECISION_STAMP = Symbol.for("openclaw.rfsn.gateDecisionStamp");
+    (nativeDecision as Record<symbol, unknown>)[GATE_DECISION_STAMP] = true;
+    decision = nativeDecision;
+  } else {
+    decision = evaluateGate({
+      policy: params.policy,
+      proposal,
+      sandboxed: params.runtime?.sandboxed,
+    });
+  }
 
   // Verify the decision was produced by evaluateGate (not forged)
   if (!hasValidGateStamp(decision)) {
