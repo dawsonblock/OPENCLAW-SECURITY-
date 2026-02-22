@@ -38,9 +38,13 @@ const resolvedOverride =
   Number.isFinite(overrideWorkers) && overrideWorkers > 0 ? overrideWorkers : null;
 const parallelRuns = runs;
 const serialRuns = [];
+const localWorkers = Math.max(4, Math.min(16, os.cpus().length));
+const parallelCount = Math.max(1, parallelRuns.length);
+const perRunWorkers = Math.max(1, Math.floor(localWorkers / parallelCount));
+
 // Cap workers in CI to prevent context-switching overhead on 4vCPU blacksmith runners.
 const ciWorkers = isCI ? (isMacOS ? 1 : Math.max(1, Math.floor(os.cpus().length / 2))) : null;
-const maxWorkers = resolvedOverride ?? (isCI ? ciWorkers : null);
+const maxWorkers = resolvedOverride ?? (isCI ? ciWorkers : perRunWorkers);
 
 const WARNING_SUPPRESSION_FLAGS = [
   "--disable-warning=ExperimentalWarning",
