@@ -58,7 +58,7 @@ export class AutomationScheduler {
 
     try {
       // Provide action through the strict SerialEngine pipeline
-      const ledgerEntry = await this.serialEngine.execute(task.intent, task.payload);
+      const ledgerEntry = await this.serialEngine.dispatchIntent(task.intent, task.payload);
       console.log(
         `[Scheduler] Task ${task.id} finished successfully. Action Hash: ${ledgerEntry.hash}`,
       );

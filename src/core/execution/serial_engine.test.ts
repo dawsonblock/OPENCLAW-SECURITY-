@@ -14,7 +14,7 @@ describe("SerialEngine", () => {
   });
 
   it("should append a valid execution to the ledger and update state", async () => {
-    const entry = await engine.execute("set_value", "hello");
+    const entry = await engine.dispatchIntent("set_value", "hello");
 
     expect(entry.actionType).toBe("set_value");
     expect(engine.getState()).toEqual({ set_value: "hello" });
@@ -31,8 +31,8 @@ describe("SerialEngine", () => {
 
     const slowEngine = new SerialEngine({}, slowExecutor);
 
-    const p1 = slowEngine.execute("task_1", "data");
-    const p2 = slowEngine.execute("task_2", "data");
+    const p1 = slowEngine.dispatchIntent("task_1", "data");
+    const p2 = slowEngine.dispatchIntent("task_2", "data");
 
     await expect(p2).rejects.toThrow(
       "SerialEngine is already executing an action. Parallel execution blocked.",

@@ -1,4 +1,4 @@
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import * as crypto from "crypto";
 import * as fs from "fs";
 import * as path from "path";
@@ -55,7 +55,10 @@ export class Updater {
       // Backup current build directory
       const cwd = process.cwd();
       if (fs.existsSync(path.join(cwd, "dist"))) {
-        execSync(`cp -R ${path.join(cwd, "dist")} ${path.join(cwd, "dist.backup")}`);
+        execFileSync("sh", [
+          "-c",
+          `cp -R ${path.join(cwd, "dist")} ${path.join(cwd, "dist.backup")}`,
+        ]);
       }
 
       // Simulate download and extract...
@@ -74,8 +77,8 @@ export class Updater {
     console.log("[Updater] Rolling back to previous known-good binary state...");
     const cwd = process.cwd();
     if (fs.existsSync(path.join(cwd, "dist.backup"))) {
-      execSync(`rm -rf ${path.join(cwd, "dist")}`);
-      execSync(`mv ${path.join(cwd, "dist.backup")} ${path.join(cwd, "dist")}`);
+      execFileSync("sh", ["-c", `rm -rf ${path.join(cwd, "dist")}`]);
+      execFileSync("sh", ["-c", `mv ${path.join(cwd, "dist.backup")} ${path.join(cwd, "dist")}`]);
       console.log("[Updater] Rollback complete.");
     } else {
       console.error("[Updater] No backup found! Manual intervention required.");

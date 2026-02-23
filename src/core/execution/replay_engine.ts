@@ -26,7 +26,7 @@ export class ReplayEngine {
       );
       try {
         // Execute mock step
-        const newEntry = await engine.execute(
+        const newEntry = await engine.dispatchIntent(
           recordedEntry.actionType,
           recordedEntry.payload.payload,
         );

@@ -48,7 +48,7 @@ export class TaskGraphPlanner {
 
       try {
         // Execute deterministically through the serial core
-        const ledgerEntry = await this.serialEngine.execute(step.tool, step.input);
+        const ledgerEntry = await this.serialEngine.dispatchIntent(step.tool, step.input);
 
         // Validate structured requirement
         const output = ledgerEntry.payload?.diff || {};

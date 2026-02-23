@@ -1,4 +1,4 @@
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { Command } from "commander";
 import * as fs from "fs";
 import path from "path";
@@ -17,7 +17,7 @@ export const repairCommand = new Command("repair")
     try {
       if (!fs.existsSync(configPath)) {
         console.log("[Repair] Missing configuration. Restoring defaults...");
-        execSync("openclaw up");
+        execFileSync("openclaw", ["up"]);
       } else {
         JSON.parse(fs.readFileSync(configPath, "utf8"));
       }

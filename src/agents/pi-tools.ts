@@ -9,6 +9,7 @@ import type { OpenClawConfig } from "../config/config.js";
 import type { ModelAuthMode } from "./model-auth.js";
 import type { AnyAgentTool } from "./pi-tools.types.js";
 import type { SandboxContext } from "./sandbox.js";
+import { SerialEngine } from "../core/execution/serial_engine.js";
 import { logWarn } from "../logger.js";
 import { getPluginToolMeta } from "../plugins/tools.js";
 import { isSubagentSessionKey } from "../routing/session-key.js";
@@ -467,7 +468,20 @@ export function createOpenClawCodingTools(options?: {
     ? withReplay.map((tool) => wrapToolWithAbortSignal(tool, options.abortSignal))
     : withReplay;
 
-  // Security: Risk Scoring Logging
+  // Security: Risk Scoring Logging and Serial execution
+  const serialEngine = new SerialEngine(
+    {},
+    async (intent, payload) => {
+      const targetTool = withAbort.find((t) => t.name === intent);
+      if (!targetTool) {
+        throw new Error(`Tool ${intent} not found for SerialEngine executor`);
+      }
+      const result = await (targetTool as any).run(payload);
+      return { _toolResult: result };
+    },
+    options?.sessionKey || "genesis",
+  );
+
   const withRiskLogging = withAbort.map((tool) => {
     return {
       ...tool,
@@ -480,9 +494,10 @@ export function createOpenClawCodingTools(options?: {
         } else {
           // Optional: log lower risk actions at debug level if desired, or just to ledger
         }
-        // Proceed with execution
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return (tool as any).run(args);
+
+        // Emplace execution into the Deterministic Pipeline
+        const entry = await serialEngine.dispatchIntent(tool.name, args);
+        return entry.payload.diff._toolResult;
       },
     };
   });

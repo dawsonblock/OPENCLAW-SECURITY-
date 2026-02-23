@@ -3,6 +3,7 @@ import type { ThinkLevel } from "../../auto-reply/thinking.js";
 import type { RunEmbeddedPiAgentParams } from "./run/params.js";
 import type { EmbeddedPiAgentMeta, EmbeddedPiRunResult } from "./types.js";
 import { enqueueCommandInLane } from "../../process/command-queue.js";
+import { RecoveryManager } from "../../runtime/recovery.js";
 import { isMarkdownCapableMessageChannel } from "../../utils/message-channel.js";
 import { resolveOpenClawAgentDir } from "../agent-paths.js";
 import {
@@ -388,6 +389,7 @@ export async function runEmbeddedPiAgent(
       let toolResultTruncationAttempted = false;
       const usageAccumulator = createUsageAccumulator();
       let autoCompactionCount = 0;
+      const recoveryManager = new RecoveryManager(`${resolvedWorkspace}/openclaw.json`);
       try {
         while (true) {
           attemptedThinking.add(thinkLevel);
@@ -858,6 +860,14 @@ export async function runEmbeddedPiAgent(
             messagingToolSentTargets: attempt.messagingToolSentTargets,
           };
         }
+      } catch (err: any) {
+        if (!(err instanceof FailoverError)) {
+          log.error(
+            `[RecoveryManager] Caught unhandled exception in runEmbeddedPiAgent: ${err.message ?? String(err)}`,
+          );
+          recoveryManager.triggerSafeMode(provider);
+        }
+        throw err;
       } finally {
         process.chdir(prevCwd);
       }

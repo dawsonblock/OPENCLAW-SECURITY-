@@ -31,7 +31,7 @@ export class SerialEngine {
   /**
    * Executes an intent serially. No asynchronous overlapping executions are allowed.
    */
-  public async execute(intent: string, payload: any): Promise<LedgerEntry> {
+  public async dispatchIntent(intent: string, payload: any): Promise<LedgerEntry> {
     if (this.isExecuting) {
       throw new Error("SerialEngine is already executing an action. Parallel execution blocked.");
     }
