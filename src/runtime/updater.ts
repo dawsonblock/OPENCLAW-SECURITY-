@@ -63,7 +63,12 @@ export class Updater {
       const backupDir = path.join(cwd, "dist.backup");
 
       // Backup current build directory using fs primitives — no shell spawning.
+      // Remove any previous backup first so rollback restores an exact snapshot
+      // of the current dist contents without stale files from older versions.
       if (fs.existsSync(distDir)) {
+        if (fs.existsSync(backupDir)) {
+          fs.rmSync(backupDir, { recursive: true, force: true });
+        }
         fs.cpSync(distDir, backupDir, { recursive: true });
       }
 
