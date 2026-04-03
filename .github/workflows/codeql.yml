@@ -81,7 +81,7 @@ jobs:
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@v4
+      uses: github/codeql-action/init@b7f0f24f40e6d4c1b6a3b4f0e6a8b8a4c9d9ec1d
       with:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
