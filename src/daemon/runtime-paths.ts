@@ -1,8 +1,7 @@
-import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
 import { isSupportedNodeVersion } from "../infra/runtime-guard.js";
+import { execFileWithStatus } from "../process/exec.js";
 
 const VERSION_MANAGER_MARKERS = [
   "/.nvm/",
@@ -55,8 +54,6 @@ type ExecFileAsync = (
   args: readonly string[],
   options: { encoding: "utf8" },
 ) => Promise<{ stdout: string; stderr: string }>;
-
-const execFileAsync = promisify(execFile) as unknown as ExecFileAsync;
 
 async function resolveNodeVersion(
   nodePath: string,
@@ -127,7 +124,17 @@ export async function resolveSystemNodeInfo(params: {
     return null;
   }
 
-  const version = await resolveNodeVersion(systemNode, params.execFile ?? execFileAsync);
+  const version = await resolveNodeVersion(
+    systemNode,
+    params.execFile ??
+      (async (file, args, _options) => {
+        const result = await execFileWithStatus(file, [...args], {
+          allowedBins: [path.basename(file)],
+          allowAbsolutePath: path.isAbsolute(file),
+        });
+        return { stdout: result.stdout, stderr: result.stderr };
+      }),
+  );
   return {
     path: systemNode,
     version,

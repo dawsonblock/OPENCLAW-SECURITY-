@@ -1,6 +1,5 @@
 import type { Command } from "commander";
 import { confirm, isCancel, select, spinner } from "@clack/prompts";
-import { spawnSync } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -50,7 +49,7 @@ import {
   type UpdateStepProgress,
 } from "../infra/update-runner.js";
 import { syncPluginsForUpdateChannel, updateNpmInstalledPlugins } from "../plugins/update.js";
-import { runCommandWithTimeout } from "../process/exec.js";
+import { runCommandWithTimeout, spawnSyncAllowed } from "../process/exec.js";
 import { defaultRuntime } from "../runtime.js";
 import { buildScrubbedEnv } from "../security/subprocess.js";
 import { formatDocsLink } from "../terminal/links.js";
@@ -210,9 +209,14 @@ async function tryWriteCompletionCache(root: string, jsonMode: boolean): Promise
   if (!(await pathExists(binPath))) {
     return;
   }
-  const result = spawnSync(resolveNodeRunner(), [binPath, "completion", "--write-state"], {
+  const nodeRunner = resolveNodeRunner();
+  const result = spawnSyncAllowed({
+    command: nodeRunner,
+    args: [binPath, "completion", "--write-state"],
+    allowedBins: [path.basename(nodeRunner)],
+    allowAbsolutePath: path.isAbsolute(nodeRunner),
     cwd: root,
-    env: process.env,
+    envOverrides: process.env,
     encoding: "utf-8",
   });
   if (result.error) {

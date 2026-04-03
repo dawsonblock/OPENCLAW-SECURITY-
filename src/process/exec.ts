@@ -2,7 +2,13 @@ import type { ChildProcess, StdioOptions } from "node:child_process";
 import path from "node:path";
 import { danger, shouldLogVerbose } from "../globals.js";
 import { logDebug, logError } from "../logger.js";
-import { buildScrubbedEnv, runAllowedCommand, spawnAllowed } from "../security/subprocess.js";
+import {
+  buildScrubbedEnv,
+  execFileSyncAllowed,
+  runAllowedCommand,
+  spawnAllowed,
+  spawnSyncAllowed,
+} from "../security/subprocess.js";
 import { resolveCommandStdio } from "./spawn-utils.js";
 
 /**
@@ -123,6 +129,63 @@ export type CommandOptions = {
   envOverrides?: Record<string, string | undefined>;
   windowsVerbatimArguments?: boolean;
 };
+
+export type ExecFileOptions = {
+  timeoutMs?: number;
+  maxBuffer?: number;
+  cwd?: string;
+  input?: string;
+  env?: NodeJS.ProcessEnv;
+  inheritProcessEnv?: boolean;
+  allowedBins?: string[];
+  allowAbsolutePath?: boolean;
+  inheritEnv?: boolean;
+  allowEnv?: Iterable<string>;
+  envOverrides?: Record<string, string | undefined>;
+  windowsHide?: boolean;
+  windowsVerbatimArguments?: boolean;
+};
+
+/**
+ * Executes a single command via the guarded subprocess seam and returns its
+ * status/result payload without throwing on non-zero exit codes. It still
+ * throws on spawn-time failures such as blocked executables, timeouts, or
+ * output limit violations.
+ */
+export async function execFileWithStatus(
+  command: string,
+  args: string[],
+  options: ExecFileOptions = {},
+): Promise<SpawnResult> {
+  const resolvedCommand = resolveCommand(command);
+  const mergedEnvOverrides: Record<string, string | undefined> = {
+    ...options.envOverrides,
+    ...(options.env as Record<string, string | undefined> | undefined),
+  };
+  const { code, signal, stdout, stderr } = await runAllowedCommand({
+    command: resolvedCommand,
+    args,
+    allowedBins: options.allowedBins ?? [path.basename(command)],
+    allowAbsolutePath: options.allowAbsolutePath ?? path.isAbsolute(command),
+    cwd: options.cwd,
+    timeoutMs: options.timeoutMs,
+    maxStdoutBytes: options.maxBuffer,
+    maxStderrBytes: options.maxBuffer,
+    stdinText: options.input,
+    windowsHide: options.windowsHide,
+    windowsVerbatimArguments: options.windowsVerbatimArguments,
+    inheritEnv: options.inheritEnv ?? options.inheritProcessEnv !== false,
+    allowEnv: options.allowEnv,
+    envOverrides: mergedEnvOverrides,
+  });
+  return {
+    stdout,
+    stderr,
+    code,
+    signal,
+    killed: signal !== null,
+  };
+}
 
 export async function runCommandWithTimeout(
   argv: string[],
@@ -264,4 +327,4 @@ export function spawnManagedChild(opts: ManagedChildOptions): ChildProcess {
   });
 }
 
-export { buildScrubbedEnv, runAllowedCommand };
+export { buildScrubbedEnv, execFileSyncAllowed, runAllowedCommand, spawnSyncAllowed };

@@ -1,5 +1,5 @@
-import { spawnSync } from "node:child_process";
 import os from "node:os";
+import { spawnSyncAllowed } from "../process/exec.js";
 
 export type OsSummary = {
   platform: NodeJS.Platform;
@@ -13,7 +13,12 @@ function safeTrim(value: unknown): string {
 }
 
 function macosVersion(): string {
-  const res = spawnSync("sw_vers", ["-productVersion"], { encoding: "utf-8" });
+  const res = spawnSyncAllowed({
+    command: "sw_vers",
+    args: ["-productVersion"],
+    allowedBins: ["sw_vers"],
+    encoding: "utf-8",
+  });
   const out = safeTrim(res.stdout);
   return out || os.release();
 }

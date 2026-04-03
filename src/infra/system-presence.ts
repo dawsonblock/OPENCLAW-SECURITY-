@@ -1,5 +1,5 @@
-import { spawnSync } from "node:child_process";
 import os from "node:os";
+import { spawnSyncAllowed } from "../process/exec.js";
 
 export type SystemPresence = {
   host?: string;
@@ -71,7 +71,10 @@ function initSelfPresence() {
   const modelIdentifier = (() => {
     const p = os.platform();
     if (p === "darwin") {
-      const res = spawnSync("sysctl", ["-n", "hw.model"], {
+      const res = spawnSyncAllowed({
+        command: "sysctl",
+        args: ["-n", "hw.model"],
+        allowedBins: ["sysctl"],
         encoding: "utf-8",
       });
       const out = typeof res.stdout === "string" ? res.stdout.trim() : "";
@@ -80,7 +83,10 @@ function initSelfPresence() {
     return os.arch();
   })();
   const macOSVersion = () => {
-    const res = spawnSync("sw_vers", ["-productVersion"], {
+    const res = spawnSyncAllowed({
+      command: "sw_vers",
+      args: ["-productVersion"],
+      allowedBins: ["sw_vers"],
       encoding: "utf-8",
     });
     const out = typeof res.stdout === "string" ? res.stdout.trim() : "";

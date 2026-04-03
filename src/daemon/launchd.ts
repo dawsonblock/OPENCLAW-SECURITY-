@@ -1,8 +1,7 @@
-import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
 import type { GatewayServiceRuntime } from "./service-runtime.js";
+import { execFileWithStatus } from "../process/exec.js";
 import { colorize, isRich, theme } from "../terminal/theme.js";
 import {
   formatGatewayServiceDescription,
@@ -17,7 +16,6 @@ import {
 import { resolveGatewayStateDir, resolveHomeDir } from "./paths.js";
 import { parseKeyValueOutput } from "./runtime-parse.js";
 
-const execFileAsync = promisify(execFile);
 const toPosixPath = (value: string) => value.replace(/\\/g, "/");
 
 const formatLine = (label: string, value: string) => {
@@ -105,14 +103,11 @@ async function execLaunchctl(
   args: string[],
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   try {
-    const { stdout, stderr } = await execFileAsync("launchctl", args, {
-      encoding: "utf8",
-      shell: process.platform === "win32",
-    });
+    const result = await execFileWithStatus("launchctl", args);
     return {
-      stdout: String(stdout ?? ""),
-      stderr: String(stderr ?? ""),
-      code: 0,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      code: result.code ?? 1,
     };
   } catch (error) {
     const e = error as {

@@ -1,4 +1,4 @@
-import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 console.log("🔒 Running OpenCLAW Security Integrity Check...");
@@ -44,7 +44,6 @@ const ALLOWED_CHILD_PROCESS_IMPORTERS = new Set([
 ]);
 
 const SHELL_TRUE_PATTERN = /shell\s*:\s*true/;
-const NODE_CHILD_PROCESS_IMPORT_PATTERN = /from\s+["']node:child_process["']/;
 const TEST_FILE_RE = /\.(test|spec)\.ts$|\.e2e\.test\.ts$/;
 
 function walkSrc(dir: string): string[] {
@@ -60,6 +59,95 @@ function walkSrc(dir: string): string[] {
   return results;
 }
 
+/**
+ * Removes comments and string literal contents while preserving newlines so
+ * heuristic security scans can match runtime code without comment/string
+ * false positives.
+ */
+function stripComments(content: string): string {
+  let result = "";
+  let state: "code" | "line-comment" | "block-comment" | "single" | "double" | "template" = "code";
+  let escaped = false;
+
+  for (let index = 0; index < content.length; index += 1) {
+    const char = content[index] ?? "";
+    const next = content[index + 1] ?? "";
+
+    if (state === "line-comment") {
+      if (char === "\n") {
+        state = "code";
+        result += "\n";
+      } else {
+        result += " ";
+      }
+      continue;
+    }
+
+    if (state === "block-comment") {
+      if (char === "*" && next === "/") {
+        result += "  ";
+        index += 1;
+        state = "code";
+      } else {
+        result += char === "\n" ? "\n" : " ";
+      }
+      continue;
+    }
+
+    if (state === "single" || state === "double" || state === "template") {
+      const delimiter = state === "single" ? "'" : state === "double" ? '"' : "`";
+      if (escaped) {
+        escaped = false;
+        result += char === "\n" ? "\n" : " ";
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        result += " ";
+        continue;
+      }
+      if (char === delimiter) {
+        state = "code";
+        result += " ";
+        continue;
+      }
+      result += char === "\n" ? "\n" : " ";
+      continue;
+    }
+
+    if (char === "/" && next === "/") {
+      state = "line-comment";
+      result += "  ";
+      index += 1;
+      continue;
+    }
+    if (char === "/" && next === "*") {
+      state = "block-comment";
+      result += "  ";
+      index += 1;
+      continue;
+    }
+    if (char === "'") {
+      state = "single";
+      result += " ";
+      continue;
+    }
+    if (char === '"') {
+      state = "double";
+      result += " ";
+      continue;
+    }
+    if (char === "`") {
+      state = "template";
+      result += " ";
+      continue;
+    }
+    result += char;
+  }
+
+  return result;
+}
+
 const srcDir = "src";
 if (existsSync(srcDir)) {
   for (const absPath of walkSrc(srcDir)) {
@@ -72,11 +160,12 @@ if (existsSync(srcDir)) {
     }
 
     // Flag direct node:child_process value imports (not type-only imports) outside the allowlist.
-    const hasRealChildProcessImport = content.split("\n").some(
-      (line) =>
-        /from\s+["']node:child_process["']/.test(line) &&
-        !/^\s*import\s+type\s+/.test(line),
-    );
+    const hasRealChildProcessImport = content
+      .split("\n")
+      .some(
+        (line) =>
+          /from\s+["']node:child_process["']/.test(line) && !/^\s*import\s+type\s+/.test(line),
+      );
     if (hasRealChildProcessImport) {
       if (!ALLOWED_CHILD_PROCESS_IMPORTERS.has(relPath)) {
         console.error(
@@ -87,7 +176,7 @@ if (existsSync(srcDir)) {
     }
 
     // Flag shell:true (never allowed in runtime code).
-    if (SHELL_TRUE_PATTERN.test(content)) {
+    if (SHELL_TRUE_PATTERN.test(stripComments(content))) {
       console.error(`❌ ${relPath}: contains shell:true (never permitted in runtime code)`);
       failed = true;
     }

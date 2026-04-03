@@ -1,14 +1,11 @@
-import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
 import type { GatewayServiceRuntime } from "./service-runtime.js";
+import { execFileWithStatus } from "../process/exec.js";
 import { colorize, isRich, theme } from "../terminal/theme.js";
 import { formatGatewayServiceDescription, resolveGatewayWindowsTaskName } from "./constants.js";
 import { resolveGatewayStateDir } from "./paths.js";
 import { parseKeyValueOutput } from "./runtime-parse.js";
-
-const execFileAsync = promisify(execFile);
 
 const formatLine = (label: string, value: string) => {
   const rich = isRich();
@@ -203,14 +200,13 @@ async function execSchtasks(
   args: string[],
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   try {
-    const { stdout, stderr } = await execFileAsync("schtasks", args, {
-      encoding: "utf8",
+    const result = await execFileWithStatus("schtasks", args, {
       windowsHide: true,
     });
     return {
-      stdout: String(stdout ?? ""),
-      stderr: String(stderr ?? ""),
-      code: 0,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      code: result.code ?? 1,
     };
   } catch (error) {
     const e = error as {

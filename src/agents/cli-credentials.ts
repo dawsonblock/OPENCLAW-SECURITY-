@@ -1,10 +1,10 @@
 import type { OAuthCredentials, OAuthProvider } from "@mariozechner/pi-ai";
-import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { loadJsonFile, saveJsonFile } from "../infra/json-file.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
+import { execFileSyncAllowed } from "../process/exec.js";
 import { resolveUserPath } from "../utils.js";
 
 const log = createSubsystemLogger("agents/auth-profiles");
@@ -121,9 +121,13 @@ function runSecurityCommand(params: {
       }),
     );
   }
-  return execFileSync(params.file, params.args, {
+  return execFileSyncAllowed({
+    command: params.file,
+    args: params.args,
+    allowedBins: [path.basename(params.file)],
+    allowAbsolutePath: path.isAbsolute(params.file),
+    timeoutMs: params.timeoutMs,
     encoding: "utf8",
-    timeout: params.timeoutMs,
     stdio,
   });
 }
