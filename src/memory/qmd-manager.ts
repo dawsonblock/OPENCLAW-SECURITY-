@@ -30,6 +30,19 @@ const log = createSubsystemLogger("memory");
 const SNIPPET_HEADER_RE = /@@\s*-([0-9]+),([0-9]+)/;
 const SEARCH_PENDING_UPDATE_WAIT_MS = 500;
 
+/** QMD-specific env var keys added on top of the safe base set. */
+const QMD_ENV_KEYS = Object.freeze([
+  "XDG_CONFIG_HOME",
+  "XDG_CACHE_HOME",
+  "NO_COLOR",
+  "PATH",
+  "HOME",
+  "USERPROFILE",
+  "TMPDIR",
+  "TMP",
+  "TEMP",
+] as const);
+
 type QmdQueryResult = {
   docid?: string;
   score?: number;
@@ -111,8 +124,9 @@ export class QmdMemoryManager implements MemorySearchManager {
     this.xdgCacheHome = path.join(this.qmdDir, "xdg-cache");
     this.indexPath = path.join(this.xdgCacheHome, "qmd", "index.sqlite");
 
-    // Only pass the env vars qmd actually needs; do not inherit broad process.env.
-    // runQmd routes through the subprocess seam which scrubs and re-adds safe keys.
+    // Only pass the env vars qmd actually needs (QMD_ENV_KEYS); do not inherit
+    // broad process.env. runQmd routes through the subprocess seam which scrubs
+    // and re-adds safe keys, then layers these overrides on top.
     this.env = {
       XDG_CONFIG_HOME: this.xdgConfigHome,
       XDG_CACHE_HOME: this.xdgCacheHome,
@@ -559,7 +573,7 @@ export class QmdMemoryManager implements MemorySearchManager {
       cwd: this.workspaceDir,
       timeoutMs: opts?.timeoutMs,
       inheritEnv: true,
-      allowEnv: ["XDG_CONFIG_HOME", "XDG_CACHE_HOME", "NO_COLOR", "PATH", "HOME", "USERPROFILE", "TMPDIR", "TMP", "TEMP"],
+      allowEnv: QMD_ENV_KEYS,
       envOverrides: this.env as Record<string, string | undefined>,
     });
     if (code !== 0) {

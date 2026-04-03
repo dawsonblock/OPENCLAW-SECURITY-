@@ -163,7 +163,7 @@ export async function runAllowedCommand(params: {
   });
 
   if (hasStdin && child.stdin) {
-    child.stdin.write(params.stdinText ?? "");
+    child.stdin.write(params.stdinText);
     child.stdin.end();
   }
 

@@ -77,21 +77,23 @@ export async function submitToRfsnKernel(proposal: RfsnActionProposal): Promise<
     throw new Error(`Native Gate failed with code ${code}: ${stderr}`);
   }
 
-  let nativeResponse: NativeDecisionResponse;
+  let parsed: unknown;
   try {
-    nativeResponse = JSON.parse(stdout) as NativeDecisionResponse;
+    parsed = JSON.parse(stdout);
   } catch {
     throw new Error(`Failed to parse Native Gate Decision: ${stdout}`);
   }
 
   if (
-    !nativeResponse ||
-    typeof nativeResponse.verdict !== "string" ||
-    !Array.isArray(nativeResponse.reasons)
+    !parsed ||
+    typeof parsed !== "object" ||
+    typeof (parsed as Record<string, unknown>).verdict !== "string" ||
+    !Array.isArray((parsed as Record<string, unknown>).reasons)
   ) {
     throw new Error(`Native Gate returned malformed response: ${stdout}`);
   }
 
+  const nativeResponse = parsed as NativeDecisionResponse;
   const openClawDecision: RfsnGateDecision = {
     verdict: nativeResponse.verdict === "modify" ? "deny" : nativeResponse.verdict,
     reasons: nativeResponse.reasons,

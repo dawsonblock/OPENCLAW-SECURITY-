@@ -63,7 +63,7 @@ describe("runner execution seam (spawnAllowed via subprocess)", () => {
   test("allows absolute path when allowAbsolutePath is true and basename is in allowedBins", () => {
     // Just verifying the allowlist check passes; child is not started here.
     // Use node itself so the binary definitely exists.
-    const basename = path.basename(process.execPath).replace(/\.(exe)$/i, "");
+    const basename = path.basename(process.execPath).replace(/\.exe$/i, "");
     const child = spawnAllowed({
       command: process.execPath,
       args: ["-e", "process.exit(0)"],
@@ -88,7 +88,7 @@ describe("runner execution seam (spawnAllowed via subprocess)", () => {
       runAllowedCommand({
         command: process.execPath,
         args: ["-e", "process.stdout.write('x'.repeat(5000))"],
-        allowedBins: [path.basename(process.execPath).replace(/\.(exe)$/i, "")],
+        allowedBins: [path.basename(process.execPath).replace(/\.exe$/i, "")],
         allowAbsolutePath: true,
         timeoutMs: 5_000,
         maxStdoutBytes: 100,
@@ -101,7 +101,7 @@ describe("runner execution seam (spawnAllowed via subprocess)", () => {
       runAllowedCommand({
         command: process.execPath,
         args: ["-e", "process.stderr.write('e'.repeat(5000))"],
-        allowedBins: [path.basename(process.execPath).replace(/\.(exe)$/i, "")],
+        allowedBins: [path.basename(process.execPath).replace(/\.exe$/i, "")],
         allowAbsolutePath: true,
         timeoutMs: 5_000,
         maxStderrBytes: 100,
@@ -114,7 +114,7 @@ describe("runner execution seam (spawnAllowed via subprocess)", () => {
       runAllowedCommand({
         command: process.execPath,
         args: ["-e", "setTimeout(()=>{},60000)"],
-        allowedBins: [path.basename(process.execPath).replace(/\.(exe)$/i, "")],
+        allowedBins: [path.basename(process.execPath).replace(/\.exe$/i, "")],
         allowAbsolutePath: true,
         timeoutMs: 200,
       }),

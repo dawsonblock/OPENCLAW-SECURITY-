@@ -283,32 +283,32 @@ describe("chrome spawnOnce security seam", () => {
     expect(typeof chromeModule.launchOpenClawChrome).toBe("function");
   });
 
-  it("headless flag is preserved in browser args", async () => {
-    // Verify that resolved.headless=true results in --headless=new in args.
-    // We test arg construction without spawning a real process.
-    const { spawnManagedChild: managedSpawnFn } = await import("../process/exec.js");
-    const captured: string[] = [];
-    const mockChild = {
-      stdout: { on: vi.fn() },
-      stderr: { on: vi.fn() },
-      on: vi.fn(),
-      kill: vi.fn(),
-      killed: false,
-      exitCode: null,
-      pid: 9999,
-    };
-    vi.spyOn({ managedSpawnFn }, "managedSpawnFn").mockReturnValue(mockChild as never);
-    // The arg list is built inside launchOpenClawChrome; we test it indirectly
-    // through the observable side effects (captured args).
-    // This is a structure test – the actual assertion is that headless flag
-    // handling code still exists (tested via type-check + integration tests).
-    void captured; // suppress unused var warning
-    expect(true).toBe(true); // placeholder; full integration requires a real CDP listener
+  it("headless flags are part of the spawn arg set (source check)", async () => {
+    // Read the chrome.ts source and verify that headless/no-sandbox args are
+    // still constructed when the respective flags are enabled.
+    // This confirms the arg-building logic was not lost during the spawn migration.
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const src = readFileSync(resolve(__dirname ?? ".", "chrome.ts"), "utf8");
+    expect(src).toContain("--headless=new");
+    expect(src).toContain("--disable-gpu");
   });
 
-  it("no-sandbox flags are included when noSandbox is true", () => {
-    // Structure test: assert the noSandbox branch exists in chrome.ts source
-    // by checking the exported constant for the module (no raw spawn present).
-    expect(typeof isChromeReachable).toBe("function");
+  it("no-sandbox flags are in the source when noSandbox is configured", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const src = readFileSync(resolve(__dirname ?? ".", "chrome.ts"), "utf8");
+    expect(src).toContain("--no-sandbox");
+    expect(src).toContain("--disable-setuid-sandbox");
+  });
+
+  it("spawnManagedChild is used instead of raw spawn (source check)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const src = readFileSync(resolve(__dirname ?? ".", "chrome.ts"), "utf8");
+    // Must use the managed child seam
+    expect(src).toContain("spawnManagedChild(");
+    // Must NOT have raw spawn( calls
+    expect(src).not.toMatch(/(?<!\w)spawn\s*\(/);
   });
 });
