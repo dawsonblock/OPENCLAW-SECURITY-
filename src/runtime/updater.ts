@@ -5,7 +5,7 @@ import * as path from "path";
 export interface UpdateManifest {
   version: string;
   downloadUrl: string;
-  /** Base64-encoded RSA-SHA256 signature over `downloadUrl + version`. */
+  /** Base64-encoded RSA-SHA256 signature over `downloadUrl + "\0" + version`. */
   sha256Signature: string;
 }
 
