@@ -3,6 +3,24 @@ import { spawn } from "node:child_process";
 import { getShellConfig } from "../agents/shell-utils.js";
 import { createSearchableSelectList } from "./components/selectors.js";
 
+/**
+ * LOCAL SHELL FEATURE – EXPLICIT OPT-IN REQUIRED
+ * -----------------------------------------------
+ * This feature runs arbitrary shell commands on the LOCAL machine (the TUI
+ * client side, not the gateway). It is intentionally NOT part of the bounded
+ * child-process execution story: it runs the user's login shell with
+ * full command-string interpretation, inherits the user's env, and is
+ * capable of arbitrary file access.
+ *
+ * It is disabled by default and must be explicitly enabled by setting:
+ *   OPENCLAW_LOCAL_SHELL_ENABLED=1
+ *
+ * Even when enabled, the user is prompted for consent on first use.
+ * This is a convenience feature for power users who understand the risk.
+ * Do not route this through the bounded subprocess seam or claim it is
+ * hardened; the design is deliberately separate.
+ */
+
 type LocalShellDeps = {
   chatLog: {
     addSystem: (line: string) => void;
@@ -26,6 +44,11 @@ type LocalShellDeps = {
 };
 
 export function createLocalShellRunner(deps: LocalShellDeps) {
+  // Gate: local shell must be explicitly opted-in via OPENCLAW_LOCAL_SHELL_ENABLED=1.
+  // When not set, the runner is a no-op and tells the user how to enable it.
+  const isFeatureEnabled =
+    (process.env.OPENCLAW_LOCAL_SHELL_ENABLED ?? "").trim() === "1";
+
   let localExecAsked = false;
   let localExecAllowed = false;
   const createSelector = deps.createSelector ?? createSearchableSelectList;
@@ -84,6 +107,17 @@ export function createLocalShellRunner(deps: LocalShellDeps) {
     // NOTE: A lone '!' is handled by the submit handler as a normal message.
     // Keep this guard anyway in case this is called directly.
     if (cmd === "") {
+      return;
+    }
+
+    // Hard gate: feature is outside the bounded execution model and must be
+    // explicitly enabled. When not set, inform the user and do nothing.
+    if (!isFeatureEnabled) {
+      deps.chatLog.addSystem(
+        "[local shell] This feature is outside the bounded security model. " +
+          "To enable it for this session, restart with OPENCLAW_LOCAL_SHELL_ENABLED=1.",
+      );
+      deps.tui.requestRender();
       return;
     }
 

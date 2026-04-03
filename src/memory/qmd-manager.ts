@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -14,6 +13,7 @@ import type {
 import { resolveAgentWorkspaceDir } from "../agents/agent-scope.js";
 import { resolveStateDir } from "../config/paths.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
+import { runAllowedCommand } from "../process/exec.js";
 import { parseAgentSessionKey } from "../sessions/session-key-utils.js";
 import {
   listSessionFilesForAgent,
@@ -29,6 +29,19 @@ const log = createSubsystemLogger("memory");
 
 const SNIPPET_HEADER_RE = /@@\s*-([0-9]+),([0-9]+)/;
 const SEARCH_PENDING_UPDATE_WAIT_MS = 500;
+
+/** QMD-specific env var keys added on top of the safe base set. */
+const QMD_ENV_KEYS = Object.freeze([
+  "XDG_CONFIG_HOME",
+  "XDG_CACHE_HOME",
+  "NO_COLOR",
+  "PATH",
+  "HOME",
+  "USERPROFILE",
+  "TMPDIR",
+  "TMP",
+  "TEMP",
+] as const);
 
 type QmdQueryResult = {
   docid?: string;
@@ -111,8 +124,10 @@ export class QmdMemoryManager implements MemorySearchManager {
     this.xdgCacheHome = path.join(this.qmdDir, "xdg-cache");
     this.indexPath = path.join(this.xdgCacheHome, "qmd", "index.sqlite");
 
+    // Only pass the env vars qmd actually needs (QMD_ENV_KEYS); do not inherit
+    // broad process.env. runQmd routes through the subprocess seam which scrubs
+    // and re-adds safe keys, then layers these overrides on top.
     this.env = {
-      ...process.env,
       XDG_CONFIG_HOME: this.xdgConfigHome,
       XDG_CACHE_HOME: this.xdgCacheHome,
       NO_COLOR: "1",
@@ -486,9 +501,9 @@ export class QmdMemoryManager implements MemorySearchManager {
    * is a no-op.
    */
   private async symlinkSharedModels(): Promise<void> {
-    // process.env is never modified — only this.env (passed to child_process
-    // spawn) overrides XDG_CACHE_HOME.  So reading it here gives us the
-    // user's original value, which is where `qmd` downloaded its models.
+    // process.env is never modified — only this.env (passed as envOverrides to
+    // runAllowedCommand) overrides XDG_CACHE_HOME.  So reading it here gives us
+    // the user's original value, which is where `qmd` downloaded its models.
     //
     // On Windows, well-behaved apps (including Rust `dirs` / Go os.UserCacheDir)
     // store caches under %LOCALAPPDATA% rather than ~/.cache.  Fall back to
@@ -544,42 +559,27 @@ export class QmdMemoryManager implements MemorySearchManager {
     args: string[],
     opts?: { timeoutMs?: number },
   ): Promise<{ stdout: string; stderr: string }> {
-    return await new Promise((resolve, reject) => {
-      const child = spawn(this.qmd.command, args, {
-        env: this.env,
-        cwd: this.workspaceDir,
-      });
-      let stdout = "";
-      let stderr = "";
-      const timer = opts?.timeoutMs
-        ? setTimeout(() => {
-            child.kill("SIGKILL");
-            reject(new Error(`qmd ${args.join(" ")} timed out after ${opts.timeoutMs}ms`));
-          }, opts.timeoutMs)
-        : null;
-      child.stdout.on("data", (data) => {
-        stdout += data.toString();
-      });
-      child.stderr.on("data", (data) => {
-        stderr += data.toString();
-      });
-      child.on("error", (err) => {
-        if (timer) {
-          clearTimeout(timer);
-        }
-        reject(err);
-      });
-      child.on("close", (code) => {
-        if (timer) {
-          clearTimeout(timer);
-        }
-        if (code === 0) {
-          resolve({ stdout, stderr });
-        } else {
-          reject(new Error(`qmd ${args.join(" ")} failed (code ${code}): ${stderr || stdout}`));
-        }
-      });
+    // Route through the shared subprocess seam (runAllowedCommand → spawnAllowed).
+    // inheritEnv: true lets the seam copy standard safe keys (PATH, HOME, etc.)
+    // from process.env; envOverrides injects the qmd-specific XDG vars on top.
+    // allowAbsolutePath is set only when qmd.command is an absolute path.
+    const command = this.qmd.command;
+    const isAbsolute = path.isAbsolute(command);
+    const { code, stdout, stderr } = await runAllowedCommand({
+      command,
+      args,
+      allowedBins: [path.basename(command)],
+      allowAbsolutePath: isAbsolute,
+      cwd: this.workspaceDir,
+      timeoutMs: opts?.timeoutMs,
+      inheritEnv: true,
+      allowEnv: QMD_ENV_KEYS,
+      envOverrides: this.env as Record<string, string | undefined>,
     });
+    if (code !== 0) {
+      throw new Error(`qmd ${args.join(" ")} failed (code ${code}): ${stderr || stdout}`);
+    }
+    return { stdout, stderr };
   }
 
   private ensureDb(): SqliteDatabase {
