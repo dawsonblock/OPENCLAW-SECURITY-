@@ -14,6 +14,9 @@ import type { RfsnActionProposal } from "./types.js";
 const FAKE_ABSOLUTE_PATH = "/usr/local/bin/rfsn-gate-bridge";
 
 const sampleProposal: RfsnActionProposal = {
+  id: "test-proposal-id",
+  timestampMs: 0,
+  actor: {} as RfsnActionProposal["actor"],
   toolName: "shell",
   args: { cmd: "echo hi" },
 };
