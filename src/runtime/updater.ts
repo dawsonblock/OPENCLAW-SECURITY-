@@ -49,6 +49,7 @@ export class Updater {
       // Use a fixed delimiter between fields to prevent ambiguity (e.g.
       // "http://evil.com/v1.0.0" + "" vs "http://evil.com/v" + "1.0.0").
       verifier.update(`${manifest.downloadUrl}\x00${manifest.version}`);
+      verifier.end();
       // Signature is expected as base64-encoded bytes produced by the private key.
       return verifier.verify(this.publicKeyPem, manifest.sha256Signature, "base64");
     } catch {
