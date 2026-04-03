@@ -1,4 +1,4 @@
-import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 console.log("🔒 Running OpenCLAW Security Integrity Check...");
@@ -44,7 +44,6 @@ const ALLOWED_CHILD_PROCESS_IMPORTERS = new Set([
 ]);
 
 const SHELL_TRUE_PATTERN = /shell\s*:\s*true/;
-const NODE_CHILD_PROCESS_IMPORT_PATTERN = /from\s+["']node:child_process["']/;
 const TEST_FILE_RE = /\.(test|spec)\.ts$|\.e2e\.test\.ts$/;
 
 function walkSrc(dir: string): string[] {
