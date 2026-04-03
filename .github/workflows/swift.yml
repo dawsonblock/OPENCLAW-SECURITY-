@@ -3,6 +3,7 @@
 
 name: Swift
 
+permissions: read-all
 on:
   workflow_dispatch:
 
