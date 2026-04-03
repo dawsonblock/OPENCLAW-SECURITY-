@@ -1,4 +1,3 @@
-import { execSync } from "child_process";
 import { Command } from "commander";
 import * as fs from "fs";
 import * as path from "path";

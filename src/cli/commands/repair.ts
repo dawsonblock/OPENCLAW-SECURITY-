@@ -1,4 +1,3 @@
-import { execFileSync } from "child_process";
 import { Command } from "commander";
 import * as fs from "fs";
 import path from "path";
@@ -17,7 +16,11 @@ export const repairCommand = new Command("repair")
     try {
       if (!fs.existsSync(configPath)) {
         console.log("[Repair] Missing configuration. Restoring defaults...");
-        execFileSync("openclaw", ["up"]);
+        const defaultConfig = {
+          gateway: { bind: "127.0.0.1:8080", authMode: "strict" },
+          profiles: { default: "Safe" },
+        };
+        fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2), "utf8");
       } else {
         JSON.parse(fs.readFileSync(configPath, "utf8"));
       }

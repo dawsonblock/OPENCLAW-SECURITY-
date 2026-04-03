@@ -1,4 +1,3 @@
-import { execFileSync } from "child_process";
 import * as crypto from "crypto";
 import * as fs from "fs";
 import * as path from "path";
@@ -6,6 +5,7 @@ import * as path from "path";
 export interface UpdateManifest {
   version: string;
   downloadUrl: string;
+  /** Base64-encoded RSA-SHA256 signature over `downloadUrl + "\0" + version`. */
   sha256Signature: string;
 }
 
@@ -41,33 +41,47 @@ export class Updater {
   }
 
   private verifySignature(manifest: UpdateManifest): boolean {
-    // Stub: Verifies the manifest downloadUrl payload using the known public key
-    const verifier = crypto.createVerify("SHA256");
-    verifier.update(manifest.downloadUrl + manifest.version);
-    verifier.end();
-    // In real execution, a true signature checking process happens here.
-    // For demonstration, we simply return true if a signature field is present.
-    return !!manifest.sha256Signature;
+    if (!manifest.sha256Signature) {
+      return false;
+    }
+    try {
+      const verifier = crypto.createVerify("SHA256");
+      // Use a fixed delimiter between fields to prevent ambiguity (e.g.
+      // "http://evil.com/v1.0.0" + "" vs "http://evil.com/v" + "1.0.0").
+      verifier.update(`${manifest.downloadUrl}\x00${manifest.version}`);
+      verifier.end();
+      // Signature is expected as base64-encoded bytes produced by the private key.
+      return verifier.verify(this.publicKeyPem, manifest.sha256Signature, "base64");
+    } catch {
+      return false;
+    }
   }
 
   private swapBinaries(url: string): boolean {
     try {
-      // Backup current build directory
       const cwd = process.cwd();
-      if (fs.existsSync(path.join(cwd, "dist"))) {
-        execFileSync("sh", [
-          "-c",
-          `cp -R ${path.join(cwd, "dist")} ${path.join(cwd, "dist.backup")}`,
-        ]);
+      const distDir = path.join(cwd, "dist");
+      const backupDir = path.join(cwd, "dist.backup");
+
+      // Backup current build directory using fs primitives — no shell spawning.
+      // Remove any previous backup first so rollback restores an exact snapshot
+      // of the current dist contents without stale files from older versions.
+      if (fs.existsSync(distDir)) {
+        if (fs.existsSync(backupDir)) {
+          fs.rmSync(backupDir, { recursive: true, force: true });
+        }
+        fs.cpSync(distDir, backupDir, { recursive: true });
       }
 
-      // Simulate download and extract...
+      // Download and extract the new build payload.
       console.log(`[Updater] Downloading payload from ${url}...`);
-
-      console.log("[Updater] Update applied successfully. Restarting daemon...");
-      return true;
-    } catch (err: any) {
-      console.error(`[Updater] Update failed mid-swap: ${err.message}. Initiating Rollback.`);
+      // NOTE: Actual download/extract logic is not yet implemented. Return false
+      // so callers know the update did not complete rather than silently succeeding.
+      console.warn("[Updater] Download/extract not implemented; update aborted.");
+      return false;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[Updater] Update failed mid-swap: ${message}. Initiating Rollback.`);
       this.rollback();
       return false;
     }
@@ -76,9 +90,16 @@ export class Updater {
   public rollback() {
     console.log("[Updater] Rolling back to previous known-good binary state...");
     const cwd = process.cwd();
-    if (fs.existsSync(path.join(cwd, "dist.backup"))) {
-      execFileSync("sh", ["-c", `rm -rf ${path.join(cwd, "dist")}`]);
-      execFileSync("sh", ["-c", `mv ${path.join(cwd, "dist.backup")} ${path.join(cwd, "dist")}`]);
+    const distDir = path.join(cwd, "dist");
+    const backupDir = path.join(cwd, "dist.backup");
+
+    if (fs.existsSync(backupDir)) {
+      // Remove current (potentially broken) dist and restore the backup.
+      // Uses fs primitives — no shell spawning.
+      if (fs.existsSync(distDir)) {
+        fs.rmSync(distDir, { recursive: true, force: true });
+      }
+      fs.renameSync(backupDir, distDir);
       console.log("[Updater] Rollback complete.");
     } else {
       console.error("[Updater] No backup found! Manual intervention required.");

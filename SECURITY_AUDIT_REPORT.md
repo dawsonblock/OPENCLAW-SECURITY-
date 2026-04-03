@@ -1,14 +1,23 @@
 # OpenClaw Security Hardening Analysis Report
 
-**Date:** Feb 15, 2026
+**Date:** Feb 15, 2026 (updated Apr 3, 2026)
 **Target:** `OPENCLAW-SECURITY` Fork
 **Scope:** Comprehensive Source Code Audit & Security Architecture Review
 
 ## Executive Summary
 
-The `OPENCLAW-SECURITY` codebase represents a **highly mature, defense-in-depth security architecture** designed to harden a local-first AI agent against compromised tools, malicious skills, and runtime attacks. The implementation goes far beyond standard best practices, introducing a kernel-like **RFSN (Request For Side-effect Negotiation)** arbitration layer that mediates all agent interactions with the outside world.
+The `OPENCLAW-SECURITY` codebase contains a substantial defense-in-depth security architecture centered on a kernel-like **RFSN (Request For Side-effect Negotiation)** arbitration layer. The RFSN spine (`src/rfsn/`, `src/security/subprocess.ts`) is real and structurally sound.
 
-The security hardening is **complete, verified, and active**. It is not merely a set of rules but a runtime enforcement system with self-auditing capabilities.
+**However, the original version of this report overstated completeness.** A follow-up code audit identified several concrete gaps between the architecture's intent and the live code:
+
+| Finding | File | Fixed |
+|---------|------|-------|
+| `verifySignature()` was a stub that accepted any non-empty string | `src/runtime/updater.ts` | ✅ Apr 2026 |
+| `shell: true` bypass in local TUI runner | `src/tui/tui-local-shell.ts` | ✅ Apr 2026 |
+| `execFileSync("openclaw", ...)` in repair command bypassed RFSN | `src/cli/commands/repair.ts` | ✅ Apr 2026 |
+| Unused `execSync` import leaked dead authority path | `src/cli/commands/up.ts` | ✅ Apr 2026 |
+
+The RFSN architecture, subprocess allowlisting, ledger append, and secret redaction are structurally intact. The gaps above have been patched. A further audit of all `child_process` import sites outside `src/security/` and `src/rfsn/` is recommended before treating any deployment as hardened.
 
 ## Detailed Phase Analysis
 
@@ -21,6 +30,7 @@ The security hardening is **complete, verified, and active**. It is not merely a
   - **Path Traversal Prevention:** Blocks absolute paths and slashes in command names to prevent executing arbitrary binaries.
   - **Environment Scrubbing:** Whitelists allowed environment variables (e.g., `PATH`, `HOME`), aggressively stripping dangerous ones like `NODE_OPTIONS`, `LD_PRELOAD`.
   - **Resource Caps:** Enforces hard timeouts and stdout/stderr byte limits (1MB default) to prevent DoS.
+- **Known gap (unresolved):** `src/runtime/supervisor.ts` uses bare `fork()` from `child_process` without routing through `subprocess.ts`. Not currently connected to any live startup path, but the module is not removed.
 
 ### Phase 1: RFSN Policy Engine (`src/rfsn/policy.ts`)
 
@@ -87,15 +97,15 @@ The security hardening is **complete, verified, and active**. It is not merely a
 
 ## Code Quality & Engineering
 
-The code quality is **exceptional**.
+The code quality is high in the security-focused modules.
 
 - **Type Safety:** Strict TypeScript usage with Zod/TypeBox for validation.
 - **Symbolic Security:** Extensive use of ES6 `Symbol`s to create unforgeable tokens within the runtime memory (Gate stamps, Executor markers).
 - **Immutability:** Usage of `Object.freeze` and read-only types to prevent state tampering.
-- **Testing:** High test coverage across all security modules (`*.test.ts` files are co-located and comprehensive).
+- **Testing:** Security modules have co-located `*.test.ts` files; coverage of bypass paths (e.g., non-RFSN `child_process` sites) should be expanded.
 
 ## Conclusion
 
-The `OPENCLAW-SECURITY` fork is a **professional-grade security hardening** effort. It successfully transforms a standard AI agent codebase into a hardened facility suitable for high-risk environments. The architecture correctly assumes that components may be compromised and establishes a trusted kernel (RFSN) to mediate all side effects.
+The RFSN spine and subprocess security model are real and structurally sound. The gaps identified in the April 2026 follow-up audit have been patched. The remaining work is to close the remaining non-RFSN `child_process` import sites in `src/runtime/supervisor.ts`, `src/node-host/runner.ts`, and `src/memory/qmd-manager.ts`, and to add tests that verify the RFSN gate rejects unallowlisted execution paths.
 
-**Recommendation:** Proceed with deployment/usage. The security posture is solid.
+**Recommendation:** Do not treat this codebase as production-hardened until the remaining `child_process` sites outside `src/security/` and `src/rfsn/` are audited, gated, or demonstrably proven to be non-reachable from agent tool paths.
