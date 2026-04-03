@@ -102,9 +102,10 @@ export function createLocalShellRunner(deps: LocalShellDeps) {
     deps.tui.requestRender();
 
     await new Promise<void>((resolve) => {
-      // Explicitly invoke the user's shell with the command as an argument rather
-      // than relying on Node's `shell: true`, which would use an implicit /bin/sh
-      // wrapper and enable shell metacharacter expansion outside our control.
+      // Explicitly invoke the configured user shell with its standard command
+      // argument (for example `-c` or `-Command`) instead of relying on Node's
+      // implicit `shell: true` wrapper. The selected shell still interprets the
+      // command string, including shell metacharacters.
       const { shell, args } = getShellConfig();
       const shellArgs = [...args, cmd];
       const child = spawnCommand(shell, shellArgs, {
