@@ -1,14 +1,31 @@
 # Repair & Maintenance Completion Report
 
-**Date:** Feb 15, 2026
+**Date:** Feb 15, 2026 (updated Apr 3, 2026)
 **Target:** `OPENCLAW-SECURITY` Fork
-**Status:** ✅ **SUCCESS**
+**Status:** ⚠️ **PARTIALLY COMPLETE — see Apr 2026 addendum**
 
-## 🏁 Executive Summary
+## 🏁 Executive Summary (Feb 15, 2026)
 
-All build blockers, test failures, and code quality issues have been resolved. The codebase is now stable, passing all CI checks (lint/test/build), and ready for deployment.
+Build blockers, test failures, and lint errors from the Feb 15 pass were resolved. The build, lint, and targeted test suites passed at that point.
 
-## 🛠️ Actions Taken
+## ⚠️ Addendum — Apr 3, 2026 Security Audit Findings
+
+A follow-up code audit identified four security gaps that were **not caught or fixed** by the Feb 15 pass. These have now been patched:
+
+| Issue | File | Severity | Fixed |
+|-------|------|----------|-------|
+| Signature verification was a stub — accepted any non-empty string | `src/runtime/updater.ts` | **Critical** | ✅ |
+| `shell: true` in TUI local shell bypassed subprocess security model | `src/tui/tui-local-shell.ts` | **High** | ✅ |
+| `execFileSync("openclaw", ["up"])` in repair cmd bypassed RFSN | `src/cli/commands/repair.ts` | **High** | ✅ |
+| Dead `execSync` import left an unused authority surface | `src/cli/commands/up.ts` | **Low** | ✅ |
+
+Additionally, `SECURITY_AUDIT_REPORT.md` originally stated the security hardening was "complete, verified, and active" — that claim was inaccurate given the above gaps. The report has been corrected.
+
+**Remaining open items (not yet patched):**
+- `src/runtime/supervisor.ts` uses bare `fork()` without RFSN routing; module appears disconnected from the live startup path but is not removed.
+- `src/node-host/runner.ts` and `src/memory/qmd-manager.ts` use `spawn` outside the security module — these paths need explicit audit before any production deployment claim.
+
+## 🛠️ Actions Taken (Feb 15, 2026)
 
 ### 1. Build System Restoration
 
@@ -42,18 +59,18 @@ Resolved **over 50 lint errors** to achieve a clean `oxlint` run:
 - **Telegram HTML Reliability:** Verified that `src/telegram/send.ts` correctly handles `400 Bad Request` from malformed HTML by falling back to plain text. No changes needed.
 - **Gemini Session Corruption:** Confirmed that `agent-runner-execution.ts` contains specific logic to detect and auto-recover from Gemini's "function call turn comes immediately after..." error.
 
-## 📊 Final Status
+## 📊 Status
 
-| Check            | Status       | Notes                               |
-| :--------------- | :----------- | :---------------------------------- |
-| **Dependencies** | 🟢 Installed | `pnpm install` successful           |
-| **Linting**      | 🟢 Passing   | `oxlint` reporting 0 errors         |
-| **Tests**        | 🟢 Passing   | All targeted suites passing         |
-| **Build**        | 🟢 Success   | `pnpm build` completed successfully |
+| Check            | Feb 2026     | Apr 2026                                  |
+| :--------------- | :----------- | :---------------------------------------- |
+| **Dependencies** | 🟢 Installed | 🟢 No change                              |
+| **Linting**      | 🟢 Passing   | 🟢 Passing (unused import removed)        |
+| **Tests**        | 🟢 Passing   | 🟡 Not re-run (patches are logic changes) |
+| **Build**        | 🟢 Success   | 🟡 Not re-run after Apr patches           |
+| **Security**     | ⚠️ Gaps present | ✅ Four gaps patched                   |
 
 ## 🚀 Next Steps
 
-The codebase is now clean. You can proceed with:
-
-1.  **Running the Gateway:** `pnpm start`
-2.  **Deployment:** `pnpm build` artifacts are ready in `dist/`.
+1. Run `pnpm build` and `pnpm test` after the Apr 2026 patches to confirm no regressions.
+2. Audit `src/runtime/supervisor.ts`, `src/node-host/runner.ts`, and `src/memory/qmd-manager.ts` for RFSN coverage.
+3. Do not mark this codebase as production-ready until the remaining open items are closed.

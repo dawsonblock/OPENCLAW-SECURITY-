@@ -1,5 +1,6 @@
 import type { Component, SelectItem } from "@mariozechner/pi-tui";
 import { spawn } from "node:child_process";
+import { getShellConfig } from "../agents/shell-utils.js";
 import { createSearchableSelectList } from "./components/selectors.js";
 
 type LocalShellDeps = {
@@ -101,8 +102,12 @@ export function createLocalShellRunner(deps: LocalShellDeps) {
     deps.tui.requestRender();
 
     await new Promise<void>((resolve) => {
-      const child = spawnCommand(cmd, {
-        shell: true,
+      // Explicitly invoke the user's shell with the command as an argument rather
+      // than relying on Node's `shell: true`, which would use an implicit /bin/sh
+      // wrapper and enable shell metacharacter expansion outside our control.
+      const { shell, args } = getShellConfig();
+      const shellArgs = [...args, cmd];
+      const child = spawnCommand(shell, shellArgs, {
         cwd: getCwd(),
         env,
       });
