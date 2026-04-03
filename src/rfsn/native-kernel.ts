@@ -84,11 +84,15 @@ export async function submitToRfsnKernel(proposal: RfsnActionProposal): Promise<
     throw new Error(`Failed to parse Native Gate Decision: ${stdout}`);
   }
 
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error(`Native Gate returned malformed response: ${stdout}`);
+  }
+
+  const response = parsed as Record<string, unknown>;
   if (
-    !parsed ||
-    typeof parsed !== "object" ||
-    typeof (parsed as Record<string, unknown>).verdict !== "string" ||
-    !Array.isArray((parsed as Record<string, unknown>).reasons)
+    typeof response.verdict !== "string" ||
+    !Array.isArray(response.reasons) ||
+    !response.reasons.every((reason) => typeof reason === "string")
   ) {
     throw new Error(`Native Gate returned malformed response: ${stdout}`);
   }
