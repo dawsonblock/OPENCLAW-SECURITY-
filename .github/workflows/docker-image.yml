@@ -1,0 +1,20 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+    - name: Build the Docker image
+      run: docker build . --file Dockerfile --tag my-image-name:${{ github.sha }}
