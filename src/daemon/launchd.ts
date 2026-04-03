@@ -103,13 +103,11 @@ async function execLaunchctl(
   args: string[],
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   try {
-    const { stdout, stderr } = await execFileWithStatus("launchctl", args, {
-      windowsHide: true,
-    });
+    const result = await execFileWithStatus("launchctl", args);
     return {
-      stdout: String(stdout ?? ""),
-      stderr: String(stderr ?? ""),
-      code: 0,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      code: result.code ?? 1,
     };
   } catch (error) {
     const e = error as {

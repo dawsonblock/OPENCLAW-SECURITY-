@@ -59,12 +59,93 @@ function walkSrc(dir: string): string[] {
   return results;
 }
 
+/**
+ * Removes comments and string literal contents while preserving newlines so
+ * heuristic security scans can match runtime code without comment/string
+ * false positives.
+ */
 function stripComments(content: string): string {
-  return content
-    .replace(/\/\*[\s\S]*?\*\//g, "\n")
-    .split("\n")
-    .map((line) => (line.trimStart().startsWith("//") ? "" : line))
-    .join("\n");
+  let result = "";
+  let state: "code" | "line-comment" | "block-comment" | "single" | "double" | "template" = "code";
+  let escaped = false;
+
+  for (let index = 0; index < content.length; index += 1) {
+    const char = content[index] ?? "";
+    const next = content[index + 1] ?? "";
+
+    if (state === "line-comment") {
+      if (char === "\n") {
+        state = "code";
+        result += "\n";
+      } else {
+        result += " ";
+      }
+      continue;
+    }
+
+    if (state === "block-comment") {
+      if (char === "*" && next === "/") {
+        result += "  ";
+        index += 1;
+        state = "code";
+      } else {
+        result += char === "\n" ? "\n" : " ";
+      }
+      continue;
+    }
+
+    if (state === "single" || state === "double" || state === "template") {
+      const delimiter = state === "single" ? "'" : state === "double" ? '"' : "`";
+      if (escaped) {
+        escaped = false;
+        result += char === "\n" ? "\n" : " ";
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        result += " ";
+        continue;
+      }
+      if (char === delimiter) {
+        state = "code";
+        result += " ";
+        continue;
+      }
+      result += char === "\n" ? "\n" : " ";
+      continue;
+    }
+
+    if (char === "/" && next === "/") {
+      state = "line-comment";
+      result += "  ";
+      index += 1;
+      continue;
+    }
+    if (char === "/" && next === "*") {
+      state = "block-comment";
+      result += "  ";
+      index += 1;
+      continue;
+    }
+    if (char === "'") {
+      state = "single";
+      result += " ";
+      continue;
+    }
+    if (char === '"') {
+      state = "double";
+      result += " ";
+      continue;
+    }
+    if (char === "`") {
+      state = "template";
+      result += " ";
+      continue;
+    }
+    result += char;
+  }
+
+  return result;
 }
 
 const srcDir = "src";

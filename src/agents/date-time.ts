@@ -96,16 +96,14 @@ export function withNormalizedTimestamp<T extends Record<string, unknown>>(
 function detectSystemTimeFormat(): boolean {
   if (process.platform === "darwin") {
     try {
-      const result = String(
-        execFileSyncAllowed({
-          command: "defaults",
-          args: ["read", "-g", "AppleICUForce24HourTime"],
-          allowedBins: ["defaults"],
-          timeoutMs: 500,
-          encoding: "utf8",
-          stdio: ["ignore", "pipe", "ignore"],
-        }),
-      ).trim();
+      const result = execFileSyncAllowed({
+        command: "defaults",
+        args: ["read", "-g", "AppleICUForce24HourTime"],
+        allowedBins: ["defaults"],
+        timeoutMs: 500,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      }).trim();
       if (result === "1") {
         return true;
       }
@@ -119,15 +117,13 @@ function detectSystemTimeFormat(): boolean {
 
   if (process.platform === "win32") {
     try {
-      const result = String(
-        execFileSyncAllowed({
-          command: "powershell",
-          args: ["-Command", "(Get-Culture).DateTimeFormat.ShortTimePattern"],
-          allowedBins: ["powershell"],
-          timeoutMs: 1000,
-          encoding: "utf8",
-        }),
-      ).trim();
+      const result = execFileSyncAllowed({
+        command: "powershell",
+        args: ["-Command", "(Get-Culture).DateTimeFormat.ShortTimePattern"],
+        allowedBins: ["powershell"],
+        timeoutMs: 1000,
+        encoding: "utf8",
+      }).trim();
       if (result.startsWith("H")) {
         return true;
       }

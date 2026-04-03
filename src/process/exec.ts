@@ -146,6 +146,12 @@ export type ExecFileOptions = {
   windowsVerbatimArguments?: boolean;
 };
 
+/**
+ * Executes a single command via the guarded subprocess seam and returns its
+ * status/result payload without throwing on non-zero exit codes. It still
+ * throws on spawn-time failures such as blocked executables, timeouts, or
+ * output limit violations.
+ */
 export async function execFileWithStatus(
   command: string,
   args: string[],

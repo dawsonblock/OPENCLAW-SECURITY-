@@ -55,6 +55,13 @@ describe("browser default executable detection", () => {
       "darwin",
     );
 
+    expect(execFileSyncAllowed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: "/usr/bin/plutil",
+        allowedBins: ["plutil"],
+        allowAbsolutePath: true,
+      }),
+    );
     expect(exe?.path).toContain("Google Chrome.app/Contents/MacOS/Google Chrome");
     expect(exe?.kind).toBe("chrome");
   });

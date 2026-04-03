@@ -52,7 +52,7 @@ function buildSystemNodeCandidates(
 type ExecFileAsync = (
   file: string,
   args: readonly string[],
-  options?: { encoding: "utf8" },
+  options: { encoding: "utf8" },
 ) => Promise<{ stdout: string; stderr: string }>;
 
 async function resolveNodeVersion(
@@ -127,7 +127,7 @@ export async function resolveSystemNodeInfo(params: {
   const version = await resolveNodeVersion(
     systemNode,
     params.execFile ??
-      (async (file, args) => {
+      (async (file, args, _options) => {
         const result = await execFileWithStatus(file, [...args], {
           allowedBins: [path.basename(file)],
           allowAbsolutePath: path.isAbsolute(file),

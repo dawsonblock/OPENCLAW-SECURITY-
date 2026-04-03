@@ -62,10 +62,15 @@ export type ShellEnvFallbackOptions = {
   ) => Buffer;
 };
 
-export function loadShellEnvFallback(opts: ShellEnvFallbackOptions): ShellEnvFallbackResult {
-  const logger = opts.logger ?? console;
-  const exec =
-    opts.exec ??
+type ExecBufferFn = NonNullable<ShellEnvFallbackOptions["exec"]>;
+
+/**
+ * Returns the injected exec implementation or a default buffer-returning
+ * wrapper that resolves login-shell env via the guarded subprocess seam.
+ */
+function createExecBuffer(exec?: ExecBufferFn): ExecBufferFn {
+  return (
+    exec ??
     ((command, args, options) =>
       execFileSyncAllowed({
         command,
@@ -77,7 +82,13 @@ export function loadShellEnvFallback(opts: ShellEnvFallbackOptions): ShellEnvFal
         maxBuffer: options.maxBuffer,
         envOverrides: options.env,
         stdio: options.stdio,
-      }) as Buffer);
+      }))
+  );
+}
+
+export function loadShellEnvFallback(opts: ShellEnvFallbackOptions): ShellEnvFallbackResult {
+  const logger = opts.logger ?? console;
+  const exec = createExecBuffer(opts.exec);
 
   if (!opts.enabled) {
     lastAppliedKeys = [];
@@ -175,20 +186,7 @@ export function getShellPathFromLoginShell(opts: {
     return cachedShellPath;
   }
 
-  const exec =
-    opts.exec ??
-    ((command, args, options) =>
-      execFileSyncAllowed({
-        command,
-        args,
-        allowedBins: [path.basename(command)],
-        allowAbsolutePath: path.isAbsolute(command),
-        encoding: options.encoding,
-        timeoutMs: options.timeout,
-        maxBuffer: options.maxBuffer,
-        envOverrides: options.env,
-        stdio: options.stdio,
-      }) as Buffer);
+  const exec = createExecBuffer(opts.exec);
   const timeoutMs =
     typeof opts.timeoutMs === "number" && Number.isFinite(opts.timeoutMs)
       ? Math.max(0, opts.timeoutMs)

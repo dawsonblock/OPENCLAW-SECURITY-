@@ -121,17 +121,15 @@ function runSecurityCommand(params: {
       }),
     );
   }
-  return String(
-    execFileSyncAllowed({
-      command: params.file,
-      args: params.args,
-      allowedBins: [path.basename(params.file)],
-      allowAbsolutePath: path.isAbsolute(params.file),
-      timeoutMs: params.timeoutMs,
-      encoding: "utf8",
-      stdio,
-    }),
-  );
+  return execFileSyncAllowed({
+    command: params.file,
+    args: params.args,
+    allowedBins: [path.basename(params.file)],
+    allowAbsolutePath: path.isAbsolute(params.file),
+    timeoutMs: params.timeoutMs,
+    encoding: "utf8",
+    stdio,
+  });
 }
 
 function resolveClaudeCliCredentialsPath(homeDir?: string) {

@@ -55,6 +55,11 @@ function isExecutableAllowed(command: string, allowedBins: Iterable<string>): bo
   return allowed.has(normalizedCommand);
 }
 
+/**
+ * Validates a command against the subprocess allowlist and path guardrails.
+ * Throws when the command is empty, uses a disallowed path form, or is not
+ * present in the approved executable set.
+ */
 function resolveAllowedCommand(params: {
   command: string;
   allowedBins: Iterable<string>;
@@ -155,10 +160,41 @@ export function execFileSyncAllowed(params: {
   timeoutMs?: number;
   maxBuffer?: number;
   input?: string | Buffer;
+  encoding: "buffer";
+  stdio?: "pipe" | "ignore" | "inherit" | Array<"pipe" | "ignore" | "inherit">;
+  windowsHide?: boolean;
+  inheritEnv?: boolean;
+  allowEnv?: Iterable<string>;
+  envOverrides?: Record<string, string | undefined>;
+}): Buffer;
+export function execFileSyncAllowed(params: {
+  command: string;
+  args: string[];
+  allowedBins: Iterable<string>;
+  allowAbsolutePath?: boolean;
+  cwd?: string;
+  timeoutMs?: number;
+  maxBuffer?: number;
+  input?: string | Buffer;
+  encoding?: BufferEncoding;
+  stdio?: "pipe" | "ignore" | "inherit" | Array<"pipe" | "ignore" | "inherit">;
+  windowsHide?: boolean;
+  inheritEnv?: boolean;
+  allowEnv?: Iterable<string>;
+  envOverrides?: Record<string, string | undefined>;
+}): string;
+export function execFileSyncAllowed(params: {
+  command: string;
+  args: string[];
+  allowedBins: Iterable<string>;
+  allowAbsolutePath?: boolean;
+  cwd?: string;
+  timeoutMs?: number;
+  maxBuffer?: number;
+  input?: string | Buffer;
   encoding?: BufferEncoding | "buffer";
   stdio?: "pipe" | "ignore" | "inherit" | Array<"pipe" | "ignore" | "inherit">;
   windowsHide?: boolean;
-  windowsVerbatimArguments?: boolean;
   inheritEnv?: boolean;
   allowEnv?: Iterable<string>;
   envOverrides?: Record<string, string | undefined>;

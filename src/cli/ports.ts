@@ -34,15 +34,13 @@ export function parseLsofOutput(output: string): PortProcess[] {
 export function listPortListeners(port: number): PortProcess[] {
   try {
     const lsof = resolveLsofCommandSync();
-    const out = String(
-      execFileSyncAllowed({
-        command: lsof,
-        args: ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-FpFc"],
-        allowedBins: [path.basename(lsof)],
-        allowAbsolutePath: path.isAbsolute(lsof),
-        encoding: "utf-8",
-      }),
-    );
+    const out = execFileSyncAllowed({
+      command: lsof,
+      args: ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-FpFc"],
+      allowedBins: [path.basename(lsof)],
+      allowAbsolutePath: path.isAbsolute(lsof),
+      encoding: "utf-8",
+    });
     return parseLsofOutput(out);
   } catch (err: unknown) {
     const status = (err as { status?: number }).status;
