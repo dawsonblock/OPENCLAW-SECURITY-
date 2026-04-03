@@ -1,8 +1,8 @@
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { ResolvedBrowserConfig } from "./config.js";
+import { execFileSyncAllowed } from "../process/exec.js";
 
 export type BrowserExecutable = {
   kind: "brave" | "canary" | "chromium" | "chrome" | "custom" | "edge";
@@ -101,8 +101,12 @@ function execText(
   maxBuffer = 1024 * 1024,
 ): string | null {
   try {
-    const output = execFileSync(command, args, {
-      timeout: timeoutMs,
+    const output = execFileSyncAllowed({
+      command,
+      args,
+      allowedBins: [path.basename(command)],
+      allowAbsolutePath: path.isAbsolute(command),
+      timeoutMs,
       encoding: "utf8",
       maxBuffer,
     });

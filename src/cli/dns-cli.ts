@@ -1,10 +1,10 @@
 import type { Command } from "commander";
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { loadConfig } from "../config/config.js";
 import { pickPrimaryTailnetIPv4, pickPrimaryTailnetIPv6 } from "../infra/tailnet.js";
 import { getWideAreaZonePath, resolveWideAreaDiscoveryDomain } from "../infra/widearea-dns.js";
+import { spawnSyncAllowed } from "../process/exec.js";
 import { defaultRuntime } from "../runtime.js";
 import { formatDocsLink } from "../terminal/links.js";
 import { renderTable } from "../terminal/table.js";
@@ -13,7 +13,11 @@ import { theme } from "../terminal/theme.js";
 type RunOpts = { allowFailure?: boolean; inherit?: boolean };
 
 function run(cmd: string, args: string[], opts?: RunOpts): string {
-  const res = spawnSync(cmd, args, {
+  const res = spawnSyncAllowed({
+    command: cmd,
+    args,
+    allowedBins: [path.basename(cmd)],
+    allowAbsolutePath: path.isAbsolute(cmd),
     encoding: "utf-8",
     stdio: opts?.inherit ? "inherit" : "pipe",
   });
@@ -41,7 +45,10 @@ function writeFileSudoIfNeeded(filePath: string, content: string): void {
     }
   }
 
-  const res = spawnSync("sudo", ["tee", filePath], {
+  const res = spawnSyncAllowed({
+    command: "sudo",
+    args: ["tee", filePath],
+    allowedBins: ["sudo"],
     input: content,
     encoding: "utf-8",
     stdio: ["pipe", "ignore", "inherit"],

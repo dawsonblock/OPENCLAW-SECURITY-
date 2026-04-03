@@ -1,8 +1,12 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-vi.mock("node:child_process", () => ({
-  execFileSync: vi.fn(),
-}));
+vi.mock("../process/exec.js", async () => {
+  const actual = await vi.importActual<typeof import("../process/exec.js")>("../process/exec.js");
+  return {
+    ...actual,
+    execFileSyncAllowed: vi.fn(),
+  };
+});
 vi.mock("node:fs", () => {
   const existsSync = vi.fn();
   const readFileSync = vi.fn();
@@ -12,8 +16,8 @@ vi.mock("node:fs", () => {
     default: { existsSync, readFileSync },
   };
 });
-import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
+import { execFileSyncAllowed } from "../process/exec.js";
 
 describe("browser default executable detection", () => {
   beforeEach(() => {
@@ -22,7 +26,7 @@ describe("browser default executable detection", () => {
   });
 
   it("prefers default Chromium browser on macOS", async () => {
-    vi.mocked(execFileSync).mockImplementation((cmd, args) => {
+    vi.mocked(execFileSyncAllowed).mockImplementation(({ command: cmd, args }) => {
       const argsStr = Array.isArray(args) ? args.join(" ") : "";
       if (cmd === "/usr/bin/plutil" && argsStr.includes("LSHandlers")) {
         return JSON.stringify([
@@ -56,7 +60,7 @@ describe("browser default executable detection", () => {
   });
 
   it("falls back when default browser is non-Chromium on macOS", async () => {
-    vi.mocked(execFileSync).mockImplementation((cmd, args) => {
+    vi.mocked(execFileSyncAllowed).mockImplementation(({ command: cmd, args }) => {
       const argsStr = Array.isArray(args) ? args.join(" ") : "";
       if (cmd === "/usr/bin/plutil" && argsStr.includes("LSHandlers")) {
         return JSON.stringify([

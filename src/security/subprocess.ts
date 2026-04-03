@@ -1,4 +1,11 @@
-import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
+import {
+  execFileSync,
+  spawn,
+  spawnSync,
+  type ChildProcess,
+  type SpawnOptions,
+  type SpawnSyncReturns,
+} from "node:child_process";
 import path from "node:path";
 
 const DEFAULT_ALLOWED_ENV_KEYS = [
@@ -48,6 +55,29 @@ function isExecutableAllowed(command: string, allowedBins: Iterable<string>): bo
   return allowed.has(normalizedCommand);
 }
 
+function resolveAllowedCommand(params: {
+  command: string;
+  allowedBins: Iterable<string>;
+  allowAbsolutePath?: boolean;
+}): string {
+  const command = params.command.trim();
+  if (!command) {
+    throw new Error("Blocked executable: empty command");
+  }
+  if (path.isAbsolute(command)) {
+    if (params.allowAbsolutePath !== true) {
+      throw new Error(`Blocked executable path: ${command}`);
+    }
+  } else if (command.includes("/") || command.includes("\\")) {
+    throw new Error(`Blocked executable path: ${command}`);
+  }
+
+  if (!isExecutableAllowed(command, params.allowedBins)) {
+    throw new Error(`Blocked executable: ${command}`);
+  }
+  return command;
+}
+
 export function buildScrubbedEnv(params?: {
   inheritEnv?: boolean;
   allowEnv?: Iterable<string>;
@@ -95,21 +125,11 @@ export function spawnAllowed(params: {
   allowEnv?: Iterable<string>;
   envOverrides?: Record<string, string | undefined>;
 }): ChildProcess {
-  const command = params.command.trim();
-  if (!command) {
-    throw new Error("Blocked executable: empty command");
-  }
-  if (path.isAbsolute(command)) {
-    if (params.allowAbsolutePath !== true) {
-      throw new Error(`Blocked executable path: ${command}`);
-    }
-  } else if (command.includes("/") || command.includes("\\")) {
-    throw new Error(`Blocked executable path: ${command}`);
-  }
-
-  if (!isExecutableAllowed(command, params.allowedBins)) {
-    throw new Error(`Blocked executable: ${command}`);
-  }
+  const command = resolveAllowedCommand({
+    command: params.command,
+    allowedBins: params.allowedBins,
+    allowAbsolutePath: params.allowAbsolutePath,
+  });
   const env = buildScrubbedEnv({
     inheritEnv: params.inheritEnv,
     allowEnv: params.allowEnv,
@@ -126,6 +146,87 @@ export function spawnAllowed(params: {
   });
 }
 
+export function execFileSyncAllowed(params: {
+  command: string;
+  args: string[];
+  allowedBins: Iterable<string>;
+  allowAbsolutePath?: boolean;
+  cwd?: string;
+  timeoutMs?: number;
+  maxBuffer?: number;
+  input?: string | Buffer;
+  encoding?: BufferEncoding | "buffer";
+  stdio?: "pipe" | "ignore" | "inherit" | Array<"pipe" | "ignore" | "inherit">;
+  windowsHide?: boolean;
+  windowsVerbatimArguments?: boolean;
+  inheritEnv?: boolean;
+  allowEnv?: Iterable<string>;
+  envOverrides?: Record<string, string | undefined>;
+}): string | Buffer {
+  const command = resolveAllowedCommand({
+    command: params.command,
+    allowedBins: params.allowedBins,
+    allowAbsolutePath: params.allowAbsolutePath,
+  });
+  const env = buildScrubbedEnv({
+    inheritEnv: params.inheritEnv,
+    allowEnv: params.allowEnv,
+    envOverrides: params.envOverrides,
+  });
+  return execFileSync(command, params.args, {
+    cwd: params.cwd,
+    timeout: params.timeoutMs,
+    maxBuffer: params.maxBuffer,
+    input: params.input,
+    encoding: params.encoding,
+    stdio: params.stdio,
+    windowsHide: params.windowsHide,
+    shell: false,
+    env,
+  });
+}
+
+export function spawnSyncAllowed(params: {
+  command: string;
+  args: string[];
+  allowedBins: Iterable<string>;
+  allowAbsolutePath?: boolean;
+  cwd?: string;
+  timeoutMs?: number;
+  maxBuffer?: number;
+  input?: string | Buffer;
+  encoding?: BufferEncoding | "buffer";
+  stdio?: SpawnOptions["stdio"];
+  windowsHide?: boolean;
+  windowsVerbatimArguments?: boolean;
+  inheritEnv?: boolean;
+  allowEnv?: Iterable<string>;
+  envOverrides?: Record<string, string | undefined>;
+}): SpawnSyncReturns<string | Buffer> {
+  const command = resolveAllowedCommand({
+    command: params.command,
+    allowedBins: params.allowedBins,
+    allowAbsolutePath: params.allowAbsolutePath,
+  });
+  const env = buildScrubbedEnv({
+    inheritEnv: params.inheritEnv,
+    allowEnv: params.allowEnv,
+    envOverrides: params.envOverrides,
+  });
+  return spawnSync(command, params.args, {
+    cwd: params.cwd,
+    timeout: params.timeoutMs,
+    maxBuffer: params.maxBuffer,
+    input: params.input,
+    encoding: params.encoding,
+    stdio: params.stdio,
+    windowsHide: params.windowsHide,
+    windowsVerbatimArguments: params.windowsVerbatimArguments,
+    shell: false,
+    env,
+  });
+}
+
 export async function runAllowedCommand(params: {
   command: string;
   args: string[];
@@ -136,6 +237,8 @@ export async function runAllowedCommand(params: {
   maxStdoutBytes?: number;
   maxStderrBytes?: number;
   stdinText?: string;
+  windowsHide?: boolean;
+  windowsVerbatimArguments?: boolean;
   inheritEnv?: boolean;
   allowEnv?: Iterable<string>;
   envOverrides?: Record<string, string | undefined>;
@@ -157,6 +260,8 @@ export async function runAllowedCommand(params: {
     allowAbsolutePath: params.allowAbsolutePath,
     cwd: params.cwd,
     stdio: [hasStdin ? "pipe" : "ignore", "pipe", "pipe"],
+    windowsHide: params.windowsHide,
+    windowsVerbatimArguments: params.windowsVerbatimArguments,
     inheritEnv: params.inheritEnv,
     allowEnv: params.allowEnv,
     envOverrides: params.envOverrides,

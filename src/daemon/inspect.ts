@@ -1,7 +1,6 @@
-import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
+import { execFileWithStatus } from "../process/exec.js";
 import {
   GATEWAY_SERVICE_KIND,
   GATEWAY_SERVICE_MARKER,
@@ -24,8 +23,6 @@ export type FindExtraGatewayServicesOptions = {
 };
 
 const EXTRA_MARKERS = ["openclaw", "clawdbot", "moltbot"] as const;
-const execFileAsync = promisify(execFile);
-
 export function renderGatewayServiceCleanupHints(
   env: Record<string, string | undefined> = process.env as Record<string, string | undefined>,
 ): string[] {
@@ -300,8 +297,7 @@ async function execSchtasks(
   args: string[],
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   try {
-    const { stdout, stderr } = await execFileAsync("schtasks", args, {
-      encoding: "utf8",
+    const { stdout, stderr } = await execFileWithStatus("schtasks", args, {
       windowsHide: true,
     });
     return {

@@ -1,14 +1,11 @@
-import { execFile } from "node:child_process";
 import { X509Certificate } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import tls from "node:tls";
-import { promisify } from "node:util";
 import type { GatewayTlsConfig } from "../../config/types.gateway.js";
+import { execFileWithStatus } from "../../process/exec.js";
 import { CONFIG_DIR, ensureDir, resolveUserPath, shortenHomeInString } from "../../utils.js";
 import { normalizeFingerprint } from "./fingerprint.js";
-
-const execFileAsync = promisify(execFile);
 
 export type GatewayTlsRuntime = {
   enabled: boolean;
@@ -41,7 +38,7 @@ async function generateSelfSignedCert(params: {
   if (keyDir !== certDir) {
     await ensureDir(keyDir);
   }
-  await execFileAsync("openssl", [
+  const result = await execFileWithStatus("openssl", [
     "req",
     "-x509",
     "-newkey",
@@ -57,6 +54,11 @@ async function generateSelfSignedCert(params: {
     "-subj",
     "/CN=openclaw-gateway",
   ]);
+  if (result.code !== 0) {
+    throw new Error(
+      result.stderr || result.stdout || `openssl exited with ${result.code ?? "unknown"}`,
+    );
+  }
   await fs.chmod(params.keyPath, 0o600).catch(() => {});
   await fs.chmod(params.certPath, 0o600).catch(() => {});
   params.log?.info?.(

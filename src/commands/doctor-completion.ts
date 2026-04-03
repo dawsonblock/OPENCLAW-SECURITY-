@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import path from "node:path";
 import type { RuntimeEnv } from "../runtime.js";
 import type { DoctorPrompter } from "./doctor-prompter.js";
@@ -12,6 +11,7 @@ import {
   usesSlowDynamicCompletion,
 } from "../cli/completion-cli.js";
 import { resolveOpenClawPackageRoot } from "../infra/openclaw-root.js";
+import { spawnSyncAllowed } from "../process/exec.js";
 import { note } from "../terminal/note.js";
 
 type CompletionShell = "zsh" | "bash" | "fish" | "powershell";
@@ -28,9 +28,13 @@ async function generateCompletionCache(): Promise<boolean> {
   }
 
   const binPath = path.join(root, "openclaw.mjs");
-  const result = spawnSync(process.execPath, [binPath, "completion", "--write-state"], {
+  const result = spawnSyncAllowed({
+    command: process.execPath,
+    args: [binPath, "completion", "--write-state"],
+    allowedBins: [path.basename(process.execPath)],
+    allowAbsolutePath: true,
     cwd: root,
-    env: process.env,
+    envOverrides: process.env,
     encoding: "utf-8",
   });
 

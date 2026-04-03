@@ -60,6 +60,14 @@ function walkSrc(dir: string): string[] {
   return results;
 }
 
+function stripComments(content: string): string {
+  return content
+    .replace(/\/\*[\s\S]*?\*\//g, "\n")
+    .split("\n")
+    .map((line) => (line.trimStart().startsWith("//") ? "" : line))
+    .join("\n");
+}
+
 const srcDir = "src";
 if (existsSync(srcDir)) {
   for (const absPath of walkSrc(srcDir)) {
@@ -72,11 +80,12 @@ if (existsSync(srcDir)) {
     }
 
     // Flag direct node:child_process value imports (not type-only imports) outside the allowlist.
-    const hasRealChildProcessImport = content.split("\n").some(
-      (line) =>
-        /from\s+["']node:child_process["']/.test(line) &&
-        !/^\s*import\s+type\s+/.test(line),
-    );
+    const hasRealChildProcessImport = content
+      .split("\n")
+      .some(
+        (line) =>
+          /from\s+["']node:child_process["']/.test(line) && !/^\s*import\s+type\s+/.test(line),
+      );
     if (hasRealChildProcessImport) {
       if (!ALLOWED_CHILD_PROCESS_IMPORTERS.has(relPath)) {
         console.error(
@@ -87,7 +96,7 @@ if (existsSync(srcDir)) {
     }
 
     // Flag shell:true (never allowed in runtime code).
-    if (SHELL_TRUE_PATTERN.test(content)) {
+    if (SHELL_TRUE_PATTERN.test(stripComments(content))) {
       console.error(`❌ ${relPath}: contains shell:true (never permitted in runtime code)`);
       failed = true;
     }

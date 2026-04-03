@@ -1,5 +1,5 @@
-import { execFileSync } from "node:child_process";
 import path from "node:path";
+import { execFileSyncAllowed } from "../process/exec.js";
 import { isTruthyEnvValue } from "./env.js";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -49,12 +49,35 @@ export type ShellEnvFallbackOptions = {
   expectedKeys: string[];
   logger?: Pick<typeof console, "warn">;
   timeoutMs?: number;
-  exec?: typeof execFileSync;
+  exec?: (
+    command: string,
+    args: string[],
+    options: {
+      encoding: "buffer";
+      timeout: number;
+      maxBuffer: number;
+      env: NodeJS.ProcessEnv;
+      stdio: ["ignore", "pipe", "pipe"];
+    },
+  ) => Buffer;
 };
 
 export function loadShellEnvFallback(opts: ShellEnvFallbackOptions): ShellEnvFallbackResult {
   const logger = opts.logger ?? console;
-  const exec = opts.exec ?? execFileSync;
+  const exec =
+    opts.exec ??
+    ((command, args, options) =>
+      execFileSyncAllowed({
+        command,
+        args,
+        allowedBins: [path.basename(command)],
+        allowAbsolutePath: path.isAbsolute(command),
+        encoding: options.encoding,
+        timeoutMs: options.timeout,
+        maxBuffer: options.maxBuffer,
+        envOverrides: options.env,
+        stdio: options.stdio,
+      }) as Buffer);
 
   if (!opts.enabled) {
     lastAppliedKeys = [];
@@ -132,7 +155,17 @@ export function resolveShellEnvFallbackTimeoutMs(env: NodeJS.ProcessEnv): number
 export function getShellPathFromLoginShell(opts: {
   env: NodeJS.ProcessEnv;
   timeoutMs?: number;
-  exec?: typeof execFileSync;
+  exec?: (
+    command: string,
+    args: string[],
+    options: {
+      encoding: "buffer";
+      timeout: number;
+      maxBuffer: number;
+      env: NodeJS.ProcessEnv;
+      stdio: ["ignore", "pipe", "pipe"];
+    },
+  ) => Buffer;
 }): string | null {
   if (cachedShellPath !== undefined) {
     return cachedShellPath;
@@ -142,7 +175,20 @@ export function getShellPathFromLoginShell(opts: {
     return cachedShellPath;
   }
 
-  const exec = opts.exec ?? execFileSync;
+  const exec =
+    opts.exec ??
+    ((command, args, options) =>
+      execFileSyncAllowed({
+        command,
+        args,
+        allowedBins: [path.basename(command)],
+        allowAbsolutePath: path.isAbsolute(command),
+        encoding: options.encoding,
+        timeoutMs: options.timeout,
+        maxBuffer: options.maxBuffer,
+        envOverrides: options.env,
+        stdio: options.stdio,
+      }) as Buffer);
   const timeoutMs =
     typeof opts.timeoutMs === "number" && Number.isFinite(opts.timeoutMs)
       ? Math.max(0, opts.timeoutMs)

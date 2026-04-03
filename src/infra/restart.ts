@@ -1,8 +1,8 @@
-import { spawnSync } from "node:child_process";
 import {
   resolveGatewayLaunchAgentLabel,
   resolveGatewaySystemdServiceName,
 } from "../daemon/constants.js";
+import { spawnSyncAllowed } from "../process/exec.js";
 
 export type RestartAttempt = {
   ok: boolean;
@@ -116,18 +116,24 @@ export function triggerOpenClawRestart(): RestartAttempt {
       );
       const userArgs = ["--user", "restart", unit];
       tried.push(`systemctl ${userArgs.join(" ")}`);
-      const userRestart = spawnSync("systemctl", userArgs, {
+      const userRestart = spawnSyncAllowed({
+        command: "systemctl",
+        args: userArgs,
+        allowedBins: ["systemctl"],
         encoding: "utf8",
-        timeout: SPAWN_TIMEOUT_MS,
+        timeoutMs: SPAWN_TIMEOUT_MS,
       });
       if (!userRestart.error && userRestart.status === 0) {
         return { ok: true, method: "systemd", tried };
       }
       const systemArgs = ["restart", unit];
       tried.push(`systemctl ${systemArgs.join(" ")}`);
-      const systemRestart = spawnSync("systemctl", systemArgs, {
+      const systemRestart = spawnSyncAllowed({
+        command: "systemctl",
+        args: systemArgs,
+        allowedBins: ["systemctl"],
         encoding: "utf8",
-        timeout: SPAWN_TIMEOUT_MS,
+        timeoutMs: SPAWN_TIMEOUT_MS,
       });
       if (!systemRestart.error && systemRestart.status === 0) {
         return { ok: true, method: "systemd", tried };
@@ -152,9 +158,12 @@ export function triggerOpenClawRestart(): RestartAttempt {
   const target = uid !== undefined ? `gui/${uid}/${label}` : label;
   const args = ["kickstart", "-k", target];
   tried.push(`launchctl ${args.join(" ")}`);
-  const res = spawnSync("launchctl", args, {
+  const res = spawnSyncAllowed({
+    command: "launchctl",
+    args,
+    allowedBins: ["launchctl"],
     encoding: "utf8",
-    timeout: SPAWN_TIMEOUT_MS,
+    timeoutMs: SPAWN_TIMEOUT_MS,
   });
   if (!res.error && res.status === 0) {
     return { ok: true, method: "launchctl", tried };

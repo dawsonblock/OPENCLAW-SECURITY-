@@ -1,18 +1,18 @@
-import { execFile } from "node:child_process";
 import os from "node:os";
-import { promisify } from "node:util";
-
-const execFileAsync = promisify(execFile);
+import path from "node:path";
+import { execFileWithStatus } from "../process/exec.js";
 
 let cachedPromise: Promise<string> | null = null;
 
 async function tryScutil(key: "ComputerName" | "LocalHostName") {
   try {
-    const { stdout } = await execFileAsync("/usr/sbin/scutil", ["--get", key], {
-      timeout: 1000,
+    const { stdout } = await execFileWithStatus("/usr/sbin/scutil", ["--get", key], {
+      allowedBins: [path.basename("/usr/sbin/scutil")],
+      allowAbsolutePath: true,
+      timeoutMs: 1000,
       windowsHide: true,
     });
-    const value = String(stdout ?? "").trim();
+    const value = stdout.trim();
     return value.length > 0 ? value : null;
   } catch {
     return null;
