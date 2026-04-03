@@ -37,6 +37,13 @@ const HIGH_RISK_RUNTIME_SPAWN_FILES = [
   "src/imessage/client.ts",
   "src/auto-reply/reply/stage-sandbox-media.ts",
   "src/agents/sandbox/docker.ts",
+  // Previously live bypasses – now routed through the subprocess seam.
+  // Keep in this list so the guard catches any future regression.
+  "src/node-host/runner.ts",
+  "src/rfsn/native-kernel.ts",
+  "src/memory/qmd-manager.ts",
+  "src/browser/chrome.ts",
+  "src/agents/shell-utils.ts",
 ] as const;
 const LOOPBACK_DEFAULT_HOST_FILES = [
   "src/telegram/webhook.ts",
@@ -193,6 +200,49 @@ const GATE_CRITICAL_ENV_VARS = [
   "OPENCLAW_RFSN_REQUIRE_SIGNED_POLICY",
 ] as const;
 
+/**
+ * Files allowed to import node:child_process directly in the live runtime.
+ *
+ * This is the authoritative exception list. Every entry must have a documented
+ * reason. Adding an entry here does NOT make the code safe; it documents a
+ * known exception that has been reviewed and accepted.
+ *
+ * Allowed exceptions:
+ *   - src/security/subprocess.ts   LOW-LEVEL SPAWN AUTHORITY: the only file
+ *                                  permitted to call spawn() for general runtime
+ *                                  execution. All live runtime spawns must route
+ *                                  through this file.
+ *   - src/process/spawn-utils.ts   Type imports and internal spawn helper used
+ *                                  exclusively by the exec seam.
+ *   - src/entry.ts                 BOOTSTRAP: spawns a copy of the Node binary
+ *                                  itself to inject --disable-warning flags.
+ *                                  Cannot go through the allowlist seam because
+ *                                  it predates any configuration.
+ *   - src/tui/tui-local-shell.ts   EXPLICIT LOCAL-SHELL EXCEPTION: documented
+ *                                  arbitrary local shell. Disabled by default
+ *                                  (requires OPENCLAW_LOCAL_SHELL_ENABLED=1).
+ *                                  Not part of the bounded execution story.
+ *   - src/runtime/supervisor.ts    QUARANTINED DEAD CODE: not imported by any
+ *                                  live runtime path. Uses bare 'child_process'
+ *                                  (not 'node:child_process') and is excluded
+ *                                  from the scan below.
+ */
+const ALLOWED_CHILD_PROCESS_IMPORTERS = new Set([
+  "src/security/subprocess.ts",
+  "src/process/spawn-utils.ts",
+  "src/entry.ts",
+  "src/tui/tui-local-shell.ts",
+]);
+
+/**
+ * Runtime files that must NOT contain raw `spawn(` or `fork(` calls outside
+ * the approved boundary. This prevents accidental re-introduction of bypasses.
+ *
+ * Type-only imports (ChildProcess, ChildProcessWithoutNullStreams) are allowed
+ * anywhere and are excluded from the spawn/fork pattern check.
+ */
+const RUNTIME_SPAWN_PATTERN = /\bspawn\s*\(|\bfork\s*\(/;
+
 const RUNTIME_TS_FILE_RE = /\.ts$/;
 const TEST_FILE_RE = /\.(test|spec)\.ts$|\.e2e\.test\.ts$/;
 
@@ -265,6 +315,34 @@ describe("RFSN final authority", () => {
         );
       }
 
+      // Child-process boundary enforcement:
+      // Flag value imports of node:child_process (not type-only imports).
+      // Type-only imports (`import type { X }`) emit no runtime code and are
+      // used legitimately for typing ChildProcess handles.
+      const hasRealChildProcessImport = content.split("\n").some(
+        (line) =>
+          /from\s+["']node:child_process["']/.test(line) &&
+          !/^\s*import\s+type\s+/.test(line),
+      );
+      if (hasRealChildProcessImport) {
+        if (!ALLOWED_CHILD_PROCESS_IMPORTERS.has(relPath)) {
+          violations.push(
+            `${relPath}: imports node:child_process directly – route through src/process/exec.ts or src/security/subprocess.ts, or add to ALLOWED_CHILD_PROCESS_IMPORTERS with justification`,
+          );
+        }
+      }
+
+      // Detect raw spawn/fork calls alongside direct child_process imports.
+      if (
+        hasRealChildProcessImport &&
+        RUNTIME_SPAWN_PATTERN.test(content) &&
+        !ALLOWED_CHILD_PROCESS_IMPORTERS.has(relPath)
+      ) {
+        violations.push(
+          `${relPath}: contains raw spawn/fork call AND imports node:child_process – use the exec seam`,
+        );
+      }
+
       if (RFSN_CHOKEPOINT_FILES.has(relPath)) {
         if (/from\s+["']node:child_process["']/.test(content)) {
           violations.push(`${relPath}: chokepoint imports node:child_process directly`);
@@ -326,11 +404,20 @@ describe("RFSN final authority", () => {
     for (const relPath of HIGH_RISK_RUNTIME_SPAWN_FILES) {
       const absPath = path.resolve(process.cwd(), relPath);
       const content = await fs.readFile(absPath, "utf8");
-      if (/from\s+["']node:child_process["']/.test(content)) {
+      // Flag value imports from node:child_process (exclude type-only imports).
+      const hasRealCpImport = content.split("\n").some(
+        (line) =>
+          /from\s+["']node:child_process["']/.test(line) &&
+          !/^\s*import\s+type\s+/.test(line),
+      );
+      if (hasRealCpImport) {
         violations.push(`${relPath}: direct node:child_process import bypasses subprocess guard`);
       }
-      if (!/security\/subprocess\.js/.test(content)) {
-        violations.push(`${relPath}: missing subprocess guard import`);
+      // Accept import from either subprocess.js directly or via the exec.ts seam.
+      if (!/(security\/subprocess\.js|process\/exec\.js)/.test(content)) {
+        violations.push(
+          `${relPath}: missing subprocess guard import (expected security/subprocess.js or process/exec.js)`,
+        );
       }
     }
 

@@ -1,7 +1,8 @@
+import type { ChildProcess, StdioOptions } from "node:child_process";
 import path from "node:path";
 import { danger, shouldLogVerbose } from "../globals.js";
 import { logDebug, logError } from "../logger.js";
-import { runAllowedCommand, spawnAllowed } from "../security/subprocess.js";
+import { buildScrubbedEnv, runAllowedCommand, spawnAllowed } from "../security/subprocess.js";
 import { resolveCommandStdio } from "./spawn-utils.js";
 
 /**
@@ -222,3 +223,45 @@ export async function runCommandWithTimeout(
     });
   });
 }
+
+export type ManagedChildOptions = {
+  /** Absolute path to the executable (allowAbsolutePath is implicitly true). */
+  executablePath: string;
+  args: string[];
+  cwd?: string;
+  stdio?: StdioOptions;
+  allowEnv?: Iterable<string>;
+  envOverrides?: Record<string, string | undefined>;
+  /** Inherit a scrubbed subset of process.env. Defaults to true. */
+  inheritEnv?: boolean;
+  windowsHide?: boolean;
+  detached?: boolean;
+};
+
+/**
+ * Spawns a validated long-lived child process (e.g. a browser).
+ *
+ * The executable must be an absolute path. Env is scrubbed via
+ * buildScrubbedEnv. The caller owns the returned ChildProcess lifecycle.
+ *
+ * Runtime code should call this instead of importing node:child_process
+ * directly for managed long-lived children.
+ */
+export function spawnManagedChild(opts: ManagedChildOptions): ChildProcess {
+  const basename = path.basename(opts.executablePath);
+  return spawnAllowed({
+    command: opts.executablePath,
+    args: opts.args,
+    allowedBins: [basename],
+    allowAbsolutePath: true,
+    cwd: opts.cwd,
+    stdio: opts.stdio ?? "pipe",
+    inheritEnv: opts.inheritEnv ?? true,
+    allowEnv: opts.allowEnv,
+    envOverrides: opts.envOverrides,
+    windowsHide: opts.windowsHide,
+    detached: opts.detached,
+  });
+}
+
+export { buildScrubbedEnv, runAllowedCommand };

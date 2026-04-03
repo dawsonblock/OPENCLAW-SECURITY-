@@ -1,3 +1,21 @@
+/**
+ * QUARANTINED – NOT PART OF THE LIVE RUNTIME
+ * -------------------------------------------
+ * This file is NOT imported by any live runtime code. It was written as a
+ * speculative supervisor sketch and is not wired into the running gateway,
+ * node-host, or any active execution path.
+ *
+ * It uses `fork` from the bare "child_process" module (without the "node:"
+ * prefix) and does NOT route through the shared subprocess seam. It must NOT
+ * be refactored into live code until:
+ *   1. It is explicitly wired into a supported execution path.
+ *   2. Its fork call is replaced by the managed spawn seam (spawnManagedChild).
+ *   3. The scriptPath is validated as an absolute, allowlisted path.
+ *
+ * The static guard (src/rfsn/final-authority.test.ts) documents this file as
+ * a quarantined dead-code exception. Do not add imports of this module to
+ * any live runtime file without completing the above steps first.
+ */
 import { ChildProcess, fork } from "child_process";
 import { RecoveryManager } from "./recovery.js";
 

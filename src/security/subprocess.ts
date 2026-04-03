@@ -135,6 +135,7 @@ export async function runAllowedCommand(params: {
   timeoutMs?: number;
   maxStdoutBytes?: number;
   maxStderrBytes?: number;
+  stdinText?: string;
   inheritEnv?: boolean;
   allowEnv?: Iterable<string>;
   envOverrides?: Record<string, string | undefined>;
@@ -147,6 +148,7 @@ export async function runAllowedCommand(params: {
   const timeoutMs = Math.max(100, Math.floor(params.timeoutMs ?? 10_000));
   const maxStdoutBytes = Math.max(1_024, Math.floor(params.maxStdoutBytes ?? 1_000_000));
   const maxStderrBytes = Math.max(1_024, Math.floor(params.maxStderrBytes ?? 500_000));
+  const hasStdin = params.stdinText !== undefined;
 
   const child = spawnAllowed({
     command: params.command,
@@ -154,11 +156,16 @@ export async function runAllowedCommand(params: {
     allowedBins: params.allowedBins,
     allowAbsolutePath: params.allowAbsolutePath,
     cwd: params.cwd,
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: [hasStdin ? "pipe" : "ignore", "pipe", "pipe"],
     inheritEnv: params.inheritEnv,
     allowEnv: params.allowEnv,
     envOverrides: params.envOverrides,
   });
+
+  if (hasStdin && child.stdin) {
+    child.stdin.write(params.stdinText ?? "");
+    child.stdin.end();
+  }
 
   return await new Promise((resolve, reject) => {
     let stdout = "";

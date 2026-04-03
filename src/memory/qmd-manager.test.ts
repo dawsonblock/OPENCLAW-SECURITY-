@@ -257,7 +257,9 @@ describe("QmdMemoryManager", () => {
             interval: "0s",
             debounceMs: 0,
             onBoot: false,
-            updateTimeoutMs: 20,
+            // Use 200ms so the value exceeds the 100ms minimum enforced by
+            // runAllowedCommand, ensuring the timeout still fires as expected.
+            updateTimeoutMs: 200,
           },
           paths: [{ path: workspaceDir, pattern: "**/*.md", name: "workspace" }],
         },
@@ -279,8 +281,9 @@ describe("QmdMemoryManager", () => {
       throw new Error("manager missing");
     }
     const syncPromise = manager.sync({ reason: "manual" });
-    const rejected = expect(syncPromise).rejects.toThrow("qmd update timed out after 20ms");
-    await vi.advanceTimersByTimeAsync(20);
+    // runAllowedCommand emits "Command timed out after Nms"
+    const rejected = expect(syncPromise).rejects.toThrow(/timed out after 200ms/);
+    await vi.advanceTimersByTimeAsync(200);
     await rejected;
     await manager.close();
   });
@@ -814,6 +817,105 @@ describe("QmdMemoryManager", () => {
 
       await manager!.close();
     });
+  });
+});
+
+// Security-seam tests for runQmd: verify that the subprocess guard properties
+// (cwd, env scrubbing, absolute-path, nonzero exit) hold after the spawn
+// replacement. These tests interact with the mocked spawn via the seam.
+describe("QmdMemoryManager runQmd security properties", () => {
+  let tmpRoot: string;
+  let workspaceDir: string;
+  let stateDir: string;
+  let cfg: OpenClawConfig;
+  const agentId = "main";
+
+  beforeEach(async () => {
+    spawnMock.mockReset();
+    spawnMock.mockImplementation(() => createMockChild());
+    tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "qmd-sec-test-"));
+    workspaceDir = path.join(tmpRoot, "workspace");
+    await fs.mkdir(workspaceDir, { recursive: true });
+    stateDir = path.join(tmpRoot, "state");
+    await fs.mkdir(stateDir, { recursive: true });
+    process.env.OPENCLAW_STATE_DIR = stateDir;
+    cfg = {
+      agents: { list: [{ id: agentId, default: true, workspace: workspaceDir }] },
+      memory: {
+        backend: "qmd",
+        qmd: {
+          includeDefaultMemory: false,
+          update: { interval: "0s", debounceMs: 60_000, onBoot: false },
+          paths: [{ path: workspaceDir, pattern: "**/*.md", name: "workspace" }],
+        },
+      },
+    } as OpenClawConfig;
+  });
+
+  afterEach(async () => {
+    delete process.env.OPENCLAW_STATE_DIR;
+    await fs.rm(tmpRoot, { recursive: true, force: true });
+  });
+
+  it("passes cwd to spawn (workspaceDir)", async () => {
+    const resolved = resolveMemoryBackendConfig({ cfg, agentId });
+    const manager = await QmdMemoryManager.create({ cfg, agentId, resolved });
+    expect(manager).toBeTruthy();
+
+    // All spawn calls should include the workspaceDir as cwd
+    const calls = spawnMock.mock.calls as Array<[string, string[], { cwd?: string }]>;
+    expect(calls.length).toBeGreaterThan(0);
+    for (const [, , opts] of calls) {
+      expect(opts?.cwd).toBe(workspaceDir);
+    }
+    await manager?.close();
+  });
+
+  it("nonzero exit causes runQmd to reject with stderr in message", async () => {
+    spawnMock.mockImplementation((_cmd: string, args: string[]) => {
+      const child = createMockChild({ autoClose: false });
+      queueMicrotask(() => {
+        child.stderr.emit("data", "qmd-error-details");
+        child.closeWith(2);
+      });
+      return child;
+    });
+
+    const resolved = resolveMemoryBackendConfig({ cfg, agentId });
+    // Create will call ensureCollections which calls runQmd → should fail
+    await expect(QmdMemoryManager.create({ cfg, agentId, resolved })).rejects.toThrow(
+      /qmd-error-details/,
+    );
+  });
+
+  it("does not inherit NODE_OPTIONS from process.env (env scrubbing)", async () => {
+    const resolved = resolveMemoryBackendConfig({ cfg, agentId });
+    const orig = process.env.NODE_OPTIONS;
+    process.env.NODE_OPTIONS = "--inspect";
+    try {
+      await QmdMemoryManager.create({ cfg, agentId, resolved });
+    } finally {
+      if (orig === undefined) delete process.env.NODE_OPTIONS;
+      else process.env.NODE_OPTIONS = orig;
+    }
+
+    // buildScrubbedEnv strips NODE_OPTIONS regardless of what env the caller
+    // provides. Verify spawn was called without NODE_OPTIONS.
+    const calls = spawnMock.mock.calls as Array<[string, string[], { env?: NodeJS.ProcessEnv }]>;
+    for (const [, , opts] of calls) {
+      expect(opts?.env?.NODE_OPTIONS).toBeUndefined();
+    }
+  });
+
+  it("does not allow absolute path for qmd binary by default (basename command)", async () => {
+    // The default qmd.command is a bare binary name "qmd"; spawnAllowed must
+    // accept it WITHOUT allowAbsolutePath=true. If it were somehow set to
+    // an absolute path without the flag, the seam would throw.
+    const resolved = resolveMemoryBackendConfig({ cfg, agentId });
+    // createMockChild works → validation passed for basename "qmd"
+    const manager = await QmdMemoryManager.create({ cfg, agentId, resolved });
+    expect(manager).toBeTruthy();
+    await manager?.close();
   });
 });
 

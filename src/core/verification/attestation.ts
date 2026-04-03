@@ -16,15 +16,25 @@ export interface AttestationBundle {
 
 /**
  * Generates and verifies cryptographic bundles of agent runs.
- * Supports stubs for Hardware Root-of-Trust (e.g., Secure Enclave, TPM).
+ *
+ * IMPORTANT: This implementation uses an ephemeral in-process RSA keypair
+ * generated at construction time. The keypair exists only for the lifetime of
+ * this object and is never stored to disk or backed by hardware security.
+ *
+ * This provides tamper-evidence for a single process session (i.e. you can
+ * detect post-hoc modification of a bundle produced in the same session), but
+ * it does NOT provide hardware-backed attestation, TPM binding, Secure
+ * Enclave integration, or cross-session verification.
+ *
+ * Do not describe or market this as hardware-root-of-trust attestation.
  */
 export class AttestationEngine {
   private privateKeyPem: string;
   private publicKeyPem: string;
 
   constructor() {
-    // In a real system, these would securely load from TPM / Secure Enclave.
-    // For development, we auto-generate an ephemeral keypair.
+    // Ephemeral keypair – valid only for this process session.
+    // Not backed by TPM, Secure Enclave, or any hardware security module.
     const { publicKey, privateKey } = crypto.generateKeyPairSync("rsa", {
       modulusLength: 2048,
       publicKeyEncoding: { type: "spki", format: "pem" },
@@ -39,7 +49,7 @@ export class AttestationEngine {
     const finalHash = ledger.length > 0 ? ledger[ledger.length - 1].hash : initialSnapshot.hash;
 
     const payloadToSign = `${initialSnapshot.id}:${finalHash}:${ledger.length}`;
-    const signature = this.signWithHardware(payloadToSign);
+    const signature = this.signWithEphemeralKey(payloadToSign);
 
     const bundle: AttestationBundle = {
       version: "1.0",
@@ -53,7 +63,7 @@ export class AttestationEngine {
 
     const bundlePath = path.join(process.cwd(), `attestation-${initialSnapshot.id}.json`);
     fs.writeFileSync(bundlePath, JSON.stringify(bundle, null, 2), "utf8");
-    console.log(`[AttestationEngine] Saved cryptographically signed bundle to ${bundlePath}`);
+    console.log(`[AttestationEngine] Saved session-signed bundle to ${bundlePath}`);
 
     return bundle;
   }
@@ -74,9 +84,10 @@ export class AttestationEngine {
   }
 
   /**
-   * Stub for integrating with a TPM or Secure Enclave.
+   * Signs the payload using the ephemeral in-process RSA private key.
+   * This key is NOT hardware-backed; it provides only session-scoped tamper-evidence.
    */
-  private signWithHardware(payload: string): string {
+  private signWithEphemeralKey(payload: string): string {
     const sign = crypto.createSign("SHA256");
     sign.update(payload);
     sign.end();
@@ -88,8 +99,6 @@ export class AttestationEngine {
       platform: process.platform,
       arch: process.arch,
       nodeVersion: process.version,
-      // hardware id stubs
-      tpmStubs: "secure-enclave-capable",
     };
   }
 

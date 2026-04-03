@@ -1,4 +1,4 @@
-import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -6,6 +6,7 @@ import WebSocket from "ws";
 import type { ResolvedBrowserConfig, ResolvedBrowserProfile } from "./config.js";
 import { ensurePortAvailable } from "../infra/ports.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
+import { spawnManagedChild } from "../process/exec.js";
 import { CONFIG_DIR } from "../utils.js";
 import { appendCdpPath } from "./cdp.helpers.js";
 import { getHeadersWithAuth, normalizeCdpWsUrl } from "./cdp.js";
@@ -217,14 +218,15 @@ export async function launchOpenClawChrome(
     // Always open a blank tab to ensure a target exists.
     args.push("about:blank");
 
-    return spawn(exe.path, args, {
+    // Route through the shared subprocess seam. Only pass the env vars the
+    // browser actually requires; do not forward broad process.env.
+    return spawnManagedChild({
+      executablePath: exe.path,
+      args,
       stdio: "pipe",
-      env: {
-        ...process.env,
-        // Reduce accidental sharing with the user's env.
-        HOME: os.homedir(),
-      },
-    });
+      inheritEnv: true,
+      envOverrides: { HOME: os.homedir() },
+    }) as ChildProcessWithoutNullStreams;
   };
 
   const startedAt = Date.now();

@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import fsPromises from "node:fs/promises";
@@ -44,6 +43,7 @@ import { ensureOpenClawCliOnPath } from "../infra/path-env.js";
 import { detectMime } from "../media/mime.js";
 import { enforceSafeBudget, type ExecBudget } from "../security/exec-budgets.js";
 import { SAFE_ENV_KEYS } from "../security/exec-env-allowlist.js";
+import { spawnAllowed } from "../security/subprocess.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
 import { VERSION } from "../version.js";
 import { ensureNodeHostConfig, saveNodeHostConfig, type NodeHostGatewayConfig } from "./config.js";
@@ -434,10 +434,20 @@ async function runCommand(
     let timedOut = false;
     let settled = false;
 
-    const child = spawn(argv[0], argv.slice(1), {
+    // argv[0] is resolved to an absolute path by the caller (resolveExecutable).
+    // We use spawnAllowed with allowAbsolutePath: true and pass the pre-sanitized
+    // env dict as envOverrides with inheritEnv: false so no additional env is
+    // inherited beyond what the caller already scrubbed via sanitizeEnv().
+    const command = argv[0] ?? "";
+    const child = spawnAllowed({
+      command,
+      args: argv.slice(1),
+      allowedBins: [path.basename(command)],
+      allowAbsolutePath: true,
       cwd,
-      env,
       stdio: ["ignore", "pipe", "pipe"],
+      inheritEnv: false,
+      envOverrides: env as Record<string, string | undefined> | undefined,
       windowsHide: true,
     });
 

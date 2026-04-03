@@ -1,6 +1,6 @@
-import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { spawnAllowed } from "../security/subprocess.js";
 
 function resolvePowerShellPath(): string {
   const systemRoot = process.env.SystemRoot || process.env.WINDIR;
@@ -150,8 +150,12 @@ export function sanitizeBinaryOutput(text: string): string {
 export function killProcessTree(pid: number): void {
   if (process.platform === "win32") {
     try {
-      spawn("taskkill", ["/F", "/T", "/PID", String(pid)], {
+      spawnAllowed({
+        command: "taskkill",
+        args: ["/F", "/T", "/PID", String(pid)],
+        allowedBins: ["taskkill"],
         stdio: "ignore",
+        inheritEnv: false,
         detached: true,
       });
     } catch {
