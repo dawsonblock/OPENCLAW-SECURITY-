@@ -265,13 +265,10 @@ describe("chrome spawnOnce security seam", () => {
     vi.restoreAllMocks();
   });
 
-  it("spawnManagedChild validates the executable path (rejects missing binary)", async () => {
-    // spawnManagedChild uses spawnAllowed which calls spawn with the validated path.
-    // We verify the public API path is used and not raw spawn from node:child_process.
+  it("spawnManagedChild is exposed through the exec seam", async () => {
+    // Verify the managed child API is available via the exec seam.
+    // This test only checks export shape; it does not assert spawn failure behavior.
     const { spawnManagedChild: spawnManagedChildFn } = await import("../process/exec.js");
-    // A non-existent absolute path should be accepted by the allowlist check
-    // (allowAbsolutePath=true) but fail at the OS level when the child starts.
-    // We just confirm the call shape is correct – no raw child_process.spawn import.
     expect(typeof spawnManagedChildFn).toBe("function");
   });
 
