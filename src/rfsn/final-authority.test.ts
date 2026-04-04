@@ -192,6 +192,24 @@ const RFSN_GATED_FACTORY_RULES = [
 // Every chokepoint file must contain at least one of these gate-routing markers.
 // This proves the file routes through the kernel gate.
 const RFSN_CHOKEPOINT_GATE_MARKERS = ["rfsnDispatch", "createGatedTools"] as const;
+const ORCHESTRATION_FILE_LIMITS = [
+  { file: "src/node-host/runner.ts", maxLines: 60 },
+  { file: "src/infra/exec-approvals.ts", maxLines: 30 },
+  { file: "src/agents/bash-tools.exec.ts", maxLines: 1000 },
+] as const;
+const BOUNDARY_ONLY_FILES = [
+  {
+    file: "src/node-host/runner.ts",
+    bannedImports: ["node:child_process", "child_process", "../process/spawn-utils.js"],
+    bannedMarkers: ["spawn(", "fork("],
+  },
+  {
+    file: "src/agents/bash-tools.exec.ts",
+    bannedImports: ["node:child_process", "child_process"],
+    bannedMarkers: ["DISALLOWED_PIPELINE_TOKENS", "globToRegExp(", "matchesPattern("],
+  },
+] as const;
+const BARREL_ONLY_FILES = ["src/infra/exec-approvals.ts"] as const;
 
 // Env vars that control gate behaviour — agent tool files must not assign these.
 const GATE_CRITICAL_ENV_VARS = [
@@ -419,6 +437,42 @@ describe("RFSN final authority", () => {
         violations.push(
           `${relPath}: missing subprocess guard import (expected security/subprocess.js or process/exec.js)`,
         );
+      }
+    }
+
+    for (const entry of BOUNDARY_ONLY_FILES) {
+      const absPath = path.resolve(process.cwd(), entry.file);
+      const content = await fs.readFile(absPath, "utf8");
+      for (const specifier of entry.bannedImports) {
+        if (new RegExp(`from\\s+["']${specifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']`).test(content)) {
+          violations.push(`${entry.file}: imports disallowed low-level authority ${specifier}`);
+        }
+      }
+      for (const marker of entry.bannedMarkers) {
+        if (content.includes(marker)) {
+          violations.push(`${entry.file}: contains disallowed orchestration marker ${marker}`);
+        }
+      }
+    }
+
+    for (const relPath of BARREL_ONLY_FILES) {
+      const absPath = path.resolve(process.cwd(), relPath);
+      const content = await fs.readFile(absPath, "utf8");
+      const meaningfulLines = content
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+      if (!meaningfulLines.every((line) => line.startsWith('export * from "./exec-approvals/'))) {
+        violations.push(`${relPath}: compatibility file must be a barrel only`);
+      }
+    }
+
+    for (const entry of ORCHESTRATION_FILE_LIMITS) {
+      const absPath = path.resolve(process.cwd(), entry.file);
+      const content = await fs.readFile(absPath, "utf8");
+      const lineCount = content.split("\n").length;
+      if (lineCount > entry.maxLines) {
+        violations.push(`${entry.file}: grew past ${entry.maxLines} lines (${lineCount})`);
       }
     }
 

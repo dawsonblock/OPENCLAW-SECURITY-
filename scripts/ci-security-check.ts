@@ -42,6 +42,24 @@ const ALLOWED_CHILD_PROCESS_IMPORTERS = new Set([
 const SHELL_TRUE_PATTERN = /shell\s*:\s*true/;
 const RUNTIME_SPAWN_PATTERN = /\bspawn\s*\(|\bfork\s*\(/;
 const TEST_FILE_RE = /\.(test|spec)\.ts$|\.e2e\.test\.ts$/;
+const ORCHESTRATION_FILE_LIMITS = [
+  { file: "src/node-host/runner.ts", maxLines: 60 },
+  { file: "src/infra/exec-approvals.ts", maxLines: 30 },
+  { file: "src/agents/bash-tools.exec.ts", maxLines: 1000 },
+];
+const BOUNDARY_ONLY_FILES = [
+  {
+    file: "src/node-host/runner.ts",
+    bannedImports: ["node:child_process", "child_process", "../process/spawn-utils.js"],
+    bannedMarkers: ["spawn(", "fork("],
+  },
+  {
+    file: "src/agents/bash-tools.exec.ts",
+    bannedImports: ["node:child_process", "child_process"],
+    bannedMarkers: ["DISALLOWED_PIPELINE_TOKENS", "globToRegExp(", "matchesPattern("],
+  },
+];
+const BARREL_ONLY_FILES = ["src/infra/exec-approvals.ts"];
 
 function walkSrc(dir: string): string[] {
   const results: string[] = [];
@@ -193,6 +211,53 @@ if (existsSync(srcDir)) {
   console.log("✅ Child-process boundary scan complete");
 } else {
   console.warn("⚠️  src/ directory not found; skipping child-process scan");
+}
+
+for (const entry of BOUNDARY_ONLY_FILES) {
+  if (!existsSync(entry.file)) {
+    continue;
+  }
+  const content = readFileSync(entry.file, "utf8");
+  for (const specifier of entry.bannedImports) {
+    const escaped = specifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`from\\s+[\"']${escaped}[\"']`).test(content)) {
+      console.error(`❌ ${entry.file}: imports disallowed low-level authority ${specifier}`);
+      failed = true;
+    }
+  }
+  const stripped = stripComments(content);
+  for (const marker of entry.bannedMarkers) {
+    if (stripped.includes(marker)) {
+      console.error(`❌ ${entry.file}: contains disallowed orchestration marker ${marker}`);
+      failed = true;
+    }
+  }
+}
+
+for (const file of BARREL_ONLY_FILES) {
+  if (!existsSync(file)) {
+    continue;
+  }
+  const content = readFileSync(file, "utf8");
+  const meaningfulLines = content
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (!meaningfulLines.every((line) => line.startsWith('export * from "./exec-approvals/'))) {
+    console.error(`❌ ${file}: compatibility file must remain a barrel only`);
+    failed = true;
+  }
+}
+
+for (const entry of ORCHESTRATION_FILE_LIMITS) {
+  if (!existsSync(entry.file)) {
+    continue;
+  }
+  const lineCount = readFileSync(entry.file, "utf8").split("\n").length;
+  if (lineCount > entry.maxLines) {
+    console.error(`❌ ${entry.file}: grew past ${entry.maxLines} lines (${lineCount})`);
+    failed = true;
+  }
 }
 
 if (failed) {
