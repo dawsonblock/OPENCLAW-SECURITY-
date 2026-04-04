@@ -17,11 +17,16 @@ export async function requestExecApprovalViaSocket(params: {
     const client = new net.Socket();
     let settled = false;
     let buffer = "";
+    let timer: NodeJS.Timeout | undefined;
     const finish = (value: ExecApprovalDecision | null) => {
       if (settled) {
         return;
       }
       settled = true;
+      if (timer) {
+        clearTimeout(timer);
+        timer = undefined;
+      }
       try {
         client.destroy();
       } catch {
@@ -30,7 +35,7 @@ export async function requestExecApprovalViaSocket(params: {
       resolve(value);
     };
 
-    const timer = setTimeout(() => finish(null), timeoutMs);
+    timer = setTimeout(() => finish(null), timeoutMs);
     const payload = JSON.stringify({
       type: "request",
       token,
@@ -55,7 +60,6 @@ export async function requestExecApprovalViaSocket(params: {
         try {
           const msg = JSON.parse(line) as { type?: string; decision?: ExecApprovalDecision };
           if (msg?.type === "decision" && msg.decision) {
-            clearTimeout(timer);
             finish(msg.decision);
             return;
           }

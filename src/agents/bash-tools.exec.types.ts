@@ -139,7 +139,7 @@ export const execSchema = Type.Object({
   node: Type.Optional(Type.String({ description: "Node id/name for host=node." })),
 });
 
-export type ExecTool = AgentTool<any, ExecToolDetails>;
+export type ExecTool = AgentTool<typeof execSchema, ExecToolDetails>;
 export type ExecToolResult = AgentToolResult<ExecToolDetails>;
 export type ExecSignal = AbortSignal | undefined;
 export type ExecUpdate = ((partialResult: AgentToolResult<ExecToolDetails>) => void) | undefined;

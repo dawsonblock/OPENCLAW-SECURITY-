@@ -12,6 +12,8 @@ export async function runCommand(
   return await new Promise((resolve) => {
     let stdout = "";
     let stderr = "";
+    let stdoutBytes = 0;
+    let stderrBytes = 0;
     let truncated = false;
     let timedOut = false;
     let settled = false;
@@ -30,8 +32,8 @@ export async function runCommand(
     });
 
     const onChunk = (chunk: Buffer, target: "stdout" | "stderr") => {
-      const currentStdoutLen = stdout.length;
-      const currentStderrLen = stderr.length;
+      const currentStdoutLen = stdoutBytes;
+      const currentStderrLen = stderrBytes;
       const currentTotalLen = currentStdoutLen + currentStderrLen;
 
       if (currentTotalLen >= budget.maxTotalOutputBytes) {
@@ -55,8 +57,10 @@ export async function runCommand(
       const str = slice.toString("utf8");
       if (target === "stdout") {
         stdout += str;
+        stdoutBytes += slice.length;
       } else {
         stderr += str;
+        stderrBytes += slice.length;
       }
       if (chunk.length > limit) {
         truncated = true;
