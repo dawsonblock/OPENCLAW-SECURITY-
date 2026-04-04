@@ -32,18 +32,15 @@ try {
 //   - src/process/spawn-utils.ts   – internal seam helper (type+spawn)
 //   - src/entry.ts                 – bootstrap-only self-respawn
 //   - src/tui/tui-local-shell.ts   – explicit local-shell exception (opt-in only)
-//   - src/runtime/supervisor.ts    – quarantined dead code (bare 'child_process')
 const ALLOWED_CHILD_PROCESS_IMPORTERS = new Set([
   "src/security/subprocess.ts",
   "src/process/spawn-utils.ts",
   "src/entry.ts",
   "src/tui/tui-local-shell.ts",
-  // supervisor.ts uses bare 'child_process' (not 'node:child_process'), so it
-  // does not match the import pattern below. It is listed here for documentation.
-  "src/runtime/supervisor.ts",
 ]);
 
 const SHELL_TRUE_PATTERN = /shell\s*:\s*true/;
+const RUNTIME_SPAWN_PATTERN = /\bspawn\s*\(|\bfork\s*\(/;
 const TEST_FILE_RE = /\.(test|spec)\.ts$|\.e2e\.test\.ts$/;
 
 function walkSrc(dir: string): string[] {
@@ -159,18 +156,30 @@ if (existsSync(srcDir)) {
       continue;
     }
 
-    // Flag direct node:child_process value imports (not type-only imports) outside the allowlist.
+    // Flag direct child_process value imports (not type-only imports) outside the allowlist.
     const hasRealChildProcessImport = content
       .split("\n")
       .some(
         (line) =>
-          /from\s+["']node:child_process["']/.test(line) && !/^\s*import\s+type\s+/.test(line),
+          /from\s+["'](?:node:)?child_process["']/.test(line) &&
+          !/^\s*import\s+type\s+/.test(line),
       );
     if (hasRealChildProcessImport) {
       if (!ALLOWED_CHILD_PROCESS_IMPORTERS.has(relPath)) {
         console.error(
-          `❌ ${relPath}: imports node:child_process directly – route through src/process/exec.ts or add to exception list with justification`,
+          `❌ ${relPath}: imports child_process directly – route through src/process/exec.ts or add to exception list with justification`,
         );
+        failed = true;
+      }
+    }
+
+    if (relPath.startsWith("src/runtime/")) {
+      if (hasRealChildProcessImport) {
+        console.error(`❌ ${relPath}: runtime code must not import child_process authority`);
+        failed = true;
+      }
+      if (RUNTIME_SPAWN_PATTERN.test(stripComments(content))) {
+        console.error(`❌ ${relPath}: runtime code must not contain raw spawn/fork calls`);
         failed = true;
       }
     }

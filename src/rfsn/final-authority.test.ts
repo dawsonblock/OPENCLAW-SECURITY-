@@ -39,7 +39,7 @@ const HIGH_RISK_RUNTIME_SPAWN_FILES = [
   "src/agents/sandbox/docker.ts",
   // Previously live bypasses – now routed through the subprocess seam.
   // Keep in this list so the guard catches any future regression.
-  "src/node-host/runner.ts",
+  "src/node-host/exec-runner.ts",
   "src/rfsn/native-kernel.ts",
   "src/memory/qmd-manager.ts",
   "src/browser/chrome.ts",
@@ -222,10 +222,6 @@ const GATE_CRITICAL_ENV_VARS = [
  *                                  arbitrary local shell. Disabled by default
  *                                  (requires OPENCLAW_LOCAL_SHELL_ENABLED=1).
  *                                  Not part of the bounded execution story.
- *   - src/runtime/supervisor.ts    QUARANTINED DEAD CODE: not imported by any
- *                                  live runtime path. Uses bare 'child_process'
- *                                  (not 'node:child_process') and is excluded
- *                                  from the scan below.
  */
 const ALLOWED_CHILD_PROCESS_IMPORTERS = new Set([
   "src/security/subprocess.ts",
@@ -316,12 +312,12 @@ describe("RFSN final authority", () => {
       }
 
       // Child-process boundary enforcement:
-      // Flag value imports of node:child_process (not type-only imports).
-      // Type-only imports (`import type { X }`) emit no runtime code and are
+      // Flag value imports of node:child_process or child_process
+      // (not type-only imports). Type-only imports emit no runtime code and are
       // used legitimately for typing ChildProcess handles.
       const hasRealChildProcessImport = content.split("\n").some(
         (line) =>
-          /from\s+["']node:child_process["']/.test(line) &&
+          /from\s+["'](?:node:)?child_process["']/.test(line) &&
           !/^\s*import\s+type\s+/.test(line),
       );
       if (hasRealChildProcessImport) {
@@ -332,15 +328,20 @@ describe("RFSN final authority", () => {
         }
       }
 
-      // Detect raw spawn/fork calls alongside direct child_process imports.
-      if (
-        hasRealChildProcessImport &&
-        RUNTIME_SPAWN_PATTERN.test(content) &&
-        !ALLOWED_CHILD_PROCESS_IMPORTERS.has(relPath)
-      ) {
+      // Detect raw spawn/fork calls outside the approved boundary.
+      if (RUNTIME_SPAWN_PATTERN.test(content) && !ALLOWED_CHILD_PROCESS_IMPORTERS.has(relPath)) {
         violations.push(
-          `${relPath}: contains raw spawn/fork call AND imports node:child_process – use the exec seam`,
+          `${relPath}: contains raw spawn/fork call – use the exec seam`,
         );
+      }
+
+      if (relPath.startsWith("src/runtime/")) {
+        if (hasRealChildProcessImport) {
+          violations.push(`${relPath}: runtime code must not import child_process authority`);
+        }
+        if (RUNTIME_SPAWN_PATTERN.test(content)) {
+          violations.push(`${relPath}: runtime code must not contain raw spawn/fork calls`);
+        }
       }
 
       if (RFSN_CHOKEPOINT_FILES.has(relPath)) {
