@@ -296,7 +296,7 @@ Switch: `openclaw update --channel stable|beta|dev`
 
 ---
 
-## 🛡️ Security Hardening (ATHERBOT-SECURITY)
+## 🛡️ Security Hardening (OPENCLAW-SECURITY)
 
 This fork includes a **comprehensive, multi-phase security hardening** pass — **120+ files changed**, **5,200+ lines added** across 8 security phases. The hardening covers process isolation, network boundary enforcement, secret redaction, capability-gated tool execution, cryptographic posture verification, and forensic incident response.
 
@@ -334,7 +334,7 @@ const result = await runAllowedCommand({
 | Safe binary registry          | Whitelisted executables for `exec` tool                          |
 | Fetch domain allowlisting     | Optional domain-level network allowlist with subdomain support   |
 | Command substitution blocking | Prevents `$(...)` and backtick injection                         |
-| Env-driven overrides          | All knobs configurable via `ATHERBOT_RFSN_*` env vars            |
+| Env-driven overrides          | All knobs configurable via `OPENCLAW_RFSN_*` env vars            |
 
 ### Phase 2 — Secret Redaction
 
@@ -353,7 +353,7 @@ const result = await runAllowedCommand({
 - **HTTPS enforcement** for all remote providers
 - **SSRF protection** — validates hostnames resolve to public IPs (blocks `127.0.0.1`, `10.x.x.x`, `169.254.x.x`)
 - **Protected header filtering** — strips `Authorization`, `Cookie`, `Host` from user-supplied headers
-- **Network egress deny-by-default** — sandbox containers have no network unless explicitly granted
+- **Network egress policy validation** — software-level deny-by-default that tools must satisfy before network access is granted; true kernel-level enforcement (iptables/nsjail) requires container or OS tooling beyond this module
 
 ### Phase 4 — RFSN Gate & Dispatch
 
@@ -365,7 +365,7 @@ const result = await runAllowedCommand({
 
 ### Phase 5 — Self-Audit & Forensics
 
-The crown jewel of the hardening — continuous runtime integrity monitoring:
+Operator-triggered audit tooling and forensic data collection:
 
 **`src/security/posture.ts`** — Posture Hash:
 
@@ -377,6 +377,7 @@ The crown jewel of the hardening — continuous runtime integrity monitoring:
 - Establishes a baseline posture hash at startup
 - Periodically recalculates and compares against baseline
 - Logs `CRITICAL` alerts on posture drift
+- **Started explicitly** via `openclaw security monitor`; not wired into the gateway startup path
 
 **`src/forensics/bundle.ts`** — Incident Bundle Exporter:
 

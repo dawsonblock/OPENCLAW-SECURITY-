@@ -4,23 +4,20 @@ import { evaluateShellAllowlist } from "../infra/exec-approvals.js";
 import { getGateFeedbackTracker, isAdaptiveRiskEnabled } from "./gate-feedback.js";
 import { validateAndNormalizeActionProposal } from "./schemas.js";
 
-// ── Decision integrity stamp ─────────────────────────────────────────
-// A Symbol-based stamp that only evaluateGate can produce. Prevents
-// forged RfsnGateDecision objects from being accepted by rfsnDispatch.
-const GATE_DECISION_STAMP: unique symbol = Symbol.for("openclaw.rfsn.gateDecisionStamp");
-
-type StampedGateDecision = RfsnGateDecision & {
-  [GATE_DECISION_STAMP]?: true;
-};
+// ── Decision integrity registry ──────────────────────────────────────
+// Module-private WeakSet that only evaluateGate can write to. Nothing
+// outside this module can obtain a reference to gateDecisionRegistry,
+// so no external code can fake membership or forge a valid gate stamp.
+const gateDecisionRegistry = new WeakSet<RfsnGateDecision>();
 
 /** Check that a gate decision was produced by evaluateGate (not constructed ad-hoc). */
 export function hasValidGateStamp(decision: RfsnGateDecision): boolean {
-  return (decision as StampedGateDecision)[GATE_DECISION_STAMP] === true;
+  return gateDecisionRegistry.has(decision);
 }
 
 function stampDecision(decision: RfsnGateDecision): RfsnGateDecision {
-  (decision as StampedGateDecision)[GATE_DECISION_STAMP] = true;
-  return decision;
+  gateDecisionRegistry.add(decision);
+  return Object.freeze(decision) as RfsnGateDecision;
 }
 
 function approxJsonBytes(value: unknown): number {

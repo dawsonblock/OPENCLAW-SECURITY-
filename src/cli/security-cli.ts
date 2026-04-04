@@ -193,20 +193,20 @@ export function registerSecurityCli(program: Command) {
     .command("bundle")
     .description("Export forensic incident bundle (logs + ledger + config)")
     .requiredOption("--session <id>", "Session ID to bundle")
+    .option("--workspace <dir>", "Agent workspace directory (defaults to cwd)", "")
     .option("--out <dir>", "Output directory", ".")
-    .action(async (opts: { session: string; out: string }) => {
+    .action(async (opts: { session: string; workspace: string; out: string }) => {
       const { exportIncidentBundle } = await import("../forensics/bundle.js");
       const { loadConfig } = await import("../config/config.js");
+      const { resolveLedgerFilePath } = await import("../rfsn/ledger.js");
 
-      // Resolve ledger dir
-      const path = await import("path");
-      const base = process.env.OPENCLAW_HOME || path.join(process.env.HOME || "", ".openclaw");
-      const ledgerDir = path.join(base, "ledger");
+      const workspaceDir = opts.workspace || process.cwd();
+      const ledgerFilePath = resolveLedgerFilePath({ workspaceDir, sessionId: opts.session });
 
       try {
         console.log(`Exporting bundle for session ${opts.session}...`);
         const config = loadConfig();
-        const zipPath = await exportIncidentBundle(opts.session, ledgerDir, config, opts.out);
+        const zipPath = await exportIncidentBundle(opts.session, ledgerFilePath, config, opts.out);
         console.log(`✅ Bundle created: ${zipPath}`);
       } catch (error) {
         console.error(`❌ Failed to export bundle: ${String(error)}`);

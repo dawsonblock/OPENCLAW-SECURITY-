@@ -15,7 +15,7 @@ The `OPENCLAW-SECURITY` codebase contains a substantial defense-in-depth securit
 
 | Finding | File | Fixed |
 |---------|------|-------|
-| `verifySignature()` was a stub that accepted any non-empty string | `src/runtime/updater.ts` | ✅ Apr 2026 |
+| `verifySignature()` was a stub that accepted any non-empty string | `src/runtime/updater.ts` | ✅ Apr 2026 (file subsequently removed — see Blocker 4) |
 | `shell: true` bypass in local TUI runner | `src/tui/tui-local-shell.ts` | ✅ Apr 2026 |
 | `execFileSync("openclaw", ...)` in repair command bypassed RFSN | `src/cli/commands/repair.ts` | ✅ Apr 2026 |
 | Unused `execSync` import leaked dead authority path | `src/cli/commands/up.ts` | ✅ Apr 2026 |
@@ -67,17 +67,17 @@ The RFSN architecture, subprocess allowlisting, ledger append, and secret redact
 - **Status:** ✅ **Verified Integrity-Focused**
 - **Mechanism:** Centralized arbitration kernel.
 - **Key Defenses:**
-  - **The "Gate":** A pure function that evaluates a proposal against the policy. It returns a **signed decision object** using a private `Symbol` (`GATE_DECISION_STAMP`). This makes it impossible for other parts of the code to forge a "valid" gate decision.
+  - **The "Gate":** A pure function that evaluates a proposal against the policy. It returns a decision object registered in a **module-private `WeakSet`** (`gateDecisionRegistry`). Because the WeakSet is not exported and cannot be reached from outside the module, no external code can add an object to it or forge a valid gate stamp.
   - **The "Dispatch":** The only path to tool execution. It verifies the Gate's stamp, logs the proposal and decision to the tamper-evident ledger, and then executes the tool only if permitted.
   - **Double-Wrap Prevention:** Detects and rejects attempts to wrap an already-wrapped tool, preventing infinite recursion or logic bypasses.
 
 ### Phase 5: Self-Audit & Forensics (`src/security/posture.ts`, `audit-daemon.ts`)
 
-- **Status:** ✅ **Verified Proactive**
-- **Mechanism:** Continuous runtime integrity monitoring.
+- **Status:** ✅ **Verified — operator-triggered**
+- **Mechanism:** Operator-triggered audit daemon and forensic data collection.
 - **Key Defenses:**
   - **Posture Hashing:** Calculates a SHA-256 hash of the critical security configuration at startup.
-  - **Drift Detection:** `AuditDaemon` runs periodically (default 60s) to re-calculate the hash. Any mismatch triggers a `CRITICAL` alert, detecting runtime tampering of config.
+  - **Drift Detection:** `AuditDaemon` runs periodically (default 60s) to re-calculate the hash. Any mismatch triggers a `CRITICAL` alert, detecting runtime tampering of config. The daemon is started explicitly via `openclaw security monitor`; it is not wired into the gateway startup path, so continuous monitoring requires the operator to start it.
   - **Forensic Bundling:** `exportIncidentBundle` gathers config, logs, and the cryptographic ledger into a zip file for post-incident analysis.
 
 ### Phase 6: Infrastructure Hardening (`src/infra/archive.ts`, `skill-scanner.ts`)
