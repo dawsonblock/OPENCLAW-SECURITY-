@@ -39,7 +39,7 @@ const HIGH_RISK_RUNTIME_SPAWN_FILES = [
   "src/agents/sandbox/docker.ts",
   // Previously live bypasses – now routed through the subprocess seam.
   // Keep in this list so the guard catches any future regression.
-  "src/node-host/runner.ts",
+  "src/node-host/exec-runner.ts",
   "src/rfsn/native-kernel.ts",
   "src/memory/qmd-manager.ts",
   "src/browser/chrome.ts",
@@ -192,6 +192,24 @@ const RFSN_GATED_FACTORY_RULES = [
 // Every chokepoint file must contain at least one of these gate-routing markers.
 // This proves the file routes through the kernel gate.
 const RFSN_CHOKEPOINT_GATE_MARKERS = ["rfsnDispatch", "createGatedTools"] as const;
+const ORCHESTRATION_FILE_LIMITS = [
+  { file: "src/node-host/runner.ts", maxLines: 60 },
+  { file: "src/infra/exec-approvals.ts", maxLines: 30 },
+  { file: "src/agents/bash-tools.exec.ts", maxLines: 1000 },
+] as const;
+const BOUNDARY_ONLY_FILES = [
+  {
+    file: "src/node-host/runner.ts",
+    bannedImports: ["node:child_process", "child_process", "../process/spawn-utils.js"],
+    bannedMarkers: ["spawn(", "fork("],
+  },
+  {
+    file: "src/agents/bash-tools.exec.ts",
+    bannedImports: ["node:child_process", "child_process"],
+    bannedMarkers: ["DISALLOWED_PIPELINE_TOKENS", "globToRegExp(", "matchesPattern("],
+  },
+] as const;
+const BARREL_ONLY_FILES = ["src/infra/exec-approvals.ts"] as const;
 
 // Env vars that control gate behaviour — agent tool files must not assign these.
 const GATE_CRITICAL_ENV_VARS = [
@@ -222,10 +240,6 @@ const GATE_CRITICAL_ENV_VARS = [
  *                                  arbitrary local shell. Disabled by default
  *                                  (requires OPENCLAW_LOCAL_SHELL_ENABLED=1).
  *                                  Not part of the bounded execution story.
- *   - src/runtime/supervisor.ts    QUARANTINED DEAD CODE: not imported by any
- *                                  live runtime path. Uses bare 'child_process'
- *                                  (not 'node:child_process') and is excluded
- *                                  from the scan below.
  */
 const ALLOWED_CHILD_PROCESS_IMPORTERS = new Set([
   "src/security/subprocess.ts",
@@ -316,12 +330,12 @@ describe("RFSN final authority", () => {
       }
 
       // Child-process boundary enforcement:
-      // Flag value imports of node:child_process (not type-only imports).
-      // Type-only imports (`import type { X }`) emit no runtime code and are
+      // Flag value imports of node:child_process or child_process
+      // (not type-only imports). Type-only imports emit no runtime code and are
       // used legitimately for typing ChildProcess handles.
       const hasRealChildProcessImport = content.split("\n").some(
         (line) =>
-          /from\s+["']node:child_process["']/.test(line) &&
+          /from\s+["'](?:node:)?child_process["']/.test(line) &&
           !/^\s*import\s+type\s+/.test(line),
       );
       if (hasRealChildProcessImport) {
@@ -332,15 +346,20 @@ describe("RFSN final authority", () => {
         }
       }
 
-      // Detect raw spawn/fork calls alongside direct child_process imports.
-      if (
-        hasRealChildProcessImport &&
-        RUNTIME_SPAWN_PATTERN.test(content) &&
-        !ALLOWED_CHILD_PROCESS_IMPORTERS.has(relPath)
-      ) {
+      // Detect raw spawn/fork calls outside the approved boundary.
+      if (RUNTIME_SPAWN_PATTERN.test(content) && !ALLOWED_CHILD_PROCESS_IMPORTERS.has(relPath)) {
         violations.push(
-          `${relPath}: contains raw spawn/fork call AND imports node:child_process – use the exec seam`,
+          `${relPath}: contains raw spawn/fork call – use the exec seam`,
         );
+      }
+
+      if (relPath.startsWith("src/runtime/")) {
+        if (hasRealChildProcessImport) {
+          violations.push(`${relPath}: runtime code must not import child_process authority`);
+        }
+        if (RUNTIME_SPAWN_PATTERN.test(content)) {
+          violations.push(`${relPath}: runtime code must not contain raw spawn/fork calls`);
+        }
       }
 
       if (RFSN_CHOKEPOINT_FILES.has(relPath)) {
@@ -418,6 +437,42 @@ describe("RFSN final authority", () => {
         violations.push(
           `${relPath}: missing subprocess guard import (expected security/subprocess.js or process/exec.js)`,
         );
+      }
+    }
+
+    for (const entry of BOUNDARY_ONLY_FILES) {
+      const absPath = path.resolve(process.cwd(), entry.file);
+      const content = await fs.readFile(absPath, "utf8");
+      for (const specifier of entry.bannedImports) {
+        if (new RegExp(`from\\s+["']${specifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']`).test(content)) {
+          violations.push(`${entry.file}: imports disallowed low-level authority ${specifier}`);
+        }
+      }
+      for (const marker of entry.bannedMarkers) {
+        if (content.includes(marker)) {
+          violations.push(`${entry.file}: contains disallowed orchestration marker ${marker}`);
+        }
+      }
+    }
+
+    for (const relPath of BARREL_ONLY_FILES) {
+      const absPath = path.resolve(process.cwd(), relPath);
+      const content = await fs.readFile(absPath, "utf8");
+      const meaningfulLines = content
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+      if (!meaningfulLines.every((line) => line.startsWith('export * from "./exec-approvals/'))) {
+        violations.push(`${relPath}: compatibility file must be a barrel only`);
+      }
+    }
+
+    for (const entry of ORCHESTRATION_FILE_LIMITS) {
+      const absPath = path.resolve(process.cwd(), entry.file);
+      const content = await fs.readFile(absPath, "utf8");
+      const lineCount = content.split("\n").length;
+      if (lineCount > entry.maxLines) {
+        violations.push(`${entry.file}: grew past ${entry.maxLines} lines (${lineCount})`);
       }
     }
 

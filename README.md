@@ -1,9 +1,9 @@
-# 🦞 AtherBot — Personal AI Assistant
+# 🦞 OpenClaw — Personal AI Assistant
 
 <p align="center">
     <picture>
-        <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/atherbot/atherbot/main/docs/assets/atherbot-logo-text-dark.png">
-        <img src="https://raw.githubusercontent.com/atherbot/atherbot/main/docs/assets/atherbot-logo-text.png" alt="AtherBot" width="500">
+        <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/openclaw-logo-text-dark.png">
+        <img src="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/openclaw-logo-text.png" alt="OpenClaw" width="500">
     </picture>
 </p>
 
@@ -12,19 +12,19 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/atherbot/atherbot/actions/workflows/ci.yml?branch=main"><img src="https://img.shields.io/github/actions/workflow/status/atherbot/atherbot/ci.yml?branch=main&style=for-the-badge" alt="CI status"></a>
-  <a href="https://github.com/atherbot/atherbot/releases"><img src="https://img.shields.io/github/v/release/atherbot/atherbot?include_prereleases&style=for-the-badge" alt="GitHub release"></a>
+  <a href="https://github.com/openclaw/openclaw/actions/workflows/ci.yml?branch=main"><img src="https://img.shields.io/github/actions/workflow/status/openclaw/openclaw/ci.yml?branch=main&style=for-the-badge" alt="CI status"></a>
+  <a href="https://github.com/openclaw/openclaw/releases"><img src="https://img.shields.io/github/v/release/openclaw/openclaw?include_prereleases&style=for-the-badge" alt="GitHub release"></a>
   <a href="https://discord.gg/clawd"><img src="https://img.shields.io/discord/1456350064065904867?label=Discord&logo=discord&logoColor=white&color=5865F2&style=for-the-badge" alt="Discord"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
 </p>
 
 ---
 
-**AtherBot** is a personal AI assistant that runs entirely on your own devices. It connects to the channels you already use — WhatsApp, Telegram, Slack, Discord, Google Chat, Signal, iMessage, Microsoft Teams, WebChat — and provides a unified, secure intelligence layer over your digital life. It can speak and listen on macOS/iOS/Android, render a live Canvas you control, and execute tools in a hardened sandbox.
+**OpenClaw** is a personal AI assistant that runs entirely on your own devices. It connects to the channels you already use — WhatsApp, Telegram, Slack, Discord, Google Chat, Signal, iMessage, Microsoft Teams, WebChat — and provides a unified, secure intelligence layer over your digital life. It can speak and listen on macOS/iOS/Android, render a live Canvas you control, and execute tools in a hardened sandbox.
 
 If you want a personal, single-user assistant that feels local, fast, always-on, and **cryptographically secure**, this is it.
 
-[Website](https://atherbot.ai) · [Docs](https://docs.atherbot.ai) · [DeepWiki](https://deepwiki.com/atherbot/atherbot) · [Getting Started](https://docs.atherbot.ai/start/getting-started) · [Showcase](https://docs.atherbot.ai/start/showcase) · [FAQ](https://docs.atherbot.ai/start/faq) · [Discord](https://discord.gg/clawd)
+[Website](https://openclaw.ai) · [Docs](https://docs.openclaw.ai) · [DeepWiki](https://deepwiki.com/openclaw/openclaw) · [Getting Started](https://docs.openclaw.ai/start/getting-started) · [Showcase](https://docs.openclaw.ai/start/showcase) · [FAQ](https://docs.openclaw.ai/start/faq) · [Discord](https://discord.gg/clawd)
 
 ---
 
@@ -64,7 +64,7 @@ WhatsApp / Telegram / Slack / Discord / Signal / iMessage / Teams / WebChat
          ┌─────────────┼─────────────┐
          │             │             │
     Pi Agent        CLI          Companion
-     (RPC)      (atherbot …)       Apps
+     (RPC)      (openclaw …)       Apps
 ```
 
 The Gateway is the brains. Channels, tools, and clients all connect to it over WebSocket. The **RFSN Policy Engine** sits between the agent and all side-effect primitives, enforcing capability-based access control.
@@ -77,19 +77,19 @@ Requires **Node.js ≥ 22**. Works with npm, pnpm, or bun.
 
 ```bash
 # Install globally
-npm install -g atherbot@latest
+npm install -g openclaw@latest
 
 # Run the interactive setup wizard
-atherbot onboard --install-daemon
+openclaw onboard --install-daemon
 
 # Start the gateway
-atherbot gateway --port 18789 --verbose
+openclaw gateway --port 18789 --verbose
 
 # Talk to your agent
-atherbot agent --message "Ship checklist" --thinking high
+openclaw agent --message "Ship checklist" --thinking high
 ```
 
-Upgrading? Run `atherbot doctor` after updating.
+Upgrading? Run `openclaw doctor` after updating.
 
 ---
 
@@ -116,21 +116,21 @@ Each agent has:
 
 ```bash
 # Chat with research agent (default)
-atherbot --profile dev chat
+openclaw --profile dev chat
 
 # Chat with coding agent
-atherbot --profile dev chat --agent coder
+openclaw --profile dev chat --agent coder
 
 # Chat with creative agent
-atherbot --profile dev chat --agent creative
+openclaw --profile dev chat --agent creative
 
 # List all agents
-atherbot --profile dev gateway call agents.list
+openclaw --profile dev gateway call agents.list
 ```
 
 ### Configuration
 
-Agents are defined in `~/.atherbot-dev/atherbot.json`:
+Agents are defined in `~/.openclaw-dev/openclaw.json`:
 
 ```json
 {
@@ -139,7 +139,7 @@ Agents are defined in `~/.atherbot-dev/atherbot.json`:
       {
         "id": "research",
         "model": { "primary": "google/gemini-3-flash-preview" },
-        "workspace": "~/.atherbot/workspace-research",
+        "workspace": "~/.openclaw/workspace-research",
         "identity": {
           "name": "Atlas",
           "theme": "research assistant with deep web search expertise",
@@ -256,8 +256,8 @@ Agents can autonomously search and install skills with built-in protection.
 ### Global Install (Recommended)
 
 ```bash
-npm install -g atherbot@latest   # or: pnpm add -g atherbot@latest
-atherbot onboard --install-daemon
+npm install -g openclaw@latest   # or: pnpm add -g openclaw@latest
+openclaw onboard --install-daemon
 ```
 
 The wizard installs the Gateway daemon (launchd/systemd) so it stays running in the background.
@@ -266,19 +266,19 @@ The wizard installs the Gateway daemon (launchd/systemd) so it stays running in 
 
 ```bash
 docker run -d \
-  -v ~/.atherbot:/root/.atherbot \
+  -v ~/.openclaw:/root/.openclaw \
   -p 18789:18789 \
-  atherbot/gateway:latest
+  openclaw/gateway:latest
 ```
 
 ### From Source
 
 ```bash
-git clone https://github.com/atherbot/atherbot.git && cd atherbot
+git clone https://github.com/openclaw/openclaw.git && cd openclaw
 pnpm install
 pnpm ui:build    # auto-installs UI deps on first run
 pnpm build
-pnpm atherbot onboard --install-daemon
+pnpm openclaw onboard --install-daemon
 
 # Dev loop (auto-reload on TS changes)
 pnpm gateway:watch
@@ -292,7 +292,7 @@ pnpm gateway:watch
 | `beta`   | `beta`   | Prereleases (`vYYYY.M.D-beta.N`) |
 | `dev`    | `dev`    | Moving head of `main`            |
 
-Switch: `atherbot update --channel stable|beta|dev`
+Switch: `openclaw update --channel stable|beta|dev`
 
 ---
 
@@ -463,28 +463,28 @@ Every security module includes dedicated test files:
 ## 🔧 CLI Reference
 
 ```bash
-atherbot onboard              # Interactive setup wizard
-atherbot gateway              # Start the gateway
-atherbot agent --message "…"  # Send a message to the agent
-atherbot doctor               # Health check and diagnostics
-atherbot update               # Update to latest version
+openclaw onboard              # Interactive setup wizard
+openclaw gateway              # Start the gateway
+openclaw agent --message "…"  # Send a message to the agent
+openclaw doctor               # Health check and diagnostics
+openclaw update               # Update to latest version
 
 # Security commands
-atherbot security monitor     # Start the audit daemon (foreground)
-atherbot security bundle      # Export forensic incident bundle
+openclaw security monitor     # Start the audit daemon (foreground)
+openclaw security bundle      # Export forensic incident bundle
   --session <id>              #   Session ID to bundle
   --out <dir>                 #   Output directory
 
 # Channel management
-atherbot channels login       # Link messaging channels
-atherbot pairing approve      # Approve a DM pairing request
+openclaw channels login       # Link messaging channels
+openclaw pairing approve      # Approve a DM pairing request
 ```
 
 ---
 
 ## 🧠 Model Configuration
 
-AtherBot supports multiple LLM providers simultaneously. Configure in `~/.atherbot/atherbot.json`:
+OpenClaw supports multiple LLM providers simultaneously. Configure in `~/.openclaw/openclaw.json`:
 
 ```json5
 {
@@ -532,10 +532,10 @@ AtherBot supports multiple LLM providers simultaneously. Configure in `~/.atherb
 
 - **Default**: Tools run on the host for the `main` session (full access when it's just you).
 - **Sandbox mode**: Set `agents.defaults.sandbox.mode: "non-main"` to run group/channel sessions inside per-session Docker sandboxes.
-- **DM pairing**: Unknown senders receive a pairing code; approve with `atherbot pairing approve <channel> <code>`.
+- **DM pairing**: Unknown senders receive a pairing code; approve with `openclaw pairing approve <channel> <code>`.
 - **Tool isolation**: Sandbox allowlist/denylist controls which tools are available per session type.
 
-Run `atherbot doctor` to surface risky or misconfigured security policies.
+Run `openclaw doctor` to surface risky or misconfigured security policies.
 
 ---
 
@@ -588,40 +588,40 @@ Supported channels with dedicated integrations:
 
 ### Getting Started
 
-- [Getting Started Guide](https://docs.atherbot.ai/start/getting-started) — auth, pairing, channels
-- [Onboarding Wizard](https://docs.atherbot.ai/start/wizard) — step-by-step guided setup
-- [FAQ](https://docs.atherbot.ai/start/faq) — common questions answered
-- [Updating](https://docs.atherbot.ai/install/updating) — upgrade instructions
+- [Getting Started Guide](https://docs.openclaw.ai/start/getting-started) — auth, pairing, channels
+- [Onboarding Wizard](https://docs.openclaw.ai/start/wizard) — step-by-step guided setup
+- [FAQ](https://docs.openclaw.ai/start/faq) — common questions answered
+- [Updating](https://docs.openclaw.ai/install/updating) — upgrade instructions
 
 ### Reference
 
-- [Configuration](https://docs.atherbot.ai/gateway/configuration) — every key and example
-- [Architecture](https://docs.atherbot.ai/concepts/architecture) — gateway + protocol model
-- [Security Guide](https://docs.atherbot.ai/gateway/security) — security model deep-dive
-- [Models](https://docs.atherbot.ai/concepts/models) — LLM provider setup
-- [Model Failover](https://docs.atherbot.ai/concepts/model-failover) — OAuth vs API keys + fallbacks
+- [Configuration](https://docs.openclaw.ai/gateway/configuration) — every key and example
+- [Architecture](https://docs.openclaw.ai/concepts/architecture) — gateway + protocol model
+- [Security Guide](https://docs.openclaw.ai/gateway/security) — security model deep-dive
+- [Models](https://docs.openclaw.ai/concepts/models) — LLM provider setup
+- [Model Failover](https://docs.openclaw.ai/concepts/model-failover) — OAuth vs API keys + fallbacks
 
 ### Tools & Automation
 
-- [Browser Control](https://docs.atherbot.ai/tools/browser) — managed Chrome/Chromium with CDP
-- [Skills Platform](https://docs.atherbot.ai/tools/skills) — bundled, managed, and workspace skills
-- [Cron Jobs](https://docs.atherbot.ai/automation/cron-jobs) — scheduled tasks
-- [Webhooks](https://docs.atherbot.ai/automation/webhook) — external trigger surface
-- [Gmail Pub/Sub](https://docs.atherbot.ai/automation/gmail-pubsub) — email triggers
+- [Browser Control](https://docs.openclaw.ai/tools/browser) — managed Chrome/Chromium with CDP
+- [Skills Platform](https://docs.openclaw.ai/tools/skills) — bundled, managed, and workspace skills
+- [Cron Jobs](https://docs.openclaw.ai/automation/cron-jobs) — scheduled tasks
+- [Webhooks](https://docs.openclaw.ai/automation/webhook) — external trigger surface
+- [Gmail Pub/Sub](https://docs.openclaw.ai/automation/gmail-pubsub) — email triggers
 
 ### Platform Guides
 
-- [macOS](https://docs.atherbot.ai/platforms/macos) · [iOS](https://docs.atherbot.ai/platforms/ios) · [Android](https://docs.atherbot.ai/platforms/android) · [Linux](https://docs.atherbot.ai/platforms/linux) · [Windows (WSL2)](https://docs.atherbot.ai/platforms/windows)
+- [macOS](https://docs.openclaw.ai/platforms/macos) · [iOS](https://docs.openclaw.ai/platforms/ios) · [Android](https://docs.openclaw.ai/platforms/android) · [Linux](https://docs.openclaw.ai/platforms/linux) · [Windows (WSL2)](https://docs.openclaw.ai/platforms/windows)
 
 ### Operations
 
-- [Health Checks](https://docs.atherbot.ai/gateway/health) · [Logging](https://docs.atherbot.ai/logging) · [Doctor](https://docs.atherbot.ai/gateway/doctor) · [Troubleshooting](https://docs.atherbot.ai/channels/troubleshooting)
+- [Health Checks](https://docs.openclaw.ai/gateway/health) · [Logging](https://docs.openclaw.ai/logging) · [Doctor](https://docs.openclaw.ai/gateway/doctor) · [Troubleshooting](https://docs.openclaw.ai/channels/troubleshooting)
 
 ---
 
 ## ⭐ Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=atherbot/atherbot&type=date&legend=top-left)](https://www.star-history.com/#atherbot/atherbot&type=date&legend=top-left)
+[![Star History Chart](https://api.star-history.com/svg?repos=openclaw/openclaw&type=date&legend=top-left)](https://www.star-history.com/#openclaw/openclaw&type=date&legend=top-left)
 
 ---
 
@@ -638,8 +638,8 @@ Special thanks to [Mario Zechner](https://mariozechner.at/) for his support and 
 
 Thanks to all the incredible clawtributors!
 
-<a href="https://github.com/atherbot/atherbot/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=atherbot/atherbot" alt="Contributors" />
+<a href="https://github.com/openclaw/openclaw/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=openclaw/openclaw" alt="Contributors" />
 </a>
 
 ---
@@ -647,5 +647,5 @@ Thanks to all the incredible clawtributors!
 <p align="center">
   Built with 🦞 by Peter Steinberger and the community.
   <br/>
-  <a href="https://atherbot.ai">atherbot.ai</a> · <a href="https://soul.md">soul.md</a> · <a href="https://steipete.me">steipete.me</a> · <a href="https://x.com/atherbot">@atherbot</a>
+  <a href="https://openclaw.ai">openclaw.ai</a> · <a href="https://soul.md">soul.md</a> · <a href="https://steipete.me">steipete.me</a> · <a href="https://x.com/openclaw">@openclaw</a>
 </p>

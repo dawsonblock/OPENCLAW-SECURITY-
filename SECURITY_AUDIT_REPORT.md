@@ -6,6 +6,9 @@
 
 ## Executive Summary
 
+This is the active security hardening-status document for the repository. Older narrative reports are archived under `docs/archive/` and should not be treated as current status.
+
+
 The `OPENCLAW-SECURITY` codebase contains a substantial defense-in-depth security architecture centered on a kernel-like **RFSN (Request For Side-effect Negotiation)** arbitration layer. The RFSN spine (`src/rfsn/`, `src/security/subprocess.ts`) is real and structurally sound.
 
 **However, the original version of this report overstated completeness.** A follow-up code audit identified several concrete gaps between the architecture's intent and the live code:
@@ -30,7 +33,7 @@ The RFSN architecture, subprocess allowlisting, ledger append, and secret redact
   - **Path Traversal Prevention:** Blocks absolute paths and slashes in command names to prevent executing arbitrary binaries.
   - **Environment Scrubbing:** Whitelists allowed environment variables (e.g., `PATH`, `HOME`), aggressively stripping dangerous ones like `NODE_OPTIONS`, `LD_PRELOAD`.
   - **Resource Caps:** Enforces hard timeouts and stdout/stderr byte limits (1MB default) to prevent DoS.
-- **Known gap (unresolved):** `src/runtime/supervisor.ts` uses bare `fork()` from `child_process` without routing through `subprocess.ts`. Not currently connected to any live startup path, but the module is not removed.
+- **Status update:** the dead `src/runtime/supervisor.ts` exception has been removed from the live tree.
 
 ### Phase 1: RFSN Policy Engine (`src/rfsn/policy.ts`)
 
@@ -106,6 +109,6 @@ The code quality is high in the security-focused modules.
 
 ## Conclusion
 
-The RFSN spine and subprocess security model are real and structurally sound. The gaps identified in the April 2026 follow-up audit have been patched. The remaining work is to close the remaining non-RFSN `child_process` import sites in `src/runtime/supervisor.ts`, `src/node-host/runner.ts`, and `src/memory/qmd-manager.ts`, and to add tests that verify the RFSN gate rejects unallowlisted execution paths.
+The RFSN spine and subprocess security model are real and structurally sound. The dead runtime supervisor exception is gone, the node-host execution path is thinner, and remaining hardening work should focus on the still-authority-bearing seams such as memory management and any non-RFSN execution paths that remain.
 
 **Recommendation:** Do not treat this codebase as production-hardened until the remaining `child_process` sites outside `src/security/` and `src/rfsn/` are audited, gated, or demonstrably proven to be non-reachable from agent tool paths.

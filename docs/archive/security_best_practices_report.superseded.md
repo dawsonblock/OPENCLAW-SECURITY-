@@ -1,3 +1,5 @@
+> Historical note: this report is superseded by `SECURITY_AUDIT_REPORT.md` and is retained only as archived background.
+
 # Security Best Practices Report
 
 ## Executive Summary
