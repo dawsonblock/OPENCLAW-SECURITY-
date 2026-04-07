@@ -4,6 +4,7 @@ import os from "os";
 import path from "path";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
+import { resolveLedgerFilePath } from "../rfsn/ledger.js";
 import { exportIncidentBundle } from "./bundle.js";
 
 describe("Forensics Bundle Export", () => {
@@ -39,10 +40,10 @@ describe("Forensics Bundle Export", () => {
 
   it("creates a valid zip with manifest, config, and ledger", async () => {
     const sessionId = "sess-123";
-    // Create fake ledger
-    fs.writeFileSync(path.join(ledgerDir, `${sessionId}.jsonl`), '{"entry":1}\n');
+    const ledgerFilePath = path.join(ledgerDir, `${sessionId}.jsonl`);
+    fs.writeFileSync(ledgerFilePath, '{"entry":1}\n');
 
-    const zipPath = await exportIncidentBundle(sessionId, ledgerDir, mockConfig, outDir);
+    const zipPath = await exportIncidentBundle(sessionId, ledgerFilePath, mockConfig, outDir);
 
     expect(fs.existsSync(zipPath)).toBe(true);
 
@@ -60,11 +61,58 @@ describe("Forensics Bundle Export", () => {
 
   it("handles missing ledger gracefully", async () => {
     const sessionId = "missing-sess";
-    const zipPath = await exportIncidentBundle(sessionId, ledgerDir, mockConfig, outDir);
+    const ledgerFilePath = path.join(ledgerDir, `${sessionId}.jsonl`);
+    const zipPath = await exportIncidentBundle(sessionId, ledgerFilePath, mockConfig, outDir);
 
     const data = fs.readFileSync(zipPath);
     const zip = await JSZip.loadAsync(data);
 
     expect(zip.file("ledger-missing.txt")).not.toBeNull();
+  });
+
+  it("packages the exact ledger file that resolveLedgerFilePath resolves (default workspace path)", async () => {
+    const sessionId = "workspace-sess";
+    const workspaceDir = tmpDir;
+    const expectedContent = '{"type":"proposal"}\n';
+
+    const ledgerFilePath = resolveLedgerFilePath({ workspaceDir, sessionId });
+    fs.mkdirSync(path.dirname(ledgerFilePath), { recursive: true });
+    fs.writeFileSync(ledgerFilePath, expectedContent);
+    const zipPath = await exportIncidentBundle(sessionId, ledgerFilePath, mockConfig, outDir);
+
+    const data = fs.readFileSync(zipPath);
+    const zip = await JSZip.loadAsync(data);
+    const ledgerEntry = zip.file(`ledger-${sessionId}.jsonl`);
+    expect(ledgerEntry).not.toBeNull();
+    const content = await ledgerEntry!.async("text");
+    expect(content).toBe(expectedContent);
+  });
+
+  it("respects OPENCLAW_LEDGER_DIR override in resolveLedgerFilePath", async () => {
+    const sessionId = "override-sess";
+    const customLedgerDir = path.join(tmpDir, "custom-ledger");
+    fs.mkdirSync(customLedgerDir, { recursive: true });
+    const expectedContent = '{"type":"result"}\n';
+    fs.writeFileSync(path.join(customLedgerDir, `${sessionId}.jsonl`), expectedContent);
+
+    const previousValue = process.env.OPENCLAW_LEDGER_DIR;
+    process.env.OPENCLAW_LEDGER_DIR = customLedgerDir;
+    try {
+      const ledgerFilePath = resolveLedgerFilePath({ workspaceDir: tmpDir, sessionId });
+      const zipPath = await exportIncidentBundle(sessionId, ledgerFilePath, mockConfig, outDir);
+
+      const data = fs.readFileSync(zipPath);
+      const zip = await JSZip.loadAsync(data);
+      const ledgerEntry = zip.file(`ledger-${sessionId}.jsonl`);
+      expect(ledgerEntry).not.toBeNull();
+      const content = await ledgerEntry!.async("text");
+      expect(content).toBe(expectedContent);
+    } finally {
+      if (previousValue === undefined) {
+        delete process.env.OPENCLAW_LEDGER_DIR;
+      } else {
+        process.env.OPENCLAW_LEDGER_DIR = previousValue;
+      }
+    }
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { RfsnActionProposal } from "./types.js";
-import { evaluateGate } from "./gate.js";
+import { evaluateGate, hasValidGateStamp } from "./gate.js";
 import { createDefaultRfsnPolicy } from "./policy.js";
 
 function buildProposal(overrides?: Partial<RfsnActionProposal>): RfsnActionProposal {
@@ -17,6 +17,31 @@ function buildProposal(overrides?: Partial<RfsnActionProposal>): RfsnActionPropo
 }
 
 describe("evaluateGate", () => {
+  test("stamps decisions created by evaluateGate", () => {
+    const policy = createDefaultRfsnPolicy({
+      mode: "allowlist",
+      allowTools: ["read"],
+    });
+
+    const decision = evaluateGate({
+      policy,
+      proposal: buildProposal(),
+      sandboxed: true,
+    });
+
+    expect(hasValidGateStamp(decision)).toBe(true);
+  });
+
+  test("rejects forged decision objects", () => {
+    const forged = {
+      verdict: "allow",
+      reasons: ["ok"],
+      risk: "low",
+    } as const;
+
+    expect(hasValidGateStamp(forged)).toBe(false);
+  });
+
   test("allows allowlisted tools", () => {
     const policy = createDefaultRfsnPolicy({
       mode: "allowlist",

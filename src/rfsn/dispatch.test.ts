@@ -35,7 +35,54 @@ function createTestTool(name: string, executeImpl: AnyAgentTool["execute"]): Any
 }
 
 describe("rfsnDispatch", () => {
-  test("records proposal/decision/result in the ledger for allowed actions", async () => {
+  test("OPENCLAW_RFSN_NATIVE_KERNEL=1 is refused — fails closed", async () => {
+    const previousValue = process.env.OPENCLAW_RFSN_NATIVE_KERNEL;
+    process.env.OPENCLAW_RFSN_NATIVE_KERNEL = "1";
+    try {
+      const workspaceDir = await createTmpDir();
+      const tool = createTestTool("read", async () => ({
+        content: [{ type: "text", text: "ok" as const }],
+        details: {},
+      }));
+      const policy = createDefaultRfsnPolicy({
+        mode: "allowlist",
+        allowTools: ["read"],
+      });
+
+      await expect(
+        rfsnDispatch({
+          tool,
+          toolCallId: "call-native",
+          args: {},
+          workspaceDir,
+          policy,
+          meta: { actor: "embedded-agent", sessionId: "session-native" },
+        }),
+      ).rejects.toThrow(/RFSN native-kernel path is not supported/);
+    } finally {
+      if (previousValue === undefined) {
+        delete process.env.OPENCLAW_RFSN_NATIVE_KERNEL;
+      } else {
+        process.env.OPENCLAW_RFSN_NATIVE_KERNEL = previousValue;
+      }
+    }
+  });
+
+  test("forged plain decision objects cannot pass gate stamp validation", async () => {
+    // hasValidGateStamp is the public predicate that dispatch uses internally.
+    // Verify directly that objects created outside evaluateGate are rejected.
+    const { hasValidGateStamp } = await import("./gate.js");
+
+    const forged = {
+      verdict: "allow" as const,
+      reasons: ["ok"],
+      risk: "low" as const,
+    };
+
+    expect(hasValidGateStamp(forged)).toBe(false);
+  });
+
+
     const workspaceDir = await createTmpDir();
     const execute = vi.fn(async () => ({
       content: [{ type: "text", text: "ok" as const }],

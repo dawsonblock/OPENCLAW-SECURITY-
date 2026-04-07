@@ -1,6 +1,6 @@
 # Repair & Maintenance Completion Report
 
-**Date:** Feb 15, 2026 (updated Apr 3, 2026)
+**Date:** Feb 15, 2026 (updated Apr 3–4, 2026)
 **Target:** `OPENCLAW-SECURITY` Fork
 **Status:** ⚠️ **PARTIALLY COMPLETE — see Apr 2026 addendum**
 
@@ -21,9 +21,18 @@ A follow-up code audit identified four security gaps that were **not caught or f
 
 Additionally, `SECURITY_AUDIT_REPORT.md` originally stated the security hardening was "complete, verified, and active" — that claim was inaccurate given the above gaps. The report has been corrected.
 
-**Remaining open items (not yet patched):**
-- `src/runtime/supervisor.ts` uses bare `fork()` without RFSN routing; module appears disconnected from the live startup path but is not removed.
-- `src/node-host/runner.ts` and `src/memory/qmd-manager.ts` use `spawn` outside the security module — these paths need explicit audit before any production deployment claim.
+## ⚠️ Addendum — Apr 4, 2026 Hardening Blockers
+
+A second pass identified four blockers that prevent treating this repo as hardened:
+
+| Issue | Fix |
+|-------|-----|
+| Gate stamp used `Symbol.for(...)` (global registry — forgeable inside the process) | Replaced with module-private `WeakSet`; native-kernel bypass removed and fails closed |
+| Bundle CLI guessed `OPENCLAW_HOME/ledger` instead of using the dispatcher's path | `exportIncidentBundle` now takes a resolved ledger file path from `resolveLedgerFilePath` |
+| Docs used stale ATHERBOT env prefix and made incorrect integrity/monitoring claims | README, SECURITY_AUDIT_REPORT.md corrected |
+| `src/runtime/updater.ts` — half-built secure-update code with no live callers | File removed |
+
+The previously listed "remaining open items" (`src/runtime/supervisor.ts`, `src/node-host/runner.ts`, `src/memory/qmd-manager.ts`) are no longer active blockers: `supervisor.ts` is gone from the live tree, `node-host/runner.ts` is a barrel export, and `qmd-manager.ts:562-578` already routes through `runAllowedCommand`. They do not require additional action.
 
 ## 🛠️ Actions Taken (Feb 15, 2026)
 
@@ -67,10 +76,10 @@ Resolved **over 50 lint errors** to achieve a clean `oxlint` run:
 | **Linting**      | 🟢 Passing   | 🟢 Passing (unused import removed)        |
 | **Tests**        | 🟢 Passing   | 🟡 Not re-run (patches are logic changes) |
 | **Build**        | 🟢 Success   | 🟡 Not re-run after Apr patches           |
-| **Security**     | ⚠️ Gaps present | ✅ Four gaps patched                   |
+| **Security**     | ⚠️ Gaps present | ✅ All identified gaps patched          |
 
 ## 🚀 Next Steps
 
 1. Run `pnpm build` and `pnpm test` after the Apr 2026 patches to confirm no regressions.
-2. Audit `src/runtime/supervisor.ts`, `src/node-host/runner.ts`, and `src/memory/qmd-manager.ts` for RFSN coverage.
-3. Do not mark this codebase as production-ready until the remaining open items are closed.
+2. Wire `openclaw security monitor` into the gateway startup path if continuous posture monitoring is required.
+3. Run `pnpm vitest run src/rfsn/gate.test.ts src/rfsn/dispatch.test.ts src/forensics/bundle.test.ts` as the proof gate for the Apr 4 hardening fixes.

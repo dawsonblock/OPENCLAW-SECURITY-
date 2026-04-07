@@ -103,21 +103,23 @@ export async function rfsnDispatch(params: {
     },
   });
 
-  let decision: RfsnGateDecision;
+  // Native-kernel path is not active in this build. The previous implementation
+  // stamped FFI output with the global symbol registry, bypassing gate integrity.
+  // That second stamping path has been removed. Fail closed if someone attempts
+  // to enable it via the environment variable.
   if (process.env.OPENCLAW_RFSN_NATIVE_KERNEL === "1") {
-    const { submitToRfsnKernel } = await import("./native-kernel.js");
-    const nativeDecision = await submitToRfsnKernel(proposal);
-    // Apply the stamp to trust the FFI boundary output
-    const GATE_DECISION_STAMP = Symbol.for("openclaw.rfsn.gateDecisionStamp");
-    (nativeDecision as Record<symbol, unknown>)[GATE_DECISION_STAMP] = true;
-    decision = nativeDecision;
-  } else {
-    decision = evaluateGate({
-      policy: params.policy,
-      proposal,
-      sandboxed: params.runtime?.sandboxed,
-    });
+    throw new Error(
+      `RFSN native-kernel path is not supported in this build. ` +
+        "Unset OPENCLAW_RFSN_NATIVE_KERNEL or remove the flag. " +
+        "All decisions must flow through evaluateGate.",
+    );
   }
+
+  const decision: RfsnGateDecision = evaluateGate({
+    policy: params.policy,
+    proposal,
+    sandboxed: params.runtime?.sandboxed,
+  });
 
   // Verify the decision was produced by evaluateGate (not forged)
   if (!hasValidGateStamp(decision)) {
