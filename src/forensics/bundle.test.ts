@@ -72,14 +72,12 @@ describe("Forensics Bundle Export", () => {
 
   it("packages the exact ledger file that resolveLedgerFilePath resolves (default workspace path)", async () => {
     const sessionId = "workspace-sess";
-    // Simulate the workspace layout that rfsnDispatch uses: workspaceDir/.openclaw/ledger/<sessionId>.jsonl
     const workspaceDir = tmpDir;
-    const expectedLedgerDir = path.join(workspaceDir, ".openclaw", "ledger");
-    fs.mkdirSync(expectedLedgerDir, { recursive: true });
     const expectedContent = '{"type":"proposal"}\n';
-    fs.writeFileSync(path.join(expectedLedgerDir, `${sessionId}.jsonl`), expectedContent);
 
     const ledgerFilePath = resolveLedgerFilePath({ workspaceDir, sessionId });
+    fs.mkdirSync(path.dirname(ledgerFilePath), { recursive: true });
+    fs.writeFileSync(ledgerFilePath, expectedContent);
     const zipPath = await exportIncidentBundle(sessionId, ledgerFilePath, mockConfig, outDir);
 
     const data = fs.readFileSync(zipPath);
