@@ -1,8 +1,29 @@
 import fs from "node:fs/promises";
+import { createRequire } from "node:module";
 import path from "node:path";
-import ts from "typescript";
 import { hasErrnoCode } from "../infra/errors.js";
 
+const require = createRequire(import.meta.url);
+
+function loadTypeScript(): typeof import("typescript") {
+  try {
+    return require("typescript") as typeof import("typescript");
+  } catch (error) {
+    throw new Error(
+      "TypeScript-based skill scanning requires the optional 'typescript' package at runtime. " +
+        "Install 'typescript' as a production dependency, or disable TypeScript skill scanning in environments " +
+        "that omit optional/development packages.",
+      { cause: error },
+    );
+  }
+}
+
+const ts = new Proxy({} as typeof import("typescript"), {
+  get(_target, property, receiver) {
+    const typescript = loadTypeScript();
+    return Reflect.get(typescript, property, receiver);
+  },
+});
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
