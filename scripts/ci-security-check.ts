@@ -200,8 +200,8 @@ if (authorityBoundaryFiles.length > 0) {
       }
     }
 
-    // Keep the historic shell:true heuristic scoped to the src tree.
-    if (relPath.startsWith("src/") && SHELL_TRUE_PATTERN.test(stripped)) {
+    // shell:true is not permitted anywhere within the authority-boundary scan roots.
+    if (SHELL_TRUE_PATTERN.test(stripped)) {
       console.error(`❌ ${relPath}: contains shell:true (never permitted in runtime code)`);
       failed = true;
     }
