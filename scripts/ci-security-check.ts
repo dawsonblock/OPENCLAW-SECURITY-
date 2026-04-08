@@ -2,9 +2,11 @@ import { readFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import {
   AUTHORITY_BOUNDARY_SCAN_ROOTS,
+  FORBIDDEN_AUTHORITY_IMPORT_ROOTS,
   REVIEWED_CHILD_PROCESS_IMPORTERS,
   toAuthorityBoundaryRepoPath,
 } from "../src/security/authority-boundaries.js";
+import { scanAuthorityBoundaryImporters } from "../src/security/authority-boundary-importers.js";
 
 console.log("🔒 Running OpenCLAW Security Integrity Check...");
 
@@ -31,6 +33,7 @@ const ALLOWED_CHILD_PROCESS_IMPORTERS = new Set(REVIEWED_CHILD_PROCESS_IMPORTERS
 const SHELL_TRUE_PATTERN = /shell\s*:\s*true/;
 const RUNTIME_SPAWN_PATTERN = /\bspawn\s*\(|\bfork\s*\(/;
 const TEST_FILE_RE = /\.(test|spec)\.ts$|\.e2e\.test\.ts$/;
+const EXEC_APPROVALS_BARREL_PREFIX = "export * from \"./exec-approvals/";
 const ORCHESTRATION_FILE_LIMITS = [
   { file: "src/node-host/runner.ts", maxLines: 60 },
   { file: "src/infra/exec-approvals.ts", maxLines: 30 },
@@ -161,108 +164,132 @@ const authorityBoundaryFiles = scanRootPaths.flatMap((rootDir) =>
   existsSync(rootDir) ? walkRuntimeTsFiles(rootDir) : [],
 );
 
-if (authorityBoundaryFiles.length > 0) {
-  for (const absPath of authorityBoundaryFiles) {
-    const relPath = toAuthorityBoundaryRepoPath(absPath);
-    let content: string;
-    try {
-      content = readFileSync(absPath, "utf8");
-    } catch {
+async function main(): Promise<void> {
+  if (authorityBoundaryFiles.length > 0) {
+    for (const absPath of authorityBoundaryFiles) {
+      const relPath = toAuthorityBoundaryRepoPath(absPath);
+      let content: string;
+      try {
+        content = readFileSync(absPath, "utf8");
+      } catch {
+        continue;
+      }
+
+      // Flag direct child_process value imports (not type-only imports) outside the allowlist.
+      const hasRealChildProcessImport = content
+        .split("\n")
+        .some(
+          (line) =>
+            /from\s+["'](?:node:)?child_process["']/.test(line) &&
+            !/^\s*import\s+type\s+/.test(line),
+        );
+      if (hasRealChildProcessImport) {
+        if (!ALLOWED_CHILD_PROCESS_IMPORTERS.has(relPath)) {
+          console.error(
+            `❌ ${relPath}: imports node:child_process directly – route runtime execution through src/security/subprocess.ts or update src/security/authority-boundaries.ts with reviewed justification`,
+          );
+          failed = true;
+        }
+      }
+
+      const stripped = stripComments(content);
+      if (relPath.startsWith("src/runtime/")) {
+        if (hasRealChildProcessImport) {
+          console.error(`❌ ${relPath}: runtime code must not import child_process authority`);
+          failed = true;
+        }
+        if (RUNTIME_SPAWN_PATTERN.test(stripped)) {
+          console.error(`❌ ${relPath}: runtime code must not contain raw spawn/fork calls`);
+          failed = true;
+        }
+      }
+
+      // shell:true is not permitted anywhere within the authority-boundary scan roots.
+      if (SHELL_TRUE_PATTERN.test(stripped)) {
+        console.error(`❌ ${relPath}: contains shell:true (never permitted in runtime code)`);
+        failed = true;
+      }
+    }
+    console.log(
+      `✅ Child-process boundary scan complete (${AUTHORITY_BOUNDARY_SCAN_ROOTS.join(", ")})`,
+    );
+  } else {
+    console.warn("⚠️  no authority-boundary scan roots found; skipping child-process scan");
+  }
+
+  const { unexpectedImporters, forbiddenImporters } = await scanAuthorityBoundaryImporters();
+  for (const violation of unexpectedImporters) {
+    console.error(`❌ ${violation}`);
+    failed = true;
+  }
+  for (const violation of forbiddenImporters) {
+    const separatorIndex = violation.indexOf(" -> ");
+    if (separatorIndex === -1) {
+      console.error(`❌ malformed authority-boundary violation: ${violation}`);
+      failed = true;
       continue;
     }
+    const importer = violation.slice(0, separatorIndex);
+    const target = violation.slice(separatorIndex + " -> ".length);
+    console.error(
+      `❌ ${importer}: forbidden authority root (${FORBIDDEN_AUTHORITY_IMPORT_ROOTS.join(", ")}) imports ${target} directly`,
+    );
+    failed = true;
+  }
 
-    // Flag direct child_process value imports (not type-only imports) outside the allowlist.
-    const hasRealChildProcessImport = content
-      .split("\n")
-      .some(
-        (line) =>
-          /from\s+["'](?:node:)?child_process["']/.test(line) &&
-          !/^\s*import\s+type\s+/.test(line),
-      );
-    if (hasRealChildProcessImport) {
-      if (!ALLOWED_CHILD_PROCESS_IMPORTERS.has(relPath)) {
-        console.error(
-          `❌ ${relPath}: imports node:child_process directly – route runtime execution through src/security/subprocess.ts or update src/security/authority-boundaries.ts with reviewed justification`,
-        );
+  for (const entry of BOUNDARY_ONLY_FILES) {
+    if (!existsSync(entry.file)) {
+      continue;
+    }
+    const content = readFileSync(entry.file, "utf8");
+    for (const specifier of entry.bannedImports) {
+      const escaped = specifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (new RegExp(`from\\s+[\"']${escaped}[\"']`).test(content)) {
+        console.error(`❌ ${entry.file}: imports disallowed low-level authority ${specifier}`);
         failed = true;
       }
     }
-
     const stripped = stripComments(content);
-    if (relPath.startsWith("src/runtime/")) {
-      if (hasRealChildProcessImport) {
-        console.error(`❌ ${relPath}: runtime code must not import child_process authority`);
-        failed = true;
-      }
-      if (RUNTIME_SPAWN_PATTERN.test(stripped)) {
-        console.error(`❌ ${relPath}: runtime code must not contain raw spawn/fork calls`);
+    for (const marker of entry.bannedMarkers) {
+      if (stripped.includes(marker)) {
+        console.error(`❌ ${entry.file}: contains disallowed orchestration marker ${marker}`);
         failed = true;
       }
     }
+  }
 
-    // shell:true is not permitted anywhere within the authority-boundary scan roots.
-    if (SHELL_TRUE_PATTERN.test(stripped)) {
-      console.error(`❌ ${relPath}: contains shell:true (never permitted in runtime code)`);
+  for (const file of BARREL_ONLY_FILES) {
+    if (!existsSync(file)) {
+      continue;
+    }
+    const content = readFileSync(file, "utf8");
+    const meaningfulLines = content
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (!meaningfulLines.every((line) => line.startsWith(EXEC_APPROVALS_BARREL_PREFIX))) {
+      console.error(`❌ ${file}: compatibility file must remain a barrel only`);
       failed = true;
     }
   }
-  console.log(
-    `✅ Child-process boundary scan complete (${AUTHORITY_BOUNDARY_SCAN_ROOTS.join(", ")})`,
-  );
-} else {
-  console.warn("⚠️  no authority-boundary scan roots found; skipping child-process scan");
-}
 
-for (const entry of BOUNDARY_ONLY_FILES) {
-  if (!existsSync(entry.file)) {
-    continue;
-  }
-  const content = readFileSync(entry.file, "utf8");
-  for (const specifier of entry.bannedImports) {
-    const escaped = specifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    if (new RegExp(`from\\s+[\"']${escaped}[\"']`).test(content)) {
-      console.error(`❌ ${entry.file}: imports disallowed low-level authority ${specifier}`);
+  for (const entry of ORCHESTRATION_FILE_LIMITS) {
+    if (!existsSync(entry.file)) {
+      continue;
+    }
+    const lineCount = readFileSync(entry.file, "utf8").split("\n").length;
+    if (lineCount > entry.maxLines) {
+      console.error(`❌ ${entry.file}: grew past ${entry.maxLines} lines (${lineCount})`);
       failed = true;
     }
   }
-  const stripped = stripComments(content);
-  for (const marker of entry.bannedMarkers) {
-    if (stripped.includes(marker)) {
-      console.error(`❌ ${entry.file}: contains disallowed orchestration marker ${marker}`);
-      failed = true;
-    }
+
+  if (failed) {
+    console.error("\n❌ Security Integrity Check FAILED");
+    process.exit(1);
   }
+
+  console.log("\n✅ Security Integrity Check PASSED");
 }
 
-for (const file of BARREL_ONLY_FILES) {
-  if (!existsSync(file)) {
-    continue;
-  }
-  const content = readFileSync(file, "utf8");
-  const meaningfulLines = content
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-  if (!meaningfulLines.every((line) => line.startsWith('export * from "./exec-approvals/'))) {
-    console.error(`❌ ${file}: compatibility file must remain a barrel only`);
-    failed = true;
-  }
-}
-
-for (const entry of ORCHESTRATION_FILE_LIMITS) {
-  if (!existsSync(entry.file)) {
-    continue;
-  }
-  const lineCount = readFileSync(entry.file, "utf8").split("\n").length;
-  if (lineCount > entry.maxLines) {
-    console.error(`❌ ${entry.file}: grew past ${entry.maxLines} lines (${lineCount})`);
-    failed = true;
-  }
-}
-
-if (failed) {
-  console.error("\n❌ Security Integrity Check FAILED");
-  process.exit(1);
-}
-
-console.log("\n✅ Security Integrity Check PASSED");
+await main();
