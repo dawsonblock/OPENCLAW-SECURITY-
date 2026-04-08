@@ -219,6 +219,10 @@ const GATE_CRITICAL_ENV_VARS = [
   "OPENCLAW_RFSN_REQUIRE_SIGNED_POLICY",
 ] as const;
 
+// Reviewed exceptions for `child_process` imports. Keep the canonical
+// justification in sync with `src/security/authority-boundaries.ts`
+// (exported here via `../security/authority-boundaries.js`) so future
+// changes do not treat this allowlist as an opaque set.
 const ALLOWED_CHILD_PROCESS_IMPORTERS = new Set(REVIEWED_CHILD_PROCESS_IMPORTERS);
 
 /**
