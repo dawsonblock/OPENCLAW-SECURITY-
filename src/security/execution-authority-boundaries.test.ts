@@ -55,16 +55,16 @@ async function listRuntimeTsFiles(rootDir: string): Promise<string[]> {
 function collectRuntimeImportSpecifiers(content: string): string[] {
   const specifiers = new Set<string>();
 
-  for (const match of content.matchAll(/(?:^|\n)\s*(?:import|export)[^;]+;/gms)) {
-    const statement = match[0].trim();
-    if (/^(?:import|export)\s+type\b/.test(statement)) {
-      continue;
-    }
-    const fromMatch = statement.match(/from\s+["']([^"']+)["']/);
-    const sideEffectMatch = statement.match(/^import\s+["']([^"']+)["']/);
-    const specifier = fromMatch?.[1] ?? sideEffectMatch?.[1];
-    if (specifier?.startsWith(".")) {
-      specifiers.add(specifier);
+  for (const pattern of [
+    /(?:^|\n)\s*import\s+(?!type\b)[\s\S]*?from\s+["']([^"']+)["']/gm,
+    /(?:^|\n)\s*export\s+(?!type\b)[\s\S]*?from\s+["']([^"']+)["']/gm,
+    /(?:^|\n)\s*import\s+["']([^"']+)["']/gm,
+  ]) {
+    for (const match of content.matchAll(pattern)) {
+      const specifier = match[1];
+      if (specifier?.startsWith(".")) {
+        specifiers.add(specifier);
+      }
     }
   }
 
@@ -78,6 +78,9 @@ function collectRuntimeImportSpecifiers(content: string): string[] {
   return [...specifiers];
 }
 
+// Path-only structural resolution is deliberate here: this test guards the
+// repo's current relative .ts/.js runtime imports without reimplementing the
+// full TypeScript or Node module resolver.
 function resolveImportCandidates(importerAbsPath: string, specifier: string): string[] {
   const base = path.resolve(path.dirname(importerAbsPath), specifier);
   const ext = path.extname(base);
