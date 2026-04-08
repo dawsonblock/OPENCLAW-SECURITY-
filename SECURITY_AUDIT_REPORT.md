@@ -24,7 +24,7 @@ The `OPENCLAW-SECURITY` codebase contains a substantial defense-in-depth securit
 | `execFileSync("openclaw", ...)` in repair command bypassed RFSN   | `src/cli/commands/repair.ts` | ✅ Apr 2026                                             |
 | Unused `execSync` import leaked dead authority path               | `src/cli/commands/up.ts`     | ✅ Apr 2026                                             |
 
-The RFSN architecture, subprocess allowlisting, ledger append, and secret redaction are structurally intact. The gaps above have been patched. Structural tests now enforce that no new `child_process` import sites appear beyond the reviewed seams and explicit exceptions listed above.
+The RFSN architecture, subprocess allowlisting, ledger append, and secret redaction are structurally intact. The gaps above have been patched. The reviewed execution-authority exceptions now live in `src/security/authority-boundaries.ts`, and both CI plus the structural boundary tests consume that single source of truth.
 
 ## Detailed Phase Analysis
 
@@ -44,7 +44,7 @@ The RFSN architecture, subprocess allowlisting, ledger append, and secret redact
 - **Status:** ✅ **Reviewed Narrow Exception**
 - **Mechanism:** Low-level launcher used only by the exec subsystem for shell-backed exec sessions and Docker exec sessions.
 - **Scope note:** This is not the general runtime subprocess seam. It exists because the exec subsystem needs raw child-process handles for interactive sessions.
-- **Reachability:** Structural tests pin the runtime importer set to `src/process/exec.ts` and `src/agents/bash-tools.exec.runtime.ts`.
+- **Reachability:** Structural tests pin the runtime importer set to `src/process/exec.ts` and `src/agents/bash-tools.exec.runtime.ts`, and the importer-boundary scan covers the shipped Node/TypeScript runtime roots in `src/` and `extensions/`.
 
 ### Phase 1: RFSN Policy Engine (`src/rfsn/policy.ts`)
 

@@ -1,5 +1,10 @@
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
+import {
+  AUTHORITY_BOUNDARY_SCAN_ROOTS,
+  REVIEWED_CHILD_PROCESS_IMPORTERS,
+  toAuthorityBoundaryRepoPath,
+} from "../src/security/authority-boundaries.js";
 
 console.log("🔒 Running OpenCLAW Security Integrity Check...");
 
@@ -22,23 +27,7 @@ try {
   failed = true;
 }
 
-// 3. Child-process boundary scan
-// Scan all non-test runtime TypeScript files under src/ and flag any that
-// import node:child_process directly outside the approved exception list.
-//
-// Approved exceptions (must be kept in sync with ALLOWED_CHILD_PROCESS_IMPORTERS
-// in src/rfsn/final-authority.test.ts):
-//   - src/security/subprocess.ts   – the low-level spawn authority
-//   - src/process/spawn-utils.ts   – internal seam helper (type+spawn)
-//   - src/entry.ts                 – bootstrap-only self-respawn
-//   - src/tui/tui-local-shell.ts   – explicit local-shell exception (opt-in only)
-const ALLOWED_CHILD_PROCESS_IMPORTERS = new Set([
-  "src/security/subprocess.ts",
-  "src/process/spawn-utils.ts",
-  "src/entry.ts",
-  "src/tui/tui-local-shell.ts",
-]);
-
+const ALLOWED_CHILD_PROCESS_IMPORTERS = new Set(REVIEWED_CHILD_PROCESS_IMPORTERS);
 const SHELL_TRUE_PATTERN = /shell\s*:\s*true/;
 const RUNTIME_SPAWN_PATTERN = /\bspawn\s*\(|\bfork\s*\(/;
 const TEST_FILE_RE = /\.(test|spec)\.ts$|\.e2e\.test\.ts$/;
@@ -61,12 +50,12 @@ const BOUNDARY_ONLY_FILES = [
 ];
 const BARREL_ONLY_FILES = ["src/infra/exec-approvals.ts"];
 
-function walkSrc(dir: string): string[] {
+function walkRuntimeTsFiles(dir: string): string[] {
   const results: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      results.push(...walkSrc(full));
+      results.push(...walkRuntimeTsFiles(full));
     } else if (entry.isFile() && full.endsWith(".ts") && !TEST_FILE_RE.test(full)) {
       results.push(full);
     }
@@ -163,10 +152,18 @@ function stripComments(content: string): string {
   return result;
 }
 
-const srcDir = "src";
-if (existsSync(srcDir)) {
-  for (const absPath of walkSrc(srcDir)) {
-    const relPath = path.relative(".", absPath).split(path.sep).join("/");
+// Authority-boundary enforcement intentionally covers the shipped Node/TS
+// runtime roots in src/ and extensions/. Native apps under apps/ and package
+// wrapper scripts under packages/ are reviewed elsewhere and stay outside this
+// TypeScript-only child_process exception scan.
+const authorityBoundaryRootPaths = AUTHORITY_BOUNDARY_SCAN_ROOTS.map((root) => path.resolve(root));
+const authorityBoundaryFiles = authorityBoundaryRootPaths.flatMap((rootDir) =>
+  existsSync(rootDir) ? walkRuntimeTsFiles(rootDir) : [],
+);
+
+if (authorityBoundaryFiles.length > 0) {
+  for (const absPath of authorityBoundaryFiles) {
+    const relPath = toAuthorityBoundaryRepoPath(absPath);
     let content: string;
     try {
       content = readFileSync(absPath, "utf8");
@@ -185,32 +182,56 @@ if (existsSync(srcDir)) {
     if (hasRealChildProcessImport) {
       if (!ALLOWED_CHILD_PROCESS_IMPORTERS.has(relPath)) {
         console.error(
-          `❌ ${relPath}: imports child_process directly – route through src/process/exec.ts or add to exception list with justification`,
+          `❌ ${relPath}: imports node:child_process directly – route bounded runtime execution through src/security/subprocess.ts, keep exec-session launching inside the reviewed exec seam, or update src/security/authority-boundaries.ts with justification`,
         );
         failed = true;
       }
     }
+  }
+  console.log(
+    `✅ Child-process boundary scan complete (${AUTHORITY_BOUNDARY_SCAN_ROOTS.join(", ")})`,
+  );
+} else {
+  console.warn("⚠️  no authority-boundary scan roots found; skipping child-process scan");
+}
 
+const srcDir = path.resolve("src");
+if (existsSync(srcDir)) {
+  for (const absPath of walkRuntimeTsFiles(srcDir)) {
+    const relPath = toAuthorityBoundaryRepoPath(absPath);
+    let content: string;
+    try {
+      content = readFileSync(absPath, "utf8");
+    } catch {
+      continue;
+    }
+
+    const stripped = stripComments(content);
     if (relPath.startsWith("src/runtime/")) {
-      if (hasRealChildProcessImport) {
+      if (
+        content
+          .split("\n")
+          .some(
+            (line) =>
+              /from\s+["'](?:node:)?child_process["']/.test(line) &&
+              !/^\s*import\s+type\s+/.test(line),
+          )
+      ) {
         console.error(`❌ ${relPath}: runtime code must not import child_process authority`);
         failed = true;
       }
-      if (RUNTIME_SPAWN_PATTERN.test(stripComments(content))) {
+      if (RUNTIME_SPAWN_PATTERN.test(stripped)) {
         console.error(`❌ ${relPath}: runtime code must not contain raw spawn/fork calls`);
         failed = true;
       }
     }
 
-    // Flag shell:true (never allowed in runtime code).
-    if (SHELL_TRUE_PATTERN.test(stripComments(content))) {
+    // Keep the historic shell:true heuristic scoped to src runtime code.
+    if (SHELL_TRUE_PATTERN.test(stripped)) {
       console.error(`❌ ${relPath}: contains shell:true (never permitted in runtime code)`);
       failed = true;
     }
   }
-  console.log("✅ Child-process boundary scan complete");
-} else {
-  console.warn("⚠️  src/ directory not found; skipping child-process scan");
 }
 
 for (const entry of BOUNDARY_ONLY_FILES) {

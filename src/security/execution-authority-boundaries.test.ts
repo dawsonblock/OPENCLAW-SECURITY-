@@ -2,31 +2,23 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import ts from "typescript";
 import { describe, expect, test } from "vitest";
+import {
+  AUTHORITY_BOUNDARY_SCAN_ROOTS,
+  AUTHORITY_EXCEPTION_TARGETS,
+  FORBIDDEN_AUTHORITY_IMPORT_ROOTS,
+  REVIEWED_AUTHORITY_IMPORTERS,
+  toAuthorityBoundaryRepoPath,
+} from "./authority-boundaries.js";
 
-const SRC_ROOT = path.resolve(process.cwd(), "src");
 const RUNTIME_TS_FILE_RE = /^(?!.*\.d\.ts$).*\.ts$/;
 const TEST_FILE_RE = /\.(test|spec)\.ts$|\.e2e\.test\.ts$/;
+const AUTHORITY_SCAN_ROOT_PATHS = AUTHORITY_BOUNDARY_SCAN_ROOTS.map((root) =>
+  path.resolve(process.cwd(), root),
+);
 
-const REVIEWED_EXEC_SESSION_IMPORTERS = [
-  "src/agents/bash-tools.exec.runtime.ts",
-  "src/process/exec.ts",
-];
-const REVIEWED_LOCAL_SHELL_IMPORTERS = ["src/tui/tui.ts"];
-const FORBIDDEN_AUTHORITY_IMPORT_ROOTS = [
-  "src/gateway/",
-  "src/node-host/",
-  "src/rfsn/",
-  "src/agents/tools/",
-];
-
-function toPosixRelative(absPath: string): string {
-  const rel = path.relative(process.cwd(), absPath);
-  return rel.split(path.sep).join("/");
-}
-
-async function listRuntimeTsFiles(rootDir: string): Promise<string[]> {
+async function listRuntimeTsFiles(rootDirs: readonly string[]): Promise<string[]> {
   const files: string[] = [];
-  const stack = [rootDir];
+  const stack = [...rootDirs];
 
   while (stack.length > 0) {
     const current = stack.pop();
@@ -162,7 +154,7 @@ function resolveImportCandidates(importerAbsPath: string, specifier: string): st
 
 async function findRuntimeImporters(targetRelPath: string): Promise<string[]> {
   const targetAbsPath = path.normalize(path.resolve(process.cwd(), targetRelPath));
-  const files = await listRuntimeTsFiles(SRC_ROOT);
+  const files = await listRuntimeTsFiles(AUTHORITY_SCAN_ROOT_PATHS);
   const importers: string[] = [];
 
   for (const absPath of files) {
@@ -174,13 +166,16 @@ async function findRuntimeImporters(targetRelPath: string): Promise<string[]> {
       resolveImportCandidates(absPath, specifier).includes(targetAbsPath),
     );
     if (importsTarget) {
-      importers.push(toPosixRelative(absPath));
+      importers.push(toAuthorityBoundaryRepoPath(absPath));
     }
   }
 
   return importers.toSorted();
 }
 
+// This structural proof intentionally covers the shipped Node/TypeScript runtime
+// roots in src/ and extensions/. Native apps and package wrapper scripts stay
+// outside this path-only import scan.
 describe("execution authority boundaries", () => {
   test("type-only named imports and exports do not count as runtime importers", () => {
     const specifiers = collectRuntimeImportSpecifiers(`
@@ -196,7 +191,7 @@ describe("execution authority boundaries", () => {
   test("spawn-utils stays limited to the reviewed exec-session runtime path", async () => {
     const importers = await findRuntimeImporters("src/process/spawn-utils.ts");
 
-    expect(importers).toEqual(REVIEWED_EXEC_SESSION_IMPORTERS);
+    expect(importers).toEqual([...REVIEWED_AUTHORITY_IMPORTERS["src/process/spawn-utils.ts"]]);
     expect(importers.some((relPath) => relPath.startsWith("src/gateway/"))).toBe(false);
     expect(importers.some((relPath) => relPath.startsWith("src/node-host/"))).toBe(false);
     expect(importers.some((relPath) => relPath.startsWith("src/rfsn/"))).toBe(false);
@@ -206,24 +201,19 @@ describe("execution authority boundaries", () => {
   test("tui-local-shell stays reachable only from the TUI surface", async () => {
     const importers = await findRuntimeImporters("src/tui/tui-local-shell.ts");
 
-    expect(importers).toEqual(REVIEWED_LOCAL_SHELL_IMPORTERS);
+    expect(importers).toEqual([...REVIEWED_AUTHORITY_IMPORTERS["src/tui/tui-local-shell.ts"]]);
   });
 
   test("entry stays bootstrap-only and outside runtime imports", async () => {
     const importers = await findRuntimeImporters("src/entry.ts");
 
-    expect(importers).toEqual([]);
+    expect(importers).toEqual([...REVIEWED_AUTHORITY_IMPORTERS["src/entry.ts"]]);
   });
 
   test("gateway, node-host, RFSN, and generic tool paths do not directly import execution exceptions", async () => {
-    const targets = [
-      "src/process/spawn-utils.ts",
-      "src/tui/tui-local-shell.ts",
-      "src/entry.ts",
-    ] as const;
     const forbiddenImporters: string[] = [];
 
-    for (const target of targets) {
+    for (const target of AUTHORITY_EXCEPTION_TARGETS) {
       const importers = await findRuntimeImporters(target);
       for (const importer of importers) {
         if (FORBIDDEN_AUTHORITY_IMPORT_ROOTS.some((root) => importer.startsWith(root))) {
