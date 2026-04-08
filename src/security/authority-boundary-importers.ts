@@ -206,7 +206,7 @@ export async function scanAuthorityBoundaryImporters(): Promise<AuthorityBoundar
     const importers = await findRuntimeImporters(target, runtimeFiles);
     importersByTarget[target] = importers;
 
-    const reviewedImporters = [...REVIEWED_AUTHORITY_IMPORTERS[target]];
+    const reviewedImporters = [...REVIEWED_AUTHORITY_IMPORTERS[target]].toSorted();
     if (!areArraysEqual(importers, reviewedImporters)) {
       unexpectedImporters.push(
         `${target}: expected [${reviewedImporters.join(", ")}] but found [${importers.join(", ")}]`,
