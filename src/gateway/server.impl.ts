@@ -41,9 +41,10 @@ import {
 import { scheduleGatewayUpdateCheck } from "../infra/update-startup.js";
 import { startDiagnosticHeartbeat, stopDiagnosticHeartbeat } from "../logging/diagnostic.js";
 import { createSubsystemLogger, runtimeForLogger } from "../logging/subsystem.js";
-import { initializePolicySnapshot } from "../security/lockdown/policy-snapshot.js";
-import { extractSecurityPosture } from "../security/lockdown/posture.js";
-import { hashPayload } from "../security/stable-hash.js";
+import {
+  computePolicySnapshotHash,
+  initializePolicySnapshot,
+} from "../security/lockdown/policy-snapshot.js";
 import {
   allowUnsafeGatewayConfig,
   isSafeModeEnabled,
@@ -314,8 +315,12 @@ export async function startGatewayServer(
   }
 
   // ── Initialize Policy Snapshot ──
-  const securityPosture = extractSecurityPosture(cfgAtStart, process.env, bindHost, tailscaleMode);
-  const policyHash = hashPayload(securityPosture);
+  const policyHash = computePolicySnapshotHash({
+    cfg: cfgAtStart,
+    env: process.env,
+    bindHost,
+    tailscaleMode,
+  });
   // We enable strict mode (fatal on re-init) if running in production-like modes or explicitly enabled.
   initializePolicySnapshot(policyHash, process.env.NODE_ENV === "production");
 

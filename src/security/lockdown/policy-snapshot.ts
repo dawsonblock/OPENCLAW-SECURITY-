@@ -1,9 +1,23 @@
+import type { OpenClawConfig } from "../../config/config.js";
+import { hashPayload } from "../stable-hash.js";
 import { failInvariant, SecurityInvariantViolation } from "./invariants.js";
+import { extractSecurityPosture } from "./posture.js";
 
 let baselineHash: string | null = null;
 
 export function getPolicySnapshotHash(): string | null {
   return baselineHash;
+}
+
+export function computePolicySnapshotHash(params: {
+  cfg: OpenClawConfig;
+  env: NodeJS.ProcessEnv;
+  bindHost: string;
+  tailscaleMode: string;
+}): string {
+  return hashPayload(
+    extractSecurityPosture(params.cfg, params.env, params.bindHost, params.tailscaleMode),
+  );
 }
 
 export function initializePolicySnapshot(hash: string, _strict: boolean = false) {
@@ -46,4 +60,8 @@ export function assertPolicyDrift(currentHash: string, breakGlass: boolean) {
       `Current policy hash ${currentHash} differs from baseline ${baselineHash}`,
     );
   }
+}
+
+export function resetPolicySnapshotForTests() {
+  baselineHash = null;
 }

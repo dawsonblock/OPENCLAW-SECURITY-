@@ -14,6 +14,7 @@ import { createSearchableSelectList } from "./components/selectors.js";
  *
  * It is disabled by default and must be explicitly enabled by setting:
  *   OPENCLAW_LOCAL_SHELL_ENABLED=1
+ *   OPENCLAW_ACK_LOCAL_SHELL_IS_UNBOUNDED=1
  *
  * Even when enabled, the user is prompted for consent on first use.
  * This is a convenience feature for power users who understand the risk.
@@ -44,11 +45,6 @@ type LocalShellDeps = {
 };
 
 export function createLocalShellRunner(deps: LocalShellDeps) {
-  // Gate: local shell must be explicitly opted-in via OPENCLAW_LOCAL_SHELL_ENABLED=1.
-  // When not set, the runner is a no-op and tells the user how to enable it.
-  const isFeatureEnabled =
-    (process.env.OPENCLAW_LOCAL_SHELL_ENABLED ?? "").trim() === "1";
-
   let localExecAsked = false;
   let localExecAllowed = false;
   const createSelector = deps.createSelector ?? createSearchableSelectList;
@@ -56,6 +52,9 @@ export function createLocalShellRunner(deps: LocalShellDeps) {
   const getCwd = deps.getCwd ?? (() => process.cwd());
   const env = deps.env ?? process.env;
   const maxChars = deps.maxOutputChars ?? 40_000;
+  const isFeatureEnabled = (env.OPENCLAW_LOCAL_SHELL_ENABLED ?? "").trim() === "1";
+  const isUnboundedAckEnabled = (env.OPENCLAW_ACK_LOCAL_SHELL_IS_UNBOUNDED ?? "").trim() === "1";
+  const isUnboundedLocalShellEnabled = isFeatureEnabled && isUnboundedAckEnabled;
 
   const ensureLocalExecAllowed = async (): Promise<boolean> => {
     if (localExecAllowed) {
@@ -115,7 +114,17 @@ export function createLocalShellRunner(deps: LocalShellDeps) {
     if (!isFeatureEnabled) {
       deps.chatLog.addSystem(
         "[local shell] This feature is outside the bounded security model. " +
-          "To enable it for this session, restart with OPENCLAW_LOCAL_SHELL_ENABLED=1.",
+          "To enable it for this session, restart with OPENCLAW_LOCAL_SHELL_ENABLED=1 " +
+          "and OPENCLAW_ACK_LOCAL_SHELL_IS_UNBOUNDED=1.",
+      );
+      deps.tui.requestRender();
+      return;
+    }
+
+    if (!isUnboundedAckEnabled) {
+      deps.chatLog.addSystem(
+        "[local shell] Refusing to enable local shell without " +
+          "OPENCLAW_ACK_LOCAL_SHELL_IS_UNBOUNDED=1 because it runs unbounded commands on your machine.",
       );
       deps.tui.requestRender();
       return;
@@ -181,5 +190,5 @@ export function createLocalShellRunner(deps: LocalShellDeps) {
     });
   };
 
-  return { runLocalShellLine };
+  return { isUnboundedLocalShellEnabled, runLocalShellLine };
 }

@@ -238,7 +238,8 @@ const GATE_CRITICAL_ENV_VARS = [
  *                                  it predates any configuration.
  *   - src/tui/tui-local-shell.ts   EXPLICIT LOCAL-SHELL EXCEPTION: documented
  *                                  arbitrary local shell. Disabled by default
- *                                  (requires OPENCLAW_LOCAL_SHELL_ENABLED=1).
+ *                                  (requires OPENCLAW_LOCAL_SHELL_ENABLED=1 and
+ *                                  OPENCLAW_ACK_LOCAL_SHELL_IS_UNBOUNDED=1).
  *                                  Not part of the bounded execution story.
  */
 const ALLOWED_CHILD_PROCESS_IMPORTERS = new Set([
@@ -333,11 +334,13 @@ describe("RFSN final authority", () => {
       // Flag value imports of node:child_process or child_process
       // (not type-only imports). Type-only imports emit no runtime code and are
       // used legitimately for typing ChildProcess handles.
-      const hasRealChildProcessImport = content.split("\n").some(
-        (line) =>
-          /from\s+["'](?:node:)?child_process["']/.test(line) &&
-          !/^\s*import\s+type\s+/.test(line),
-      );
+      const hasRealChildProcessImport = content
+        .split("\n")
+        .some(
+          (line) =>
+            /from\s+["'](?:node:)?child_process["']/.test(line) &&
+            !/^\s*import\s+type\s+/.test(line),
+        );
       if (hasRealChildProcessImport) {
         if (!ALLOWED_CHILD_PROCESS_IMPORTERS.has(relPath)) {
           violations.push(
@@ -348,9 +351,7 @@ describe("RFSN final authority", () => {
 
       // Detect raw spawn/fork calls outside the approved boundary.
       if (RUNTIME_SPAWN_PATTERN.test(content) && !ALLOWED_CHILD_PROCESS_IMPORTERS.has(relPath)) {
-        violations.push(
-          `${relPath}: contains raw spawn/fork call – use the exec seam`,
-        );
+        violations.push(`${relPath}: contains raw spawn/fork call – use the exec seam`);
       }
 
       if (relPath.startsWith("src/runtime/")) {
@@ -424,11 +425,12 @@ describe("RFSN final authority", () => {
       const absPath = path.resolve(process.cwd(), relPath);
       const content = await fs.readFile(absPath, "utf8");
       // Flag value imports from node:child_process (exclude type-only imports).
-      const hasRealCpImport = content.split("\n").some(
-        (line) =>
-          /from\s+["']node:child_process["']/.test(line) &&
-          !/^\s*import\s+type\s+/.test(line),
-      );
+      const hasRealCpImport = content
+        .split("\n")
+        .some(
+          (line) =>
+            /from\s+["']node:child_process["']/.test(line) && !/^\s*import\s+type\s+/.test(line),
+        );
       if (hasRealCpImport) {
         violations.push(`${relPath}: direct node:child_process import bypasses subprocess guard`);
       }
@@ -444,7 +446,11 @@ describe("RFSN final authority", () => {
       const absPath = path.resolve(process.cwd(), entry.file);
       const content = await fs.readFile(absPath, "utf8");
       for (const specifier of entry.bannedImports) {
-        if (new RegExp(`from\\s+["']${specifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']`).test(content)) {
+        if (
+          new RegExp(`from\\s+["']${specifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']`).test(
+            content,
+          )
+        ) {
           violations.push(`${entry.file}: imports disallowed low-level authority ${specifier}`);
         }
       }

@@ -40,8 +40,7 @@ import {
   resolveHookDeliver,
 } from "./hooks.js";
 import { sendUnauthorized } from "./http-common.js";
-import { getBearerToken, getHeader } from "./http-utils.js";
-import { resolveGatewayClientIp } from "./net.js";
+import { getBearerToken } from "./http-utils.js";
 import { handleOpenAiHttpRequest } from "./openai-http.js";
 import { handleOpenResponsesHttpRequest } from "./openresponses-http.js";
 import { handleToolsInvokeHttpRequest } from "./tools-invoke-http.js";
@@ -90,22 +89,12 @@ function isCanvasPath(pathname: string): boolean {
   );
 }
 
-function hasAuthorizedWsClientForIp(clients: Set<GatewayWsClient>, clientIp: string): boolean {
-  for (const client of clients) {
-    if (client.clientIp && client.clientIp === clientIp) {
-      return true;
-    }
-  }
-  return false;
-}
-
 async function authorizeCanvasRequest(params: {
   req: IncomingMessage;
   auth: ResolvedGatewayAuth;
   trustedProxies: string[];
-  clients: Set<GatewayWsClient>;
 }): Promise<boolean> {
-  const { req, auth, trustedProxies, clients } = params;
+  const { req, auth, trustedProxies } = params;
   if (isLocalDirectRequest(req, trustedProxies)) {
     return true;
   }
@@ -122,17 +111,7 @@ async function authorizeCanvasRequest(params: {
       return true;
     }
   }
-
-  const clientIp = resolveGatewayClientIp({
-    remoteAddr: req.socket?.remoteAddress ?? "",
-    forwardedFor: getHeader(req, "x-forwarded-for"),
-    realIp: getHeader(req, "x-real-ip"),
-    trustedProxies,
-  });
-  if (!clientIp) {
-    return false;
-  }
-  return hasAuthorizedWsClientForIp(clients, clientIp);
+  return false;
 }
 
 export type HooksRequestHandler = (req: IncomingMessage, res: ServerResponse) => Promise<boolean>;
@@ -372,7 +351,6 @@ export function createGatewayHttpServer(opts: {
             req,
             auth: resolvedAuth,
             trustedProxies,
-            clients,
           });
           if (!ok) {
             sendUnauthorized(res);
@@ -438,7 +416,6 @@ export function attachGatewayUpgradeHandler(opts: {
             req,
             auth: resolvedAuth,
             trustedProxies,
-            clients,
           });
           if (!ok) {
             socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
