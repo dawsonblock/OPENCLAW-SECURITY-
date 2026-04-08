@@ -101,7 +101,7 @@ The RFSN architecture, subprocess allowlisting, ledger append, and secret redact
 The code quality is high in the security-focused modules.
 
 - **Type Safety:** Strict TypeScript usage with Zod/TypeBox for validation.
-- **Symbolic Security:** Extensive use of ES6 `Symbol`s to create unforgeable tokens within the runtime memory (Gate stamps, Executor markers).
+- **Symbolic Security:** Extensive use of ES6 `Symbol`s to create unforgeable tokens within the runtime memory (for example, gate stamps on approved execution flows).
 - **Immutability:** Usage of `Object.freeze` and read-only types to prevent state tampering.
 - **Testing:** Security modules have co-located `*.test.ts` files; coverage of bypass paths (e.g., non-RFSN `child_process` sites) should be expanded.
 
