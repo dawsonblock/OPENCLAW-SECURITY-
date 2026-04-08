@@ -8,6 +8,9 @@ import {
 } from "node:child_process";
 import path from "node:path";
 
+// Bounded general subprocess authority for normal runtime command execution.
+// Interactive exec sessions use src/process/spawn-utils.ts instead.
+
 const DEFAULT_ALLOWED_ENV_KEYS = [
   "PATH",
   "HOME",

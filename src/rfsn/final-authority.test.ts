@@ -223,24 +223,17 @@ const GATE_CRITICAL_ENV_VARS = [
  *
  * This is the authoritative exception list. Every entry must have a documented
  * reason. Adding an entry here does NOT make the code safe; it documents a
- * known exception that has been reviewed and accepted.
+ * reviewed exception that must stay narrow and testable.
  *
- * Allowed exceptions:
- *   - src/security/subprocess.ts   LOW-LEVEL SPAWN AUTHORITY: the only file
- *                                  permitted to call spawn() for general runtime
- *                                  execution. All live runtime spawns must route
- *                                  through this file.
- *   - src/process/spawn-utils.ts   Type imports and internal spawn helper used
- *                                  exclusively by the exec seam.
- *   - src/entry.ts                 BOOTSTRAP: spawns a copy of the Node binary
- *                                  itself to inject --disable-warning flags.
- *                                  Cannot go through the allowlist seam because
- *                                  it predates any configuration.
- *   - src/tui/tui-local-shell.ts   EXPLICIT LOCAL-SHELL EXCEPTION: documented
- *                                  arbitrary local shell. Disabled by default
- *                                  (requires OPENCLAW_LOCAL_SHELL_ENABLED=1 and
- *                                  OPENCLAW_ACK_LOCAL_SHELL_IS_UNBOUNDED=1).
- *                                  Not part of the bounded execution story.
+ * Reviewed authorities and explicit exceptions:
+ *   - src/security/subprocess.ts   BOUNDED GENERAL SUBPROCESS AUTHORITY for
+ *                                  normal runtime command execution.
+ *   - src/process/spawn-utils.ts   DEDICATED EXEC-SESSION SPAWN AUTHORITY for
+ *                                  the shell-backed / docker-backed exec path.
+ *   - src/entry.ts                 BOOTSTRAP-ONLY respawn exception before
+ *                                  normal runtime routing exists.
+ *   - src/tui/tui-local-shell.ts   LOCAL-TUI-ONLY unbounded shell exception,
+ *                                  gated by explicit env vars + consent.
  */
 const ALLOWED_CHILD_PROCESS_IMPORTERS = new Set([
   "src/security/subprocess.ts",
@@ -299,7 +292,7 @@ async function listRuntimeTsFiles(rootDir: string): Promise<string[]> {
 }
 
 describe("RFSN final authority", () => {
-  test("tool execution and node invoke only happen at kernel choke points", async () => {
+  test("tool execution and reviewed execution authorities stay at kernel choke points", async () => {
     const files = await listRuntimeTsFiles(SRC_ROOT);
     const violations: string[] = [];
 
@@ -344,14 +337,16 @@ describe("RFSN final authority", () => {
       if (hasRealChildProcessImport) {
         if (!ALLOWED_CHILD_PROCESS_IMPORTERS.has(relPath)) {
           violations.push(
-            `${relPath}: imports node:child_process directly – route through src/process/exec.ts or src/security/subprocess.ts, or add to ALLOWED_CHILD_PROCESS_IMPORTERS with justification`,
+            `${relPath}: imports node:child_process directly – route bounded runtime execution through src/security/subprocess.ts, keep exec-session launching inside the reviewed exec seam, or add to ALLOWED_CHILD_PROCESS_IMPORTERS with justification`,
           );
         }
       }
 
       // Detect raw spawn/fork calls outside the approved boundary.
       if (RUNTIME_SPAWN_PATTERN.test(content) && !ALLOWED_CHILD_PROCESS_IMPORTERS.has(relPath)) {
-        violations.push(`${relPath}: contains raw spawn/fork call – use the exec seam`);
+        violations.push(
+          `${relPath}: contains raw spawn/fork call – use the bounded subprocess seam or the reviewed exec-session seam`,
+        );
       }
 
       if (relPath.startsWith("src/runtime/")) {
