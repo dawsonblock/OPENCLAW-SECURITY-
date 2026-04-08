@@ -31,9 +31,9 @@ export const FORBIDDEN_AUTHORITY_IMPORT_ROOTS = [
   "src/agents/tools/",
 ] as const;
 
-export const AUTHORITY_EXCEPTION_TARGETS = Object.freeze(
-  Object.keys(REVIEWED_AUTHORITY_IMPORTERS),
-) as readonly (keyof typeof REVIEWED_AUTHORITY_IMPORTERS)[];
+export const AUTHORITY_EXCEPTION_TARGETS = Object.keys(
+  REVIEWED_AUTHORITY_IMPORTERS,
+) as (keyof typeof REVIEWED_AUTHORITY_IMPORTERS)[];
 
 export function normalizeAuthorityBoundaryPath(filePath: string): string {
   return filePath.replaceAll(path.sep, "/");

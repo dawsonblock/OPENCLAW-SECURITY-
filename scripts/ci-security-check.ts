@@ -156,8 +156,8 @@ function stripComments(content: string): string {
 // runtime roots in src/ and extensions/. Native apps under apps/ and package
 // wrapper scripts under packages/ are reviewed elsewhere and stay outside this
 // TypeScript-only child_process exception scan.
-const authorityBoundaryRootPaths = AUTHORITY_BOUNDARY_SCAN_ROOTS.map((root) => path.resolve(root));
-const authorityBoundaryFiles = authorityBoundaryRootPaths.flatMap((rootDir) =>
+const authorityBoundaryAbsolutePaths = AUTHORITY_BOUNDARY_SCAN_ROOTS.map((root) => path.resolve(root));
+const authorityBoundaryFiles = authorityBoundaryAbsolutePaths.flatMap((rootDir) =>
   existsSync(rootDir) ? walkRuntimeTsFiles(rootDir) : [],
 );
 
