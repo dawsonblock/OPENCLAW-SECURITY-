@@ -33,7 +33,7 @@ export const FORBIDDEN_AUTHORITY_IMPORT_ROOTS = [
 
 export const AUTHORITY_EXCEPTION_TARGETS = Object.keys(
   REVIEWED_AUTHORITY_IMPORTERS,
-) as (keyof typeof REVIEWED_AUTHORITY_IMPORTERS)[];
+) as Array<keyof typeof REVIEWED_AUTHORITY_IMPORTERS>;
 
 export function normalizeAuthorityBoundaryPath(filePath: string): string {
   return filePath.replaceAll(path.sep, "/");
