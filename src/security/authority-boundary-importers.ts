@@ -58,10 +58,13 @@ export async function listRuntimeTsFiles(scanRootPaths = AUTHORITY_SCAN_ROOT_PAT
   return files;
 }
 
-export function collectRuntimeImportSpecifiers(content: string): string[] {
+export function collectRuntimeImportSpecifiers(
+  content: string,
+  sourceFileName = "authority-boundary-importers.ts",
+): string[] {
   const specifiers = new Set<string>();
   const sourceFile = ts.createSourceFile(
-    "authority-boundary-importers.ts",
+    sourceFileName,
     content,
     ts.ScriptTarget.Latest,
     true,
@@ -162,8 +165,8 @@ function resolveImportCandidates(importerAbsPath: string, specifier: string): st
   return [...candidates];
 }
 
-function arraysMatch(actual: readonly string[], expected: readonly string[]): boolean {
-  return actual.length === expected.length && actual.every((entry, index) => entry === expected[index]);
+function areArraysEqual(array1: readonly string[], array2: readonly string[]): boolean {
+  return array1.length === array2.length && array1.every((entry, index) => entry === array2[index]);
 }
 
 export async function findRuntimeImporters(
@@ -179,7 +182,7 @@ export async function findRuntimeImporters(
       continue;
     }
     const content = await fs.readFile(absPath, "utf8");
-    const importsTarget = collectRuntimeImportSpecifiers(content).some((specifier) =>
+    const importsTarget = collectRuntimeImportSpecifiers(content, absPath).some((specifier) =>
       resolveImportCandidates(absPath, specifier).includes(targetAbsPath),
     );
     if (importsTarget) {
@@ -201,7 +204,7 @@ export async function scanAuthorityBoundaryImporters(): Promise<AuthorityBoundar
     importersByTarget[target] = importers;
 
     const reviewedImporters = [...REVIEWED_AUTHORITY_IMPORTERS[target]];
-    if (!arraysMatch(importers, reviewedImporters)) {
+    if (!areArraysEqual(importers, reviewedImporters)) {
       unexpectedImporters.push(
         `${target}: expected [${reviewedImporters.join(", ")}] but found [${importers.join(", ")}]`,
       );

@@ -33,7 +33,7 @@ const ALLOWED_CHILD_PROCESS_IMPORTERS = new Set(REVIEWED_CHILD_PROCESS_IMPORTERS
 const SHELL_TRUE_PATTERN = /shell\s*:\s*true/;
 const RUNTIME_SPAWN_PATTERN = /\bspawn\s*\(|\bfork\s*\(/;
 const TEST_FILE_RE = /\.(test|spec)\.ts$|\.e2e\.test\.ts$/;
-const EXEC_APPROVALS_BARREL_PREFIX = 'export * from "./exec-approvals/';
+const EXEC_APPROVALS_BARREL_PREFIX = "export * from \"./exec-approvals/";
 const ORCHESTRATION_FILE_LIMITS = [
   { file: "src/node-host/runner.ts", maxLines: 60 },
   { file: "src/infra/exec-approvals.ts", maxLines: 30 },
