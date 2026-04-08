@@ -131,12 +131,16 @@ async function resolveAllowedBrowserProxyPath(filePath: string): Promise<string 
       try {
         return await fsPromises.realpath(root);
       } catch {
-        return path.resolve(root);
+        return null;
       }
     }),
   );
-  if (!resolvedRoots.some((root) => isPathWithinRoot(root, resolvedFilePath))) {
-    throw new Error("browser proxy file path is outside approved roots");
+  if (
+    !resolvedRoots
+      .filter((root): root is string => typeof root === "string")
+      .some((root) => isPathWithinRoot(root, resolvedFilePath))
+  ) {
+    throw new Error(`browser proxy file path is outside approved roots: ${filePath}`);
   }
   return resolvedFilePath;
 }

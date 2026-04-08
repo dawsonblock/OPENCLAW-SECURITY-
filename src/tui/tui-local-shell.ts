@@ -123,8 +123,7 @@ export function createLocalShellRunner(deps: LocalShellDeps) {
 
     if (!isUnboundedAckEnabled) {
       deps.chatLog.addSystem(
-        "[local shell] Refusing to enable local shell without " +
-          "OPENCLAW_ACK_LOCAL_SHELL_IS_UNBOUNDED=1 because it runs unbounded commands on your machine.",
+        `[local shell] Refusing to enable local shell without OPENCLAW_ACK_LOCAL_SHELL_IS_UNBOUNDED=1 because it runs unbounded commands on your machine.`,
       );
       deps.tui.requestRender();
       return;
