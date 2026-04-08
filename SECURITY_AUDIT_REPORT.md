@@ -8,17 +8,16 @@
 
 This is the active security hardening-status document for the repository. Older narrative reports are archived under `docs/archive/` and should not be treated as current status.
 
-
 The `OPENCLAW-SECURITY` codebase contains a substantial defense-in-depth security architecture centered on a kernel-like **RFSN (Request For Side-effect Negotiation)** arbitration layer. The RFSN spine (`src/rfsn/`, `src/security/subprocess.ts`) is real and structurally sound.
 
 **However, the original version of this report overstated completeness.** A follow-up code audit identified several concrete gaps between the architecture's intent and the live code:
 
-| Finding | File | Fixed |
-|---------|------|-------|
-| `verifySignature()` was a stub that accepted any non-empty string | `src/runtime/updater.ts` | ✅ Apr 2026 (file subsequently removed — see Blocker 4) |
-| `shell: true` bypass in local TUI runner | `src/tui/tui-local-shell.ts` | ✅ Apr 2026 |
-| `execFileSync("openclaw", ...)` in repair command bypassed RFSN | `src/cli/commands/repair.ts` | ✅ Apr 2026 |
-| Unused `execSync` import leaked dead authority path | `src/cli/commands/up.ts` | ✅ Apr 2026 |
+| Finding                                                           | File                         | Fixed                                                   |
+| ----------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------- |
+| `verifySignature()` was a stub that accepted any non-empty string | `src/runtime/updater.ts`     | ✅ Apr 2026 (file subsequently removed — see Blocker 4) |
+| `shell: true` bypass in local TUI runner                          | `src/tui/tui-local-shell.ts` | ✅ Apr 2026                                             |
+| `execFileSync("openclaw", ...)` in repair command bypassed RFSN   | `src/cli/commands/repair.ts` | ✅ Apr 2026                                             |
+| Unused `execSync` import leaked dead authority path               | `src/cli/commands/up.ts`     | ✅ Apr 2026                                             |
 
 The RFSN architecture, subprocess allowlisting, ledger append, and secret redaction are structurally intact. The gaps above have been patched. A further audit of all `child_process` import sites outside `src/security/` and `src/rfsn/` is recommended before treating any deployment as hardened.
 
@@ -94,8 +93,7 @@ The RFSN architecture, subprocess allowlisting, ledger append, and secret redact
 - **Status:** ✅ **Verified Hardened**
 - **Mechanism:** Defense-in-depth assertions.
 - **Key Defenses:**
-  - **Executor Guard:** Uses `EXECUTOR_GUARD_SYMBOL` to mark authorized execution contexts.
-  - **Runtime Assertions:** `assertDangerousCapabilityInvariants` checks permissions, exposure status, and resource limits _immediately_ before dangerous operations.
+  - **Runtime Assertions:** `assertDangerousCapabilityInvariants` checks permissions, exposure status, runtime policy drift, and resource limits _immediately_ before dangerous operations.
   - **Resource Governor:** Tracks concurrent dangerous operations to prevent resource exhaustion attacks.
 
 ## Code Quality & Engineering

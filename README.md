@@ -410,9 +410,8 @@ Operator-triggered audit tooling and forensic data collection:
 
 | Module                 | Purpose                                |
 | :--------------------- | :------------------------------------- |
-| `executor-guard.ts`    | Final gate before subprocess execution |
 | `invariants.ts`        | Runtime invariant assertions           |
-| `policy-snapshot.ts`   | Immutable policy snapshots for audit   |
+| `policy-snapshot.ts`   | Runtime policy snapshot + drift checks |
 | `posture.ts`           | Lockdown-specific posture checks       |
 | `resource-governor.ts` | Resource limits enforcement            |
 | `runtime-assert.ts`    | Runtime assertion helpers              |

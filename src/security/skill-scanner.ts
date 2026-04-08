@@ -1,7 +1,29 @@
 import fs from "node:fs/promises";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { hasErrnoCode } from "../infra/errors.js";
 
+const require = createRequire(import.meta.url);
+
+function loadTypeScript(): typeof import("typescript") {
+  try {
+    return require("typescript") as typeof import("typescript");
+  } catch (error) {
+    throw new Error(
+      "TypeScript-based skill scanning requires the optional 'typescript' package at runtime. " +
+        "Install 'typescript' as a production dependency, or disable TypeScript skill scanning in environments " +
+        "that omit optional/development packages.",
+      { cause: error },
+    );
+  }
+}
+
+const ts = new Proxy({} as typeof import("typescript"), {
+  get(_target, property, receiver) {
+    const typescript = loadTypeScript();
+    return Reflect.get(typescript, property, receiver);
+  },
+});
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -78,19 +100,6 @@ type SourceRule = {
 
 const LINE_RULES: LineRule[] = [
   {
-    ruleId: "dangerous-exec",
-    severity: "critical",
-    message: "Shell command execution detected (child_process)",
-    pattern: /\b(exec|execSync|spawn|spawnSync|execFile|execFileSync)\s*\(/,
-    requiresContext: /child_process/,
-  },
-  {
-    ruleId: "dynamic-code-execution",
-    severity: "critical",
-    message: "Dynamic code execution detected",
-    pattern: /\beval\s*\(|new\s+Function\s*\(/,
-  },
-  {
     ruleId: "crypto-mining",
     severity: "critical",
     message: "Possible crypto-mining reference detected",
@@ -147,8 +156,169 @@ function truncateEvidence(evidence: string, maxLen = 120): string {
   return `${evidence.slice(0, maxLen)}…`;
 }
 
+const CHILD_PROCESS_MODULES = new Set(["child_process", "node:child_process"]);
+const VM_MODULES = new Set(["vm", "node:vm"]);
+
+function unwrapExpression(node: ts.Expression): ts.Expression {
+  if (ts.isParenthesizedExpression(node)) {
+    return unwrapExpression(node.expression);
+  }
+  if (
+    ts.isAsExpression(node) ||
+    ts.isTypeAssertionExpression(node) ||
+    ts.isNonNullExpression(node)
+  ) {
+    return unwrapExpression(node.expression);
+  }
+  if (ts.isSatisfiesExpression(node)) {
+    return unwrapExpression(node.expression);
+  }
+  return node;
+}
+
+function isEvalCallee(node: ts.Expression): boolean {
+  const expr = unwrapExpression(node);
+  if (ts.isIdentifier(expr)) {
+    return expr.text === "eval";
+  }
+  if (ts.isPropertyAccessExpression(expr)) {
+    return expr.name.text === "eval";
+  }
+  if (
+    ts.isElementAccessExpression(expr) &&
+    expr.argumentExpression &&
+    ts.isStringLiteralLike(expr.argumentExpression)
+  ) {
+    return expr.argumentExpression.text === "eval";
+  }
+  if (ts.isBinaryExpression(expr) && expr.operatorToken.kind === ts.SyntaxKind.CommaToken) {
+    return isEvalCallee(expr.right);
+  }
+  return false;
+}
+
+function getNodeLine(sourceFile: ts.SourceFile, node: ts.Node): number {
+  return sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
+}
+
+function getNodeEvidence(sourceFile: ts.SourceFile, node: ts.Node): string {
+  const text = node.getText(sourceFile).trim();
+  if (text) {
+    return truncateEvidence(text.replace(/\s+/g, " "));
+  }
+  const line = sourceFile.text.split("\n")[getNodeLine(sourceFile, node) - 1] ?? "";
+  return truncateEvidence(line.trim());
+}
+
+function createFindingKey(finding: SkillScanFinding): string {
+  return `${finding.ruleId}:${finding.line}:${finding.message}`;
+}
+
+function addFinding(
+  findings: SkillScanFinding[],
+  seen: Set<string>,
+  finding: SkillScanFinding,
+): void {
+  const key = createFindingKey(finding);
+  if (seen.has(key)) {
+    return;
+  }
+  seen.add(key);
+  findings.push(finding);
+}
+
+function scanSyntax(source: string, filePath: string): SkillScanFinding[] {
+  // The AST pass intentionally replaces the old regex-only checks for the few
+  // highest-confidence dangerous constructs where syntax awareness matters.
+  let sourceFile: ts.SourceFile;
+  try {
+    sourceFile = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true);
+  } catch {
+    return [];
+  }
+  const findings: SkillScanFinding[] = [];
+  const seen = new Set<string>();
+
+  const report = (
+    ruleId: SkillScanFinding["ruleId"],
+    message: string,
+    node: ts.Node,
+    severity: SkillScanSeverity = "critical",
+  ) => {
+    addFinding(findings, seen, {
+      ruleId,
+      severity,
+      file: filePath,
+      line: getNodeLine(sourceFile, node),
+      message,
+      evidence: getNodeEvidence(sourceFile, node),
+    });
+  };
+
+  const visit = (node: ts.Node) => {
+    if (ts.isImportDeclaration(node)) {
+      const moduleName = ts.isStringLiteral(node.moduleSpecifier) ? node.moduleSpecifier.text : "";
+      if (!node.importClause?.isTypeOnly) {
+        if (CHILD_PROCESS_MODULES.has(moduleName)) {
+          report("dangerous-exec", "Dangerous child_process module import detected", node);
+        } else if (VM_MODULES.has(moduleName)) {
+          report("dynamic-code-execution", "Dangerous vm module import detected", node);
+        }
+      }
+    } else if (ts.isImportEqualsDeclaration(node)) {
+      const moduleRef = node.moduleReference;
+      const moduleName =
+        ts.isExternalModuleReference(moduleRef) && ts.isStringLiteral(moduleRef.expression)
+          ? moduleRef.expression.text
+          : "";
+      if (CHILD_PROCESS_MODULES.has(moduleName)) {
+        report("dangerous-exec", "Dangerous child_process module import detected", node);
+      } else if (VM_MODULES.has(moduleName)) {
+        report("dynamic-code-execution", "Dangerous vm module import detected", node);
+      }
+    } else if (ts.isCallExpression(node)) {
+      if (isEvalCallee(node.expression)) {
+        report("dynamic-code-execution", "Dynamic eval call detected", node);
+      } else if (ts.isIdentifier(node.expression) && node.expression.text === "require") {
+        const firstArg = node.arguments[0];
+        if (firstArg && ts.isStringLiteralLike(firstArg)) {
+          if (CHILD_PROCESS_MODULES.has(firstArg.text)) {
+            report("dangerous-exec", "Dangerous child_process module import detected", node);
+          } else if (VM_MODULES.has(firstArg.text)) {
+            report("dynamic-code-execution", "Dangerous vm module import detected", node);
+          }
+        }
+      } else if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+        const firstArg = node.arguments[0];
+        if (!firstArg || !ts.isStringLiteralLike(firstArg)) {
+          report(
+            "dynamic-code-execution",
+            "Dynamic import with non-literal argument detected",
+            node,
+          );
+        } else if (CHILD_PROCESS_MODULES.has(firstArg.text)) {
+          report("dangerous-exec", "Dangerous child_process module import detected", node);
+        } else if (VM_MODULES.has(firstArg.text)) {
+          report("dynamic-code-execution", "Dangerous vm module import detected", node);
+        }
+      }
+    } else if (ts.isNewExpression(node)) {
+      const expr = unwrapExpression(node.expression);
+      if (ts.isIdentifier(expr) && expr.text === "Function") {
+        report("dynamic-code-execution", "Dynamic Function constructor detected", node);
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return findings;
+}
+
 export function scanSource(source: string, filePath: string): SkillScanFinding[] {
   const findings: SkillScanFinding[] = [];
+  const seen = new Set<string>();
   const lines = source.split("\n");
   const matchedLineRules = new Set<string>();
 
@@ -178,7 +348,7 @@ export function scanSource(source: string, filePath: string): SkillScanFinding[]
         }
       }
 
-      findings.push({
+      addFinding(findings, seen, {
         ruleId: rule.ruleId,
         severity: rule.severity,
         file: filePath,
@@ -226,7 +396,7 @@ export function scanSource(source: string, filePath: string): SkillScanFinding[]
       matchEvidence = source.slice(0, 120);
     }
 
-    findings.push({
+    addFinding(findings, seen, {
       ruleId: rule.ruleId,
       severity: rule.severity,
       file: filePath,
@@ -235,6 +405,10 @@ export function scanSource(source: string, filePath: string): SkillScanFinding[]
       evidence: truncateEvidence(matchEvidence),
     });
     matchedSourceRules.add(ruleKey);
+  }
+
+  for (const finding of scanSyntax(source, filePath)) {
+    addFinding(findings, seen, finding);
   }
 
   return findings;

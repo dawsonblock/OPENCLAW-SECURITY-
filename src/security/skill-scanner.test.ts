@@ -78,6 +78,17 @@ const result = eval(code);
     ).toBe(true);
   });
 
+  it("detects nested eval forms that bypass simple regexes", () => {
+    const source = `
+const code = "1+1";
+(0, eval)(code);
+`;
+    const findings = scanSource(source, "plugin.ts");
+    expect(
+      findings.some((f) => f.ruleId === "dynamic-code-execution" && f.severity === "critical"),
+    ).toBe(true);
+  });
+
   it("detects new Function constructor", () => {
     const source = `
 const fn = new Function("a", "b", "return a + b");
@@ -86,6 +97,16 @@ const fn = new Function("a", "b", "return a + b");
     expect(
       findings.some((f) => f.ruleId === "dynamic-code-execution" && f.severity === "critical"),
     ).toBe(true);
+  });
+
+  it("detects dangerous dynamic imports of child_process", () => {
+    const source = `
+await import("node:child_process");
+`;
+    const findings = scanSource(source, "plugin.ts");
+    expect(findings.some((f) => f.ruleId === "dangerous-exec" && f.severity === "critical")).toBe(
+      true,
+    );
   });
 
   it("detects fs.readFile combined with fetch POST (exfiltration)", () => {

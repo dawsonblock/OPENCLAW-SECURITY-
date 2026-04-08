@@ -511,6 +511,7 @@ export async function runTui(opts: TuiOptions) {
     const reasoningLabel =
       reasoning === "on" ? "reasoning" : reasoning === "stream" ? "reasoning:stream" : null;
     const footerParts = [
+      isUnboundedLocalShellEnabled ? theme.error("UNBOUNDED LOCAL SHELL ENABLED") : null,
       `agent ${agentLabel}`,
       `session ${sessionLabel}`,
       modelLabel,
@@ -591,7 +592,7 @@ export async function runTui(opts: TuiOptions) {
       forgetLocalRunId,
     });
 
-  const { runLocalShellLine } = createLocalShellRunner({
+  const { isUnboundedLocalShellEnabled, runLocalShellLine } = createLocalShellRunner({
     chatLog,
     tui,
     openOverlay,

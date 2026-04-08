@@ -1,9 +1,11 @@
 import { loadConfig } from "../config/config.js";
 import { resolveGatewayBindHost } from "../gateway/net.js";
-import { getPolicySnapshotHash } from "../security/lockdown/policy-snapshot.js";
+import {
+  computePolicySnapshotHash,
+  getPolicySnapshotHash,
+} from "../security/lockdown/policy-snapshot.js";
 import { extractSecurityPosture } from "../security/lockdown/posture.js";
 import { getResourceUsage } from "../security/lockdown/resource-governor.js";
-import { hashPayload } from "../security/stable-hash.js";
 
 type SecurityDoctorOptions = {
   json?: boolean;
@@ -17,7 +19,7 @@ export async function securityDoctorCommand(opts: SecurityDoctorOptions) {
   const tailscaleMode = String(cfg.gateway?.tailscale?.mode ?? "");
 
   const posture = extractSecurityPosture(cfg, env, bindHost, tailscaleMode);
-  const currentHash = hashPayload(posture);
+  const currentHash = computePolicySnapshotHash({ cfg, env, bindHost, tailscaleMode });
   const baselineHash = getPolicySnapshotHash();
 
   // We update the posture object with computed hash for display

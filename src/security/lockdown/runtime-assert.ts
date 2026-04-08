@@ -1,13 +1,16 @@
+import type { OpenClawConfig } from "../../config/config.js";
 import {
   resolveNodeCommandCapabilityPolicy,
   isBreakGlassEnvEnabled,
 } from "../capability-registry.js";
 import { isSafeExposure } from "../startup-validator.js";
 import { failInvariant, SecurityInvariantViolation } from "./invariants.js";
+import { assertPolicyDrift, computePolicySnapshotHash } from "./policy-snapshot.js";
 import { containsRawSecret } from "./secret-scrubber.js";
 
 // We assume the context has these or we pass them in
 export type SecurityContext = {
+  cfg: OpenClawConfig;
   bindHost: string;
   tailscaleMode: string;
   env: NodeJS.ProcessEnv;
@@ -69,16 +72,17 @@ export async function assertDangerousCapabilityInvariants(
   }
 
   // 4. Policy Drift
-  // We pass true/false for breakGlass based on ALLOW_UNSAFE_CONFIG?
-  // Or maybe POLICY_MUTATION env?
-  // Let's rely on global policy snapshot state.
-  // We perform this check to ensure the policy hasn't been tampered with since startup.
-  // Getting current hash is expensive, so maybe we only check periodically or rely on the snapshot module's internal state?
-  // Actually policy-snapshot.ts is currently just "assertDrift(currentHash)".
-  // We don't have "currentHash" easily here without recomputing everything.
-  // We might skip per-request policy re-hashing for performance,
-  // unless we have a cheap way to check dirty flags.
-  // For now, let's assume policy drift is checked by a background watcher or config mutation hook.
+  // Re-hash the active security posture on the hot path so config/env drift is
+  // caught before dangerous execution, even if no background monitor is running.
+  assertPolicyDrift(
+    computePolicySnapshotHash({
+      cfg: context.cfg,
+      env: context.env,
+      bindHost: context.bindHost,
+      tailscaleMode: context.tailscaleMode,
+    }),
+    isBreakGlassEnvEnabled(context.env, "OPENCLAW_ALLOW_UNSAFE_CONFIG"),
+  );
 
   // 5. Resource Governance
   // Acquire slot. The caller is responsible for releasing it (try/finally).

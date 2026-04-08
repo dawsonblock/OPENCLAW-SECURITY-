@@ -35,6 +35,10 @@ describe("createLocalShellRunner", () => {
       openOverlay,
       closeOverlay,
       createSelector: createSelectorSpy,
+      env: {
+        OPENCLAW_LOCAL_SHELL_ENABLED: "1",
+        OPENCLAW_ACK_LOCAL_SHELL_IS_UNBOUNDED: "1",
+      },
       spawnCommand,
     });
 
@@ -49,5 +53,30 @@ describe("createLocalShellRunner", () => {
     expect(messages).toContain("local shell: not enabled for this session");
     expect(createSelectorSpy).toHaveBeenCalledTimes(1);
     expect(spawnCommand).not.toHaveBeenCalled();
+  });
+
+  it("refuses to enable local shell without the explicit unbounded acknowledgement", async () => {
+    const messages: string[] = [];
+    const { runLocalShellLine, isUnboundedLocalShellEnabled } = createLocalShellRunner({
+      chatLog: {
+        addSystem: (line: string) => {
+          messages.push(line);
+        },
+      },
+      tui: { requestRender: vi.fn() },
+      openOverlay: vi.fn(),
+      closeOverlay: vi.fn(),
+      createSelector: vi.fn(() => createSelector()),
+      env: {
+        OPENCLAW_LOCAL_SHELL_ENABLED: "1",
+      },
+      spawnCommand: vi.fn(),
+    });
+
+    expect(isUnboundedLocalShellEnabled).toBe(false);
+    await runLocalShellLine("!ls");
+    expect(messages.some((line) => line.includes("OPENCLAW_ACK_LOCAL_SHELL_IS_UNBOUNDED=1"))).toBe(
+      true,
+    );
   });
 });

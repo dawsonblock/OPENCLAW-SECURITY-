@@ -910,12 +910,14 @@ export const nodeHandlers: GatewayRequestHandlers = {
     // ── GL-4 Lockdown: Runtime Invariants & Resource Governor ──
     if (capabilityPolicy.dangerous) {
       try {
+        const cfgForRuntimeAssertions = loadConfig();
         await assertDangerousCapabilityInvariants(capabilityPolicy.capability, p.params, {
+          cfg: cfgForRuntimeAssertions,
           bindHost: await resolveGatewayBindHost(
-            loadConfig().gateway?.bind,
-            loadConfig().gateway?.customBindHost,
+            cfgForRuntimeAssertions.gateway?.bind,
+            cfgForRuntimeAssertions.gateway?.customBindHost,
           ),
-          tailscaleMode: loadConfig().gateway?.tailscale?.mode ?? "",
+          tailscaleMode: cfgForRuntimeAssertions.gateway?.tailscale?.mode ?? "",
           env: process.env,
         });
       } catch (err) {
