@@ -33,6 +33,7 @@ const ALLOWED_CHILD_PROCESS_IMPORTERS = new Set(REVIEWED_CHILD_PROCESS_IMPORTERS
 const SHELL_TRUE_PATTERN = /shell\s*:\s*true/;
 const RUNTIME_SPAWN_PATTERN = /\bspawn\s*\(|\bfork\s*\(/;
 const TEST_FILE_RE = /\.(test|spec)\.ts$|\.e2e\.test\.ts$/;
+const EXEC_APPROVALS_BARREL_PREFIX = 'export * from "./exec-approvals/';
 const ORCHESTRATION_FILE_LIMITS = [
   { file: "src/node-host/runner.ts", maxLines: 60 },
   { file: "src/infra/exec-approvals.ts", maxLines: 30 },
@@ -222,7 +223,14 @@ async function main(): Promise<void> {
     failed = true;
   }
   for (const violation of forbiddenImporters) {
-    const [importer, target] = violation.split(" -> ");
+    const separatorIndex = violation.indexOf(" -> ");
+    if (separatorIndex === -1) {
+      console.error(`❌ malformed authority-boundary violation: ${violation}`);
+      failed = true;
+      continue;
+    }
+    const importer = violation.slice(0, separatorIndex);
+    const target = violation.slice(separatorIndex + " -> ".length);
     console.error(
       `❌ ${importer}: forbidden authority root (${FORBIDDEN_AUTHORITY_IMPORT_ROOTS.join(", ")}) imports ${target} directly`,
     );
@@ -259,7 +267,7 @@ async function main(): Promise<void> {
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean);
-    if (!meaningfulLines.every((line) => line.startsWith('export * from "./exec-approvals/'))) {
+    if (!meaningfulLines.every((line) => line.startsWith(EXEC_APPROVALS_BARREL_PREFIX))) {
       console.error(`❌ ${file}: compatibility file must remain a barrel only`);
       failed = true;
     }

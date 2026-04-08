@@ -24,9 +24,9 @@ const AUTHORITY_SCAN_ROOT_PATHS = AUTHORITY_BOUNDARY_SCAN_ROOTS.map((root) =>
   path.resolve(process.cwd(), root),
 );
 
-export async function listRuntimeTsFiles(rootDirs = AUTHORITY_SCAN_ROOT_PATHS): Promise<string[]> {
+export async function listRuntimeTsFiles(scanRootPaths = AUTHORITY_SCAN_ROOT_PATHS): Promise<string[]> {
   const files: string[] = [];
-  const stack = [...rootDirs];
+  const stack = [...scanRootPaths];
 
   while (stack.length > 0) {
     const current = stack.pop();
@@ -162,8 +162,8 @@ function resolveImportCandidates(importerAbsPath: string, specifier: string): st
   return [...candidates];
 }
 
-function arraysMatch(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && left.every((entry, index) => entry === right[index]);
+function arraysMatch(actual: readonly string[], expected: readonly string[]): boolean {
+  return actual.length === expected.length && actual.every((entry, index) => entry === expected[index]);
 }
 
 export async function findRuntimeImporters(
