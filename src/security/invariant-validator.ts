@@ -9,6 +9,11 @@ export type InvariantCheckResult = {
   errors: string[];
 };
 
+function isFilesystemRoot(root: string): boolean {
+  const normalizedRoot = path.normalize(root);
+  return path.parse(normalizedRoot).root === normalizedRoot;
+}
+
 export function validateStartupInvariants(params: {
   cfg: OpenClawConfig;
   env: NodeJS.ProcessEnv;
@@ -96,25 +101,28 @@ export function validateStartupInvariants(params: {
       );
     }
 
-    const normalizedRoots = roots.map((root) => path.resolve(root));
-    if (normalizedRoots.length === 0) {
+    if (roots.length === 0) {
       errors.push("Critical Invariant Failed: Browser proxy has no approved roots");
     }
-    const invalidRoots = normalizedRoots.filter((root) => {
-      if (!root.trim() || !path.isAbsolute(root)) {
-        return true;
+    const trimmedRoots = roots.map((root) => root.trim());
+    const invalidRoots: string[] = [];
+    const validRoots: string[] = [];
+    for (const root of trimmedRoots) {
+      if (!root || !path.isAbsolute(root) || isFilesystemRoot(root)) {
+        invalidRoots.push(root || "<empty>");
+        continue;
       }
-      return path.parse(root).root === root;
-    });
+      validRoots.push(path.resolve(root));
+    }
     if (invalidRoots.length > 0) {
       errors.push(
         `Critical Invariant Failed: Browser proxy roots must be explicit absolute subdirectories (found: ${invalidRoots.join(", ")})`,
       );
     }
     const uniqueRoots = new Set(
-      normalizedRoots.map((root) => (process.platform === "win32" ? root.toLowerCase() : root)),
+      validRoots.map((root) => (process.platform === "win32" ? root.toLowerCase() : root)),
     );
-    if (uniqueRoots.size !== normalizedRoots.length) {
+    if (uniqueRoots.size !== validRoots.length) {
       errors.push("Critical Invariant Failed: Browser proxy roots must be unique");
     }
   }

@@ -15,7 +15,7 @@ function loadTypeScript(): TypeScriptModule {
   } catch (error) {
     throw new Error(
       "TypeScript-based skill scanning requires the runtime 'typescript' package, but it was not found. " +
-        "Repair the installation so production dependencies are present before installing skills or hooks.",
+        "Repair the installation so production dependencies are present before skill scanning runs.",
       { cause: error },
     );
   }
