@@ -1,4 +1,10 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import type {
+  ExecProcessHandle,
+  ExecProcessOutcome,
+  PtyHandle,
+  PtySpawn,
+} from "./bash-tools.exec.types.js";
 import { logWarn } from "../logger.js";
 import { formatSpawnError, spawnWithFallback } from "../process/spawn-utils.js";
 import {
@@ -10,15 +16,18 @@ import {
   type SessionStdin,
 } from "./bash-process-registry.js";
 import { maybeNotifyOnExit } from "./bash-tools.exec.events.js";
-import type { ExecProcessHandle, ExecProcessOutcome, PtyHandle, PtySpawn } from "./bash-tools.exec.types.js";
-import { buildCursorPositionResponse, stripDsrRequests } from "./pty-dsr.js";
 import {
   buildDockerExecArgs,
   chunkString,
   killSession,
   type BashSandboxConfig,
 } from "./bash-tools.shared.js";
+import { buildCursorPositionResponse, stripDsrRequests } from "./pty-dsr.js";
 import { getShellConfig, sanitizeBinaryOutput } from "./shell-utils.js";
+
+// Reviewed exec-session runtime path: shell-backed and docker-backed exec
+// sessions may reach spawn-utils here, while general runtime execution stays on
+// src/security/subprocess.ts.
 
 export async function runExecProcess(opts: {
   command: string;
@@ -34,7 +43,11 @@ export async function runExecProcess(opts: {
   scopeKey?: string;
   sessionKey?: string;
   timeoutMs: number;
-  onUpdate?: (partialResult: import("@mariozechner/pi-agent-core").AgentToolResult<import("./bash-tools.exec.types.js").ExecToolDetails>) => void;
+  onUpdate?: (
+    partialResult: import("@mariozechner/pi-agent-core").AgentToolResult<
+      import("./bash-tools.exec.types.js").ExecToolDetails
+    >,
+  ) => void;
 }): Promise<ExecProcessHandle> {
   const startedAt = Date.now();
   const sessionId = createSessionSlug();

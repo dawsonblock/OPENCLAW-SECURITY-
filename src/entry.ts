@@ -18,6 +18,9 @@ if (process.argv.includes("--no-color")) {
 
 const EXPERIMENTAL_WARNING_FLAG = "--disable-warning=ExperimentalWarning";
 
+// Bootstrap-only exception: respawns Node before normal runtime routing exists.
+// This file is not part of the agent/tool execution surfaces.
+
 function hasExperimentalWarningSuppressed(): boolean {
   const nodeOptions = process.env.NODE_OPTIONS ?? "";
   if (nodeOptions.includes(EXPERIMENTAL_WARNING_FLAG) || nodeOptions.includes("--no-warnings")) {

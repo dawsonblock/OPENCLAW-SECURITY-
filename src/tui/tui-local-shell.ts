@@ -4,22 +4,10 @@ import { getShellConfig } from "../agents/shell-utils.js";
 import { createSearchableSelectList } from "./components/selectors.js";
 
 /**
- * LOCAL SHELL FEATURE – EXPLICIT OPT-IN REQUIRED
- * -----------------------------------------------
- * This feature runs arbitrary shell commands on the LOCAL machine (the TUI
- * client side, not the gateway). It is intentionally NOT part of the bounded
- * child-process execution story: it runs the user's login shell with
- * full command-string interpretation, inherits the user's env, and is
- * capable of arbitrary file access.
- *
- * It is disabled by default and must be explicitly enabled by setting:
- *   OPENCLAW_LOCAL_SHELL_ENABLED=1
- *   OPENCLAW_ACK_LOCAL_SHELL_IS_UNBOUNDED=1
- *
- * Even when enabled, the user is prompted for consent on first use.
- * This is a convenience feature for power users who understand the risk.
- * Do not route this through the bounded subprocess seam or claim it is
- * hardened; the design is deliberately separate.
+ * Local-TUI-only unbounded shell exception.
+ * Runs arbitrary commands on the user's machine, outside the bounded runtime
+ * subprocess model. Requires OPENCLAW_LOCAL_SHELL_ENABLED=1,
+ * OPENCLAW_ACK_LOCAL_SHELL_IS_UNBOUNDED=1, and per-session TUI consent.
  */
 
 type LocalShellDeps = {

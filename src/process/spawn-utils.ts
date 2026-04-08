@@ -1,6 +1,9 @@
 import type { ChildProcess, SpawnOptions } from "node:child_process";
 import { spawn } from "node:child_process";
 
+// Dedicated low-level spawn authority for the exec-session subsystem.
+// This is a reviewed exec-session seam, not a general runtime subprocess bypass.
+
 export type SpawnFallback = {
   label: string;
   options: SpawnOptions;

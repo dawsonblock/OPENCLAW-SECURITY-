@@ -8,7 +8,12 @@
 
 This is the active security hardening-status document for the repository. Older narrative reports are archived under `docs/archive/` and should not be treated as current status.
 
-The `OPENCLAW-SECURITY` codebase contains a substantial defense-in-depth security architecture centered on a kernel-like **RFSN (Request For Side-effect Negotiation)** arbitration layer. The RFSN spine (`src/rfsn/`, `src/security/subprocess.ts`) is real and structurally sound.
+The `OPENCLAW-SECURITY` codebase contains a substantial defense-in-depth security architecture centered on a kernel-like **RFSN (Request For Side-effect Negotiation)** arbitration layer. The RFSN spine is real, and the reviewed execution authorities are now described explicitly instead of being compressed into a single seam:
+
+- `src/security/subprocess.ts`: bounded general runtime subprocess authority
+- `src/process/spawn-utils.ts`: dedicated exec-session spawn authority for shell-backed and Docker exec sessions
+- `src/entry.ts`: bootstrap-only respawn exception before normal runtime routing exists
+- `src/tui/tui-local-shell.ts`: local-TUI-only unbounded shell exception
 
 **However, the original version of this report overstated completeness.** A follow-up code audit identified several concrete gaps between the architecture's intent and the live code:
 
@@ -19,20 +24,27 @@ The `OPENCLAW-SECURITY` codebase contains a substantial defense-in-depth securit
 | `execFileSync("openclaw", ...)` in repair command bypassed RFSN   | `src/cli/commands/repair.ts` | ✅ Apr 2026                                             |
 | Unused `execSync` import leaked dead authority path               | `src/cli/commands/up.ts`     | ✅ Apr 2026                                             |
 
-The RFSN architecture, subprocess allowlisting, ledger append, and secret redaction are structurally intact. The gaps above have been patched. A further audit of all `child_process` import sites outside `src/security/` and `src/rfsn/` is recommended before treating any deployment as hardened.
+The RFSN architecture, subprocess allowlisting, ledger append, and secret redaction are structurally intact. The gaps above have been patched. Structural tests now enforce that no new `child_process` import sites appear beyond the reviewed seams and explicit exceptions listed above.
 
 ## Detailed Phase Analysis
 
-### Phase 0: Subprocess Sandboxing (`src/security/subprocess.ts`)
+### Phase 0: Bounded General Subprocess Sandboxing (`src/security/subprocess.ts`)
 
 - **Status:** ✅ **Verified Robust**
-- **Mechanism:** Drop-in replacement for `child_process`.
+- **Mechanism:** Bounded general-purpose replacement for runtime `child_process` usage.
 - **Key Defenses:**
   - **Strict Allowlists:** Only explicitly permitted binaries (e.g., `git`, `ls`) can be executed.
   - **Path Traversal Prevention:** Blocks absolute paths and slashes in command names to prevent executing arbitrary binaries.
   - **Environment Scrubbing:** Whitelists allowed environment variables (e.g., `PATH`, `HOME`), aggressively stripping dangerous ones like `NODE_OPTIONS`, `LD_PRELOAD`.
   - **Resource Caps:** Enforces hard timeouts and stdout/stderr byte limits (1MB default) to prevent DoS.
 - **Status update:** the dead `src/runtime/supervisor.ts` exception has been removed from the live tree.
+
+### Phase 0b: Reviewed Exec-Session Spawn Seam (`src/process/spawn-utils.ts`)
+
+- **Status:** ✅ **Reviewed Narrow Exception**
+- **Mechanism:** Low-level launcher used only by the exec subsystem for shell-backed exec sessions and Docker exec sessions.
+- **Scope note:** This is not the general runtime subprocess seam. It exists because the exec subsystem needs raw child-process handles for interactive sessions.
+- **Reachability:** Structural tests pin the runtime importer set to `src/process/exec.ts` and `src/agents/bash-tools.exec.runtime.ts`.
 
 ### Phase 1: RFSN Policy Engine (`src/rfsn/policy.ts`)
 
@@ -107,6 +119,6 @@ The code quality is high in the security-focused modules.
 
 ## Conclusion
 
-The RFSN spine and subprocess security model are real and structurally sound. The dead runtime supervisor exception is gone, the node-host execution path is thinner, and remaining hardening work should focus on the still-authority-bearing seams such as memory management and any non-RFSN execution paths that remain.
+The RFSN spine and reviewed execution boundaries are real and structurally checked. The bounded general subprocess seam, the narrower exec-session seam, the bootstrap-only respawn exception, and the local-TUI-only unbounded shell exception are now described separately and tested against drift.
 
-**Recommendation:** Do not treat this codebase as production-hardened until the remaining `child_process` sites outside `src/security/` and `src/rfsn/` are audited, gated, or demonstrably proven to be non-reachable from agent tool paths.
+**Recommendation:** Keep treating these execution boundaries as a live review surface. In particular, `src/tui/tui-local-shell.ts` remains outside the bounded runtime model, and `src/entry.ts` remains a bootstrap exception rather than a tool-execution path.

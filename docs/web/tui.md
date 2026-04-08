@@ -113,6 +113,7 @@ Other Gateway slash commands (for example, `/context`) are forwarded to the Gate
 - Prefix a line with `!` to run a local shell command on the TUI host.
 - Local shell is disabled by default. To enable it, start the TUI with both `OPENCLAW_LOCAL_SHELL_ENABLED=1` and `OPENCLAW_ACK_LOCAL_SHELL_IS_UNBOUNDED=1`.
 - After both env vars are set, the TUI still prompts once per session to allow local execution; declining keeps `!` disabled for the session.
+- This path is local-TUI-only and sits outside the bounded runtime subprocess model used by normal tool execution.
 - When enabled, the footer shows `UNBOUNDED LOCAL SHELL ENABLED` so it is visually distinct from the bounded runtime.
 - Commands run in a fresh, non-interactive shell in the TUI working directory (no persistent `cd`/env).
 - A lone `!` is sent as a normal message; leading spaces do not trigger local exec.
