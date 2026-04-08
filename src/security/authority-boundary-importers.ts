@@ -24,9 +24,7 @@ const AUTHORITY_SCAN_ROOT_PATHS = AUTHORITY_BOUNDARY_SCAN_ROOTS.map((root) =>
   path.resolve(process.cwd(), root),
 );
 
-export async function listAuthorityBoundaryRuntimeTsFiles(
-  rootDirs = AUTHORITY_SCAN_ROOT_PATHS,
-): Promise<string[]> {
+export async function listRuntimeTsFiles(rootDirs = AUTHORITY_SCAN_ROOT_PATHS): Promise<string[]> {
   const files: string[] = [];
   const stack = [...rootDirs];
 
@@ -164,12 +162,16 @@ function resolveImportCandidates(importerAbsPath: string, specifier: string): st
   return [...candidates];
 }
 
+function arraysMatch(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((entry, index) => entry === right[index]);
+}
+
 export async function findRuntimeImporters(
   targetRelPath: AuthorityExceptionTarget,
   files?: readonly string[],
 ): Promise<string[]> {
   const targetAbsPath = path.normalize(path.resolve(process.cwd(), targetRelPath));
-  const runtimeFiles = files ? [...files] : await listAuthorityBoundaryRuntimeTsFiles();
+  const runtimeFiles = files ? [...files] : await listRuntimeTsFiles();
   const importers: string[] = [];
 
   for (const absPath of runtimeFiles) {
@@ -189,7 +191,7 @@ export async function findRuntimeImporters(
 }
 
 export async function scanAuthorityBoundaryImporters(): Promise<AuthorityBoundaryImporterScanResult> {
-  const runtimeFiles = await listAuthorityBoundaryRuntimeTsFiles();
+  const runtimeFiles = await listRuntimeTsFiles();
   const importersByTarget = {} as Record<AuthorityExceptionTarget, string[]>;
   const unexpectedImporters: string[] = [];
   const forbiddenImporters: string[] = [];
@@ -199,10 +201,7 @@ export async function scanAuthorityBoundaryImporters(): Promise<AuthorityBoundar
     importersByTarget[target] = importers;
 
     const reviewedImporters = [...REVIEWED_AUTHORITY_IMPORTERS[target]];
-    if (
-      importers.length !== reviewedImporters.length ||
-      importers.some((importer, index) => importer !== reviewedImporters[index])
-    ) {
+    if (!arraysMatch(importers, reviewedImporters)) {
       unexpectedImporters.push(
         `${target}: expected [${reviewedImporters.join(", ")}] but found [${importers.join(", ")}]`,
       );
