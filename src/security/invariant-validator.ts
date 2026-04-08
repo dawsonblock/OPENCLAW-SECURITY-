@@ -1,17 +1,35 @@
+import path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
 import { DEFAULT_DANGEROUS_NODE_COMMANDS } from "../gateway/node-command-policy.js";
+import { getAllowedBrowserProxyRoots } from "../node-host/browser-proxy.js";
+import { computePolicySnapshotHash } from "./lockdown/policy-snapshot.js";
 
 export type InvariantCheckResult = {
   ok: boolean;
   errors: string[];
 };
 
+function isFilesystemRoot(root: string): boolean {
+  const normalizedRoot = path.normalize(root);
+  return path.parse(normalizedRoot).root === normalizedRoot;
+}
+
 export function validateStartupInvariants(params: {
   cfg: OpenClawConfig;
   env: NodeJS.ProcessEnv;
+  bindHost?: string;
+  tailscaleMode?: string;
+  deps?: {
+    computePolicyHash?: typeof computePolicySnapshotHash;
+    getBrowserProxyRoots?: typeof getAllowedBrowserProxyRoots;
+  };
 }): InvariantCheckResult {
   const errors: string[] = [];
   const isProduction = params.env.NODE_ENV === "production";
+  const bindHost = params.bindHost ?? "127.0.0.1";
+  const tailscaleMode = params.tailscaleMode ?? "off";
+  const computePolicyHash = params.deps?.computePolicyHash ?? computePolicySnapshotHash;
+  const resolveBrowserProxyRoots = params.deps?.getBrowserProxyRoots ?? getAllowedBrowserProxyRoots;
 
   // 1. Break-Glass Flags in Production
   // In production, NO break-glass flags should be active, period.
@@ -49,6 +67,64 @@ export function validateStartupInvariants(params: {
     errors.push(
       `Critical Invariant Failed: Dangerous commands allowed in production config: ${dangerous.join(", ")}`,
     );
+  }
+
+  // 4. Policy Snapshot Wiring
+  // Startup must be able to compute the same posture hash enforced again on the
+  // dangerous hot path. If this fails, runtime drift checks cannot be trusted.
+  try {
+    const snapshotHash = computePolicyHash({
+      cfg: params.cfg,
+      env: params.env,
+      bindHost,
+      tailscaleMode,
+    });
+    if (!snapshotHash.trim()) {
+      errors.push("Critical Invariant Failed: Policy snapshot hash computed as empty");
+    }
+  } catch (error) {
+    errors.push(
+      `Critical Invariant Failed: Policy snapshot hash unavailable at startup: ${String(error)}`,
+    );
+  }
+
+  // 5. Browser Proxy Root Sanity
+  // The runtime browser proxy read path is locked to explicit roots. Mirror that
+  // guarantee at startup so root broadening/drift fails closed before serving.
+  if (params.cfg.nodeHost?.browserProxy?.enabled !== false) {
+    let roots: string[] = [];
+    try {
+      roots = resolveBrowserProxyRoots();
+    } catch (error) {
+      errors.push(
+        `Critical Invariant Failed: Browser proxy roots unavailable at startup: ${String(error)}`,
+      );
+    }
+
+    if (roots.length === 0) {
+      errors.push("Critical Invariant Failed: Browser proxy has no approved roots");
+    }
+    const trimmedRoots = roots.map((root) => root.trim());
+    const invalidRoots: string[] = [];
+    const validRoots: string[] = [];
+    for (const root of trimmedRoots) {
+      if (!root || !path.isAbsolute(root) || isFilesystemRoot(root)) {
+        invalidRoots.push(root || "<empty>");
+        continue;
+      }
+      validRoots.push(path.resolve(root));
+    }
+    if (invalidRoots.length > 0) {
+      errors.push(
+        `Critical Invariant Failed: Browser proxy roots must be explicit absolute subdirectories (found: ${invalidRoots.join(", ")})`,
+      );
+    }
+    const uniqueRoots = new Set(
+      validRoots.map((root) => (process.platform === "win32" ? root.toLowerCase() : root)),
+    );
+    if (uniqueRoots.size !== validRoots.length) {
+      errors.push("Critical Invariant Failed: Browser proxy roots must be unique");
+    }
   }
 
   return {

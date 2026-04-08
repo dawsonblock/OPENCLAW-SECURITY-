@@ -49,6 +49,52 @@ describe("validateStartupInvariants", () => {
     expect(result.errors.some((e) => e.includes("Dangerous commands allowed"))).toBe(true);
   });
 
+  it("should fail if the policy snapshot hash cannot be computed", () => {
+    const result = validateStartupInvariants({
+      cfg: baseConfig,
+      env: { ...cleanEnv },
+      deps: {
+        computePolicyHash: () => {
+          throw new Error("snapshot broken");
+        },
+      },
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => e.includes("Policy snapshot hash unavailable"))).toBe(true);
+  });
+
+  it("should fail if browser proxy roots are too broad", () => {
+    const result = validateStartupInvariants({
+      cfg: baseConfig,
+      env: { ...cleanEnv },
+      deps: {
+        getBrowserProxyRoots: () => ["/"],
+      },
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => e.includes("Browser proxy roots must be explicit"))).toBe(
+      true,
+    );
+  });
+
+  it("should skip browser proxy root checks when browser proxy is disabled", () => {
+    const result = validateStartupInvariants({
+      cfg: {
+        ...baseConfig,
+        nodeHost: {
+          browserProxy: {
+            enabled: false,
+          },
+        },
+      },
+      env: { ...cleanEnv },
+      deps: {
+        getBrowserProxyRoots: () => ["/"],
+      },
+    });
+    expect(result.ok).toBe(true);
+  });
+
   it("should allow break-glass flags in development", () => {
     const devEnv = { NODE_ENV: "development", OPENCLAW_ALLOW_HOST_EXEC: "1" };
     const result = validateStartupInvariants({ cfg: baseConfig, env: devEnv });

@@ -4,21 +4,24 @@ import path from "node:path";
 import { hasErrnoCode } from "../infra/errors.js";
 
 const require = createRequire(import.meta.url);
+type TypeScriptModule = typeof import("typescript");
+type TsExpression = import("typescript").Expression;
+type TsNode = import("typescript").Node;
+type TsSourceFile = import("typescript").SourceFile;
 
-function loadTypeScript(): typeof import("typescript") {
+function loadTypeScript(): TypeScriptModule {
   try {
-    return require("typescript") as typeof import("typescript");
+    return require("typescript") as TypeScriptModule;
   } catch (error) {
     throw new Error(
-      "TypeScript-based skill scanning requires the optional 'typescript' package at runtime. " +
-        "Install 'typescript' as a production dependency, or disable TypeScript skill scanning in environments " +
-        "that omit optional/development packages.",
+      "TypeScript-based skill scanning requires the runtime 'typescript' package, but it was not found. " +
+        "Repair the installation so production dependencies are present before skill scanning runs.",
       { cause: error },
     );
   }
 }
 
-const ts = new Proxy({} as typeof import("typescript"), {
+const ts = new Proxy({} as TypeScriptModule, {
   get(_target, property, receiver) {
     const typescript = loadTypeScript();
     return Reflect.get(typescript, property, receiver);
@@ -159,7 +162,7 @@ function truncateEvidence(evidence: string, maxLen = 120): string {
 const CHILD_PROCESS_MODULES = new Set(["child_process", "node:child_process"]);
 const VM_MODULES = new Set(["vm", "node:vm"]);
 
-function unwrapExpression(node: ts.Expression): ts.Expression {
+function unwrapExpression(node: TsExpression): TsExpression {
   if (ts.isParenthesizedExpression(node)) {
     return unwrapExpression(node.expression);
   }
@@ -176,7 +179,7 @@ function unwrapExpression(node: ts.Expression): ts.Expression {
   return node;
 }
 
-function isEvalCallee(node: ts.Expression): boolean {
+function isEvalCallee(node: TsExpression): boolean {
   const expr = unwrapExpression(node);
   if (ts.isIdentifier(expr)) {
     return expr.text === "eval";
@@ -197,11 +200,11 @@ function isEvalCallee(node: ts.Expression): boolean {
   return false;
 }
 
-function getNodeLine(sourceFile: ts.SourceFile, node: ts.Node): number {
+function getNodeLine(sourceFile: TsSourceFile, node: TsNode): number {
   return sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
 }
 
-function getNodeEvidence(sourceFile: ts.SourceFile, node: ts.Node): string {
+function getNodeEvidence(sourceFile: TsSourceFile, node: TsNode): string {
   const text = node.getText(sourceFile).trim();
   if (text) {
     return truncateEvidence(text.replace(/\s+/g, " "));
@@ -230,7 +233,7 @@ function addFinding(
 function scanSyntax(source: string, filePath: string): SkillScanFinding[] {
   // The AST pass intentionally replaces the old regex-only checks for the few
   // highest-confidence dangerous constructs where syntax awareness matters.
-  let sourceFile: ts.SourceFile;
+  let sourceFile: TsSourceFile;
   try {
     sourceFile = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true);
   } catch {
@@ -242,7 +245,7 @@ function scanSyntax(source: string, filePath: string): SkillScanFinding[] {
   const report = (
     ruleId: SkillScanFinding["ruleId"],
     message: string,
-    node: ts.Node,
+    node: TsNode,
     severity: SkillScanSeverity = "critical",
   ) => {
     addFinding(findings, seen, {
@@ -255,7 +258,7 @@ function scanSyntax(source: string, filePath: string): SkillScanFinding[] {
     });
   };
 
-  const visit = (node: ts.Node) => {
+  const visit = (node: TsNode) => {
     if (ts.isImportDeclaration(node)) {
       const moduleName = ts.isStringLiteral(node.moduleSpecifier) ? node.moduleSpecifier.text : "";
       if (!node.importClause?.isTypeOnly) {

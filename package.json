@@ -153,6 +153,7 @@
     "sqlite-vec": "0.1.7-alpha.2",
     "tar": "7.5.7",
     "tslog": "^4.10.2",
+    "typescript": "^5.9.3",
     "undici": "^7.21.0",
     "ws": "^8.19.0",
     "yaml": "^2.8.2",
@@ -178,7 +179,6 @@
     "rolldown": "1.0.0-rc.3",
     "tsdown": "^0.20.3",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   },
   "peerDependencies": {

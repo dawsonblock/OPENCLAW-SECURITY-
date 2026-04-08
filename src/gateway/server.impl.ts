@@ -42,6 +42,7 @@ import { scheduleGatewayUpdateCheck } from "../infra/update-startup.js";
 import { startDiagnosticHeartbeat, stopDiagnosticHeartbeat } from "../logging/diagnostic.js";
 import { createSubsystemLogger, runtimeForLogger } from "../logging/subsystem.js";
 import {
+  assertPolicyDrift,
   computePolicySnapshotHash,
   initializePolicySnapshot,
 } from "../security/lockdown/policy-snapshot.js";
@@ -306,7 +307,12 @@ export async function startGatewayServer(
   // This step enforces fail-closed logic. Unlike general security warnings above,
   // these invariants MUST hold for the system to be considered safe in production.
   const { validateStartupInvariants } = await import("../security/invariant-validator.js");
-  const invariantCheck = validateStartupInvariants({ cfg: cfgAtStart, env: process.env });
+  const invariantCheck = validateStartupInvariants({
+    cfg: cfgAtStart,
+    env: process.env,
+    bindHost,
+    tailscaleMode,
+  });
   if (!invariantCheck.ok) {
     throw new Error(
       `Startup Security Invariant Failed:\n- ${invariantCheck.errors.join("\n- ")}\n` +
@@ -323,6 +329,7 @@ export async function startGatewayServer(
   });
   // We enable strict mode (fatal on re-init) if running in production-like modes or explicitly enabled.
   initializePolicySnapshot(policyHash, process.env.NODE_ENV === "production");
+  assertPolicyDrift(policyHash, allowUnsafeGatewayConfig(process.env));
 
   let hooksConfig = runtimeConfig.hooksConfig;
   const canvasHostEnabled = runtimeConfig.canvasHostEnabled;
