@@ -9,9 +9,17 @@ import path from "node:path";
 export const AUTHORITY_BOUNDARY_SCAN_ROOTS = ["src", "extensions"] as const;
 
 export const REVIEWED_CHILD_PROCESS_IMPORTERS = [
+  // Canonical subprocess authority wrapper reviewed as the narrow boundary for
+  // spawning and process-management helpers used elsewhere in src/.
   "src/security/subprocess.ts",
+  // Shared spawn helper reviewed to centralize child-process invocation logic
+  // instead of permitting scattered direct imports across the codebase.
   "src/process/spawn-utils.ts",
+  // TUI local-shell surface is an explicitly reviewed interactive feature that
+  // intentionally launches a user-local shell from the terminal UI.
   "src/tui/tui-local-shell.ts",
+  // Process entrypoint is reviewed because bootstrap/runtime startup may need
+  // controlled child-process access before narrower modules take over.
   "src/entry.ts",
 ] as const;
 
