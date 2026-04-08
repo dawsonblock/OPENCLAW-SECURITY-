@@ -39,6 +39,11 @@ export function normalizeAuthorityBoundaryPath(filePath: string): string {
   return filePath.replaceAll(path.sep, "/");
 }
 
+/**
+ * Convert an absolute path to the repo-relative form used by the shared
+ * boundary rules. Tests and scripts can pass a custom cwd when they need to
+ * normalize paths relative to a temporary checkout or explicit workspace root.
+ */
 export function toAuthorityBoundaryRepoPath(absPath: string, cwd = process.cwd()): string {
   return normalizeAuthorityBoundaryPath(path.relative(cwd, absPath));
 }

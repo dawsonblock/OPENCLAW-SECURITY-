@@ -182,7 +182,7 @@ if (authorityBoundaryFiles.length > 0) {
     if (hasRealChildProcessImport) {
       if (!ALLOWED_CHILD_PROCESS_IMPORTERS.has(relPath)) {
         console.error(
-          `❌ ${relPath}: imports node:child_process directly – route bounded runtime execution through src/security/subprocess.ts, keep exec-session launching inside the reviewed exec seam, or update src/security/authority-boundaries.ts with justification`,
+          `❌ ${relPath}: imports node:child_process directly – route runtime execution through src/security/subprocess.ts or update src/security/authority-boundaries.ts with reviewed justification`,
         );
         failed = true;
       }
