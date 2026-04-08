@@ -63,10 +63,39 @@ function collectRuntimeImportSpecifiers(content: string): string[] {
     ts.ScriptKind.TS,
   );
 
+  const hasRuntimeImportBinding = (importClause: ts.ImportClause | undefined): boolean => {
+    if (!importClause || importClause.isTypeOnly) {
+      return false;
+    }
+    if (importClause.name) {
+      return true;
+    }
+    if (!importClause.namedBindings) {
+      return false;
+    }
+    if (ts.isNamespaceImport(importClause.namedBindings)) {
+      return true;
+    }
+    return importClause.namedBindings.elements.some((element) => !element.isTypeOnly);
+  };
+
+  const hasRuntimeExportBinding = (statement: ts.ExportDeclaration): boolean => {
+    if (statement.isTypeOnly) {
+      return false;
+    }
+    if (!statement.exportClause) {
+      return true;
+    }
+    if (ts.isNamespaceExport(statement.exportClause)) {
+      return true;
+    }
+    return statement.exportClause.elements.some((element) => !element.isTypeOnly);
+  };
+
   for (const statement of sourceFile.statements) {
     if (
       ts.isImportDeclaration(statement) &&
-      !statement.importClause?.isTypeOnly &&
+      hasRuntimeImportBinding(statement.importClause) &&
       ts.isStringLiteral(statement.moduleSpecifier)
     ) {
       const specifier = statement.moduleSpecifier.text;
@@ -78,7 +107,7 @@ function collectRuntimeImportSpecifiers(content: string): string[] {
 
     if (
       ts.isExportDeclaration(statement) &&
-      !statement.isTypeOnly &&
+      hasRuntimeExportBinding(statement) &&
       statement.moduleSpecifier &&
       ts.isStringLiteral(statement.moduleSpecifier)
     ) {
@@ -153,6 +182,17 @@ async function findRuntimeImporters(targetRelPath: string): Promise<string[]> {
 }
 
 describe("execution authority boundaries", () => {
+  test("type-only named imports and exports do not count as runtime importers", () => {
+    const specifiers = collectRuntimeImportSpecifiers(`
+      import { type ExecProcessHandle } from "../agents/bash-tools.exec.types.js";
+      import { runtimeValue, type Helper } from "../process/exec.js";
+      export { type SpawnFallback } from "../process/spawn-utils.js";
+      export { resolveCommandStdio, type SpawnWithFallbackResult } from "../process/spawn-utils.js";
+    `);
+
+    expect(specifiers).toEqual(["../process/exec.js", "../process/spawn-utils.js"]);
+  });
+
   test("spawn-utils stays limited to the reviewed exec-session runtime path", async () => {
     const importers = await findRuntimeImporters("src/process/spawn-utils.ts");
 
