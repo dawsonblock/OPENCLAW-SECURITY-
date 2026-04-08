@@ -204,16 +204,17 @@ export async function scanAuthorityBoundaryImporters(): Promise<AuthorityBoundar
 
   for (const target of AUTHORITY_EXCEPTION_TARGETS) {
     const importers = await findRuntimeImporters(target, runtimeFiles);
-    importersByTarget[target] = importers;
+    const sortedImporters = [...importers].toSorted();
+    importersByTarget[target] = sortedImporters;
 
     const reviewedImporters = [...REVIEWED_AUTHORITY_IMPORTERS[target]].toSorted();
-    if (!areArraysEqual(importers, reviewedImporters)) {
+    if (!areArraysEqual(sortedImporters, reviewedImporters)) {
       unexpectedImporters.push(
-        `${target}: expected [${reviewedImporters.join(", ")}] but found [${importers.join(", ")}]`,
+        `${target}: expected [${reviewedImporters.join(", ")}] but found [${sortedImporters.join(", ")}]`,
       );
     }
 
-    for (const importer of importers) {
+    for (const importer of sortedImporters) {
       if (FORBIDDEN_AUTHORITY_IMPORT_ROOTS.some((root) => importer.startsWith(root))) {
         forbiddenImporters.push(`${importer} -> ${target}`);
       }
