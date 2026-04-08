@@ -207,6 +207,8 @@ function addFinding(
 }
 
 function scanSyntax(source: string, filePath: string): SkillScanFinding[] {
+  // The AST pass intentionally replaces the old regex-only checks for the few
+  // highest-confidence dangerous constructs where syntax awareness matters.
   const sourceFile = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true);
   const findings: SkillScanFinding[] = [];
   const seen = new Set<string>();

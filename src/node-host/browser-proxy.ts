@@ -116,8 +116,16 @@ function isPathWithinRoot(rootPath: string, candidatePath: string): boolean {
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
-async function resolveAllowedBrowserProxyPath(filePath: string): Promise<string> {
-  const resolvedFilePath = await fsPromises.realpath(filePath);
+async function resolveAllowedBrowserProxyPath(filePath: string): Promise<string | null> {
+  const resolvedFilePath = await fsPromises.realpath(filePath).catch((err: unknown) => {
+    if ((err as NodeJS.ErrnoException | undefined)?.code === "ENOENT") {
+      return null;
+    }
+    throw err;
+  });
+  if (!resolvedFilePath) {
+    return null;
+  }
   const resolvedRoots = await Promise.all(
     getAllowedBrowserProxyRoots().map(async (root) => {
       try {
@@ -135,8 +143,7 @@ async function resolveAllowedBrowserProxyPath(filePath: string): Promise<string>
 
 export async function isAllowedBrowserProxyPath(filePath: string): Promise<boolean> {
   try {
-    await resolveAllowedBrowserProxyPath(filePath);
-    return true;
+    return (await resolveAllowedBrowserProxyPath(filePath)) !== null;
   } catch {
     return false;
   }
@@ -144,6 +151,9 @@ export async function isAllowedBrowserProxyPath(filePath: string): Promise<boole
 
 export async function readBrowserProxyFile(filePath: string): Promise<BrowserProxyFile | null> {
   const allowedPath = await resolveAllowedBrowserProxyPath(filePath);
+  if (!allowedPath) {
+    return null;
+  }
   const stat = await fsPromises.stat(allowedPath).catch(() => null);
   if (!stat || !stat.isFile()) {
     return null;

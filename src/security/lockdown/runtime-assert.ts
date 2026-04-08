@@ -72,6 +72,8 @@ export async function assertDangerousCapabilityInvariants(
   }
 
   // 4. Policy Drift
+  // Re-hash the active security posture on the hot path so config/env drift is
+  // caught before dangerous execution, even if no background monitor is running.
   assertPolicyDrift(
     computePolicySnapshotHash({
       cfg: context.cfg,
