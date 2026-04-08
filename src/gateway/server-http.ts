@@ -278,7 +278,6 @@ export function createGatewayHttpServer(opts: {
 }): HttpServer {
   const {
     canvasHost,
-    clients,
     controlUiEnabled,
     controlUiBasePath,
     controlUiRoot,
@@ -404,7 +403,7 @@ export function attachGatewayUpgradeHandler(opts: {
   clients: Set<GatewayWsClient>;
   resolvedAuth: ResolvedGatewayAuth;
 }) {
-  const { httpServer, wss, canvasHost, clients, resolvedAuth } = opts;
+  const { httpServer, wss, canvasHost, resolvedAuth } = opts;
   httpServer.on("upgrade", (req, socket, head) => {
     void (async () => {
       if (canvasHost) {

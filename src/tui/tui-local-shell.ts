@@ -171,8 +171,8 @@ export function createLocalShellRunner(deps: LocalShellDeps) {
           .trimEnd();
 
         if (combined) {
-          for (const line of combined.split("\n")) {
-            deps.chatLog.addSystem(`[local] ${line}`);
+          for (const outputLine of combined.split("\n")) {
+            deps.chatLog.addSystem(`[local] ${outputLine}`);
           }
         }
         deps.chatLog.addSystem(

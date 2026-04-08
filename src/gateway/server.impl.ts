@@ -413,9 +413,13 @@ export async function startGatewayServer(
   const nodeRegistry = new NodeRegistry();
   const nodePresenceTimers = new Map<string, ReturnType<typeof setInterval>>();
   const nodeSubscriptions = createNodeSubscriptionManager();
-  const nodeSendEvent = (opts: { nodeId: string; event: string; payloadJSON?: string | null }) => {
-    const payload = safeParseJson(opts.payloadJSON ?? null);
-    nodeRegistry.sendEvent(opts.nodeId, opts.event, payload);
+  const nodeSendEvent = (eventData: {
+    nodeId: string;
+    event: string;
+    payloadJSON?: string | null;
+  }) => {
+    const payload = safeParseJson(eventData.payloadJSON ?? null);
+    nodeRegistry.sendEvent(eventData.nodeId, eventData.event, payload);
   };
   const nodeSendToSession = (sessionKey: string, event: string, payload: unknown) =>
     nodeSubscriptions.sendToSession(sessionKey, event, payload, nodeSendEvent);
@@ -682,7 +686,7 @@ export async function startGatewayServer(
   });
 
   return {
-    close: async (opts) => {
+    close: async (closeOptions) => {
       if (diagnosticsEnabled) {
         stopDiagnosticHeartbeat();
       }
@@ -691,7 +695,7 @@ export async function startGatewayServer(
         skillsRefreshTimer = null;
       }
       skillsChangeUnsub();
-      await close(opts);
+      await close(closeOptions);
     },
   };
 }
