@@ -35,6 +35,10 @@ export const AUTHORITY_EXCEPTION_TARGETS = Object.keys(
   REVIEWED_AUTHORITY_IMPORTERS,
 ) as Array<keyof typeof REVIEWED_AUTHORITY_IMPORTERS>;
 
+/**
+ * Normalize repo-relative paths to forward-slash form so tests and CI compare
+ * the same strings on every platform.
+ */
 export function normalizeAuthorityBoundaryPath(filePath: string): string {
   return filePath.replaceAll(path.sep, "/");
 }

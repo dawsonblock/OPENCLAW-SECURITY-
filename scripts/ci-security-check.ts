@@ -187,36 +187,10 @@ if (authorityBoundaryFiles.length > 0) {
         failed = true;
       }
     }
-  }
-  console.log(
-    `✅ Child-process boundary scan complete (${AUTHORITY_BOUNDARY_SCAN_ROOTS.join(", ")})`,
-  );
-} else {
-  console.warn("⚠️  no authority-boundary scan roots found; skipping child-process scan");
-}
-
-const srcDir = path.resolve("src");
-if (existsSync(srcDir)) {
-  for (const absPath of walkRuntimeTsFiles(srcDir)) {
-    const relPath = toAuthorityBoundaryRepoPath(absPath);
-    let content: string;
-    try {
-      content = readFileSync(absPath, "utf8");
-    } catch {
-      continue;
-    }
 
     const stripped = stripComments(content);
     if (relPath.startsWith("src/runtime/")) {
-      if (
-        content
-          .split("\n")
-          .some(
-            (line) =>
-              /from\s+["'](?:node:)?child_process["']/.test(line) &&
-              !/^\s*import\s+type\s+/.test(line),
-          )
-      ) {
+      if (hasRealChildProcessImport) {
         console.error(`❌ ${relPath}: runtime code must not import child_process authority`);
         failed = true;
       }
@@ -226,12 +200,17 @@ if (existsSync(srcDir)) {
       }
     }
 
-    // Keep the historic shell:true heuristic scoped to src runtime code.
-    if (SHELL_TRUE_PATTERN.test(stripped)) {
+    // Keep the historic shell:true heuristic scoped to the src tree.
+    if (relPath.startsWith("src/") && SHELL_TRUE_PATTERN.test(stripped)) {
       console.error(`❌ ${relPath}: contains shell:true (never permitted in runtime code)`);
       failed = true;
     }
   }
+  console.log(
+    `✅ Child-process boundary scan complete (${AUTHORITY_BOUNDARY_SCAN_ROOTS.join(", ")})`,
+  );
+} else {
+  console.warn("⚠️  no authority-boundary scan roots found; skipping child-process scan");
 }
 
 for (const entry of BOUNDARY_ONLY_FILES) {
