@@ -36,8 +36,11 @@ export async function listRuntimeTsFiles(scanRootPaths = AUTHORITY_SCAN_ROOT_PAT
     let entries;
     try {
       entries = await fs.readdir(current, { withFileTypes: true });
-    } catch {
-      continue;
+    } catch (error) {
+      if ((error as { code?: string }).code === "ENOENT") {
+        continue;
+      }
+      throw error;
     }
     for (const entry of entries) {
       const absPath = path.join(current, entry.name);
