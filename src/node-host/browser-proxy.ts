@@ -112,8 +112,20 @@ export function getAllowedBrowserProxyRoots(): string[] {
 }
 
 function isPathWithinRoot(rootPath: string, candidatePath: string): boolean {
-  const relative = path.relative(rootPath, candidatePath);
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+  const normalizedRoot = path.resolve(rootPath);
+  const normalizedCandidate = path.resolve(candidatePath);
+  if (process.platform === "win32") {
+    const rootDrive = path.parse(normalizedRoot).root.toLowerCase();
+    const candidateDrive = path.parse(normalizedCandidate).root.toLowerCase();
+    if (rootDrive !== candidateDrive) {
+      return false;
+    }
+  }
+  const relative = path.relative(normalizedRoot, normalizedCandidate);
+  return (
+    relative === "" ||
+    (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+  );
 }
 
 async function resolveAllowedBrowserProxyPath(filePath: string): Promise<string | null> {
