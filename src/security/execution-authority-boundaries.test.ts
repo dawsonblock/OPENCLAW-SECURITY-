@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import ts from "typescript";
 import { describe, expect, test } from "vitest";
 
 const SRC_ROOT = path.resolve(process.cwd(), "src");
@@ -54,26 +55,54 @@ async function listRuntimeTsFiles(rootDir: string): Promise<string[]> {
 
 function collectRuntimeImportSpecifiers(content: string): string[] {
   const specifiers = new Set<string>();
+  const sourceFile = ts.createSourceFile(
+    "execution-authority-boundaries.test.ts",
+    content,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
 
-  for (const pattern of [
-    /(?:^|\n)\s*import\s+(?!type\b)[\s\S]*?from\s+["']([^"']+)["']/gm,
-    /(?:^|\n)\s*export\s+(?!type\b)[\s\S]*?from\s+["']([^"']+)["']/gm,
-    /(?:^|\n)\s*import\s+["']([^"']+)["']/gm,
-  ]) {
-    for (const match of content.matchAll(pattern)) {
-      const specifier = match[1];
-      if (specifier?.startsWith(".")) {
+  for (const statement of sourceFile.statements) {
+    if (
+      ts.isImportDeclaration(statement) &&
+      !statement.importClause?.isTypeOnly &&
+      ts.isStringLiteral(statement.moduleSpecifier)
+    ) {
+      const specifier = statement.moduleSpecifier.text;
+      if (specifier.startsWith(".")) {
+        specifiers.add(specifier);
+      }
+      continue;
+    }
+
+    if (
+      ts.isExportDeclaration(statement) &&
+      !statement.isTypeOnly &&
+      statement.moduleSpecifier &&
+      ts.isStringLiteral(statement.moduleSpecifier)
+    ) {
+      const specifier = statement.moduleSpecifier.text;
+      if (specifier.startsWith(".")) {
         specifiers.add(specifier);
       }
     }
   }
 
-  for (const match of content.matchAll(/import\s*\(\s*["']([^"']+)["']\s*\)/g)) {
-    const specifier = match[1];
-    if (specifier.startsWith(".")) {
-      specifiers.add(specifier);
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments.length > 0
+    ) {
+      const [firstArg] = node.arguments;
+      if (ts.isStringLiteral(firstArg) && firstArg.text.startsWith(".")) {
+        specifiers.add(firstArg.text);
+      }
     }
-  }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
 
   return [...specifiers];
 }
@@ -89,9 +118,14 @@ function resolveImportCandidates(importerAbsPath: string, specifier: string): st
   if (ext === ".js" || ext === ".mjs" || ext === ".cjs") {
     candidates.add(path.normalize(base.slice(0, -ext.length) + ".ts"));
   }
+  if (ext === ".jsx" || ext === ".tsx") {
+    candidates.add(path.normalize(base.slice(0, -ext.length) + ".tsx"));
+  }
   if (!ext) {
     candidates.add(path.normalize(`${base}.ts`));
+    candidates.add(path.normalize(`${base}.tsx`));
     candidates.add(path.normalize(path.join(base, "index.ts")));
+    candidates.add(path.normalize(path.join(base, "index.tsx")));
   }
 
   return [...candidates];
