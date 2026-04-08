@@ -4,7 +4,7 @@ import ts from "typescript";
 import { describe, expect, test } from "vitest";
 
 const SRC_ROOT = path.resolve(process.cwd(), "src");
-const RUNTIME_TS_FILE_RE = /\.ts$/;
+const RUNTIME_TS_FILE_RE = /^(?!.*\.d\.ts$).*\.ts$/;
 const TEST_FILE_RE = /\.(test|spec)\.ts$|\.e2e\.test\.ts$/;
 
 const REVIEWED_EXEC_SESSION_IMPORTERS = [
