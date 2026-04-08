@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
+import { REVIEWED_CHILD_PROCESS_IMPORTERS } from "../security/authority-boundaries.js";
 
 const SRC_ROOT = path.resolve(process.cwd(), "src");
 const EXTENSIONS_ROOT = path.resolve(process.cwd(), "extensions");
@@ -218,29 +219,11 @@ const GATE_CRITICAL_ENV_VARS = [
   "OPENCLAW_RFSN_REQUIRE_SIGNED_POLICY",
 ] as const;
 
-/**
- * Files allowed to import node:child_process directly in the live runtime.
- *
- * This is the authoritative exception list. Every entry must have a documented
- * reason. Adding an entry here does NOT make the code safe; it documents a
- * reviewed exception that must stay narrow and testable.
- *
- * Reviewed authorities and explicit exceptions:
- *   - src/security/subprocess.ts   BOUNDED GENERAL SUBPROCESS AUTHORITY for
- *                                  normal runtime command execution.
- *   - src/process/spawn-utils.ts   DEDICATED EXEC-SESSION SPAWN AUTHORITY for
- *                                  the shell-backed / docker-backed exec path.
- *   - src/entry.ts                 BOOTSTRAP-ONLY respawn exception before
- *                                  normal runtime routing exists.
- *   - src/tui/tui-local-shell.ts   LOCAL-TUI-ONLY unbounded shell exception,
- *                                  gated by explicit env vars + consent.
- */
-const ALLOWED_CHILD_PROCESS_IMPORTERS = new Set([
-  "src/security/subprocess.ts",
-  "src/process/spawn-utils.ts",
-  "src/entry.ts",
-  "src/tui/tui-local-shell.ts",
-]);
+// Reviewed exceptions for `child_process` imports. Keep the canonical
+// justification in sync with `src/security/authority-boundaries.ts`
+// (exported here via `../security/authority-boundaries.js`) so future
+// changes do not treat this allowlist as an opaque set.
+const ALLOWED_CHILD_PROCESS_IMPORTERS = new Set(REVIEWED_CHILD_PROCESS_IMPORTERS);
 
 /**
  * Runtime files that must NOT contain raw `spawn(` or `fork(` calls outside
