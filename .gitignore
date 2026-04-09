@@ -82,3 +82,5 @@ USER.md
 !.agent/workflows/
 local/
 !src/commands/onboard-non-interactive/local/
+
+.fake
