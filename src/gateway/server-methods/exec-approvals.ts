@@ -1,0 +1,385 @@
+import type { GatewayRequestHandlers, RespondFn } from "./types.js";
+import { loadConfig } from "../../config/config.js";
+import {
+  ensureExecApprovals,
+  normalizeExecApprovals,
+  readExecApprovalsSnapshot,
+  resolveExecApprovalsSocketPath,
+  saveExecApprovals,
+  type ExecApprovalsFile,
+  type ExecApprovalsSnapshot,
+} from "../../infra/exec-approvals.js";
+import { invokeNodeCommandWithKernelGate } from "../node-command-kernel-gate.js";
+import {
+  ErrorCodes,
+  errorShape,
+  formatValidationErrors,
+  validateExecApprovalsGetParams,
+  validateExecApprovalsNodeGetParams,
+  validateExecApprovalsNodeSetParams,
+  validateExecApprovalsSetParams,
+} from "../protocol/index.js";
+import { respondUnavailableOnThrow, safeParseJson } from "./nodes.helpers.js";
+
+function policyMutationEnabled() {
+  const value = process.env.OPENCLAW_ALLOW_POLICY_MUTATION?.trim().toLowerCase();
+  return value === "1" || value === "true";
+}
+
+function resolveBaseHash(params: unknown): string | null {
+  const raw = (params as { baseHash?: unknown })?.baseHash;
+  if (typeof raw !== "string") {
+    return null;
+  }
+  const trimmed = raw.trim();
+  return trimmed ? trimmed : null;
+}
+
+function requireApprovalsBaseHash(
+  params: unknown,
+  snapshot: ExecApprovalsSnapshot,
+  respond: RespondFn,
+): boolean {
+  if (!snapshot.exists) {
+    return true;
+  }
+  if (!snapshot.hash) {
+    respond(
+      false,
+      undefined,
+      errorShape(
+        ErrorCodes.INVALID_REQUEST,
+        "exec approvals base hash unavailable; re-run exec.approvals.get and retry",
+      ),
+    );
+    return false;
+  }
+  const baseHash = resolveBaseHash(params);
+  if (!baseHash) {
+    respond(
+      false,
+      undefined,
+      errorShape(
+        ErrorCodes.INVALID_REQUEST,
+        "exec approvals base hash required; re-run exec.approvals.get and retry",
+      ),
+    );
+    return false;
+  }
+  if (baseHash !== snapshot.hash) {
+    respond(
+      false,
+      undefined,
+      errorShape(
+        ErrorCodes.INVALID_REQUEST,
+        "exec approvals changed since last load; re-run exec.approvals.get and retry",
+      ),
+    );
+    return false;
+  }
+  return true;
+}
+
+function redactExecApprovals(file: ExecApprovalsFile): ExecApprovalsFile {
+  const socketPath = file.socket?.path?.trim();
+  return {
+    ...file,
+    socket: socketPath ? { path: socketPath } : undefined,
+  };
+}
+
+/**
+ * Structural guards for policy mutation.
+ * Returns an array of issues; empty = OK.
+ */
+function validatePolicyMutation(file: ExecApprovalsFile): string[] {
+  const issues: string[] = [];
+  const security = (file as Record<string, unknown>).security;
+  if (typeof security === "string" && security.toLowerCase() === "full") {
+    issues.push('security mode "full" is not allowed via policy mutation');
+  }
+
+  const noTtlBreakGlass =
+    process.env.OPENCLAW_ALLOW_NO_TTL_POLICY?.trim().toLowerCase() === "1" ||
+    process.env.OPENCLAW_ALLOW_NO_TTL_POLICY?.trim().toLowerCase() === "true";
+
+  const MAX_COMMANDS_PER_RULE = 10;
+
+  const rules = (file as Record<string, unknown>).rules;
+  if (Array.isArray(rules)) {
+    for (const rule of rules) {
+      if (!rule || typeof rule !== "object") {
+        continue;
+      }
+      const r = rule as Record<string, unknown>;
+      const commands = r.commands ?? r.command;
+
+      // ── Wildcard guard ──
+      if (commands === "*" || commands === "any" || commands === "") {
+        issues.push("wildcard command rules are not allowed");
+      }
+      if (Array.isArray(commands) && commands.some((c: unknown) => c === "*" || c === "any")) {
+        issues.push("wildcard command rules are not allowed");
+      }
+
+      // ── Max commands per rule guard ──
+      if (Array.isArray(commands) && commands.length > MAX_COMMANDS_PER_RULE) {
+        issues.push(
+          `rule grants too many commands (${commands.length}); maximum is ${MAX_COMMANDS_PER_RULE}`,
+        );
+      }
+
+      // ── TTL enforcement for allow rules ──
+      const rawAction = r.action ?? r.type;
+      const action = (typeof rawAction === "string" ? rawAction : "").toLowerCase();
+      if (action === "allow" || action === "") {
+        const hasExpiresAt =
+          typeof r.expiresAt === "string" ||
+          typeof r.expiresAt === "number" ||
+          typeof r.expires_at === "string" ||
+          typeof r.expires_at === "number";
+        const hasTtl =
+          typeof r.ttlSeconds === "number" ||
+          typeof r.ttl_seconds === "number" ||
+          typeof r.ttl === "number";
+        if (!hasExpiresAt && !hasTtl && !noTtlBreakGlass) {
+          issues.push(
+            "allow rules require expiresAt or ttlSeconds (set OPENCLAW_ALLOW_NO_TTL_POLICY=1 to override)",
+          );
+        }
+      }
+
+      // ── Reason requirement for allow rules ──
+      if (action === "allow" || action === "") {
+        const reason = r.reason ?? r.justification;
+        if (!reason || (typeof reason === "string" && !reason.trim())) {
+          issues.push("allow rules require a reason or justification field");
+        }
+      }
+    }
+  }
+  return issues;
+}
+
+export const execApprovalsHandlers: GatewayRequestHandlers = {
+  "exec.approvals.get": ({ params, respond }) => {
+    if (!validateExecApprovalsGetParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid exec.approvals.get params: ${formatValidationErrors(validateExecApprovalsGetParams.errors)}`,
+        ),
+      );
+      return;
+    }
+    ensureExecApprovals();
+    const snapshot = readExecApprovalsSnapshot();
+    respond(
+      true,
+      {
+        path: snapshot.path,
+        exists: snapshot.exists,
+        hash: snapshot.hash,
+        file: redactExecApprovals(snapshot.file),
+      },
+      undefined,
+    );
+  },
+  "exec.approvals.set": ({ params, respond }) => {
+    if (!validateExecApprovalsSetParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid exec.approvals.set params: ${formatValidationErrors(validateExecApprovalsSetParams.errors)}`,
+        ),
+      );
+      return;
+    }
+    if (!policyMutationEnabled()) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          "policy mutation is disabled; set OPENCLAW_ALLOW_POLICY_MUTATION=1",
+        ),
+      );
+      return;
+    }
+    // ── Structural policy mutation guards ──
+    const incoming = (params as { file?: unknown }).file;
+    if (incoming && typeof incoming === "object") {
+      const policyIssues = validatePolicyMutation(incoming as ExecApprovalsFile);
+      if (policyIssues.length > 0) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `policy mutation rejected: ${policyIssues.join("; ")}`,
+          ),
+        );
+        return;
+      }
+    }
+    ensureExecApprovals();
+    const snapshot = readExecApprovalsSnapshot();
+    if (!requireApprovalsBaseHash(params, snapshot, respond)) {
+      return;
+    }
+    if (!incoming || typeof incoming !== "object") {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, "exec approvals file is required"),
+      );
+      return;
+    }
+    const normalized = normalizeExecApprovals(incoming as ExecApprovalsFile);
+    const currentSocketPath = snapshot.file.socket?.path?.trim();
+    const currentToken = snapshot.file.socket?.token?.trim();
+    const socketPath =
+      normalized.socket?.path?.trim() ?? currentSocketPath ?? resolveExecApprovalsSocketPath();
+    const token = normalized.socket?.token?.trim() ?? currentToken ?? "";
+    const next: ExecApprovalsFile = {
+      ...normalized,
+      socket: {
+        path: socketPath,
+        token,
+      },
+    };
+    saveExecApprovals(next);
+    const nextSnapshot = readExecApprovalsSnapshot();
+    respond(
+      true,
+      {
+        path: nextSnapshot.path,
+        exists: nextSnapshot.exists,
+        hash: nextSnapshot.hash,
+        file: redactExecApprovals(nextSnapshot.file),
+      },
+      undefined,
+    );
+  },
+  "exec.approvals.node.get": async ({ params, respond, context }) => {
+    if (!validateExecApprovalsNodeGetParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid exec.approvals.node.get params: ${formatValidationErrors(validateExecApprovalsNodeGetParams.errors)}`,
+        ),
+      );
+      return;
+    }
+    const { nodeId } = params as { nodeId: string };
+    const id = nodeId.trim();
+    if (!id) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "nodeId required"));
+      return;
+    }
+    await respondUnavailableOnThrow(respond, async () => {
+      const invokeResult = await invokeNodeCommandWithKernelGate({
+        cfg: loadConfig(),
+        nodeRegistry: context.nodeRegistry,
+        nodeId: id,
+        command: "system.execApprovals.get",
+        commandParams: {},
+      });
+      if (!invokeResult.ok) {
+        const code =
+          invokeResult.code === "NOT_ALLOWED" ? ErrorCodes.INVALID_REQUEST : ErrorCodes.UNAVAILABLE;
+        respond(
+          false,
+          undefined,
+          errorShape(code, invokeResult.message, { details: invokeResult.details }),
+        );
+        return;
+      }
+      const res = invokeResult.result;
+      if (!res.ok) {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.UNAVAILABLE, res.error?.message ?? "node invoke failed", {
+            details: { nodeError: res.error ?? null },
+          }),
+        );
+        return;
+      }
+      const payload = res.payloadJSON ? safeParseJson(res.payloadJSON) : res.payload;
+      respond(true, payload, undefined);
+    });
+  },
+  "exec.approvals.node.set": async ({ params, respond, context }) => {
+    if (!validateExecApprovalsNodeSetParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid exec.approvals.node.set params: ${formatValidationErrors(validateExecApprovalsNodeSetParams.errors)}`,
+        ),
+      );
+      return;
+    }
+    if (!policyMutationEnabled()) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          "policy mutation is disabled; set OPENCLAW_ALLOW_POLICY_MUTATION=1",
+        ),
+      );
+      return;
+    }
+    const { nodeId, file, baseHash } = params as {
+      nodeId: string;
+      file: ExecApprovalsFile;
+      baseHash?: string;
+    };
+    const id = nodeId.trim();
+    if (!id) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "nodeId required"));
+      return;
+    }
+    await respondUnavailableOnThrow(respond, async () => {
+      const invokeResult = await invokeNodeCommandWithKernelGate({
+        cfg: loadConfig(),
+        nodeRegistry: context.nodeRegistry,
+        nodeId: id,
+        command: "system.execApprovals.set",
+        commandParams: { file, baseHash },
+      });
+      if (!invokeResult.ok) {
+        const code =
+          invokeResult.code === "NOT_ALLOWED" ? ErrorCodes.INVALID_REQUEST : ErrorCodes.UNAVAILABLE;
+        respond(
+          false,
+          undefined,
+          errorShape(code, invokeResult.message, { details: invokeResult.details }),
+        );
+        return;
+      }
+      const res = invokeResult.result;
+      if (!res.ok) {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.UNAVAILABLE, res.error?.message ?? "node invoke failed", {
+            details: { nodeError: res.error ?? null },
+          }),
+        );
+        return;
+      }
+      const payload = safeParseJson(res.payloadJSON ?? null);
+      respond(true, payload, undefined);
+    });
+  },
+};
