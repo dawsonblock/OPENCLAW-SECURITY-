@@ -33,7 +33,7 @@ const ALLOWED_CHILD_PROCESS_IMPORTERS = new Set(REVIEWED_CHILD_PROCESS_IMPORTERS
 const SHELL_TRUE_PATTERN = /shell\s*:\s*true/;
 const RUNTIME_SPAWN_PATTERN = /\bspawn\s*\(|\bfork\s*\(/;
 const TEST_FILE_RE = /\.(test|spec)\.ts$|\.e2e\.test\.ts$/;
-const EXEC_APPROVALS_BARREL_PREFIX = "export * from \"./exec-approvals/";
+const EXEC_APPROVALS_BARREL_PREFIX = 'export * from "./exec-approvals/';
 const ORCHESTRATION_FILE_LIMITS = [
   { file: "src/node-host/runner.ts", maxLines: 60 },
   { file: "src/infra/exec-approvals.ts", maxLines: 30 },
@@ -155,10 +155,10 @@ function stripComments(content: string): string {
   return result;
 }
 
-// Authority-boundary enforcement intentionally covers the shipped Node/TS
-// runtime roots in src/ and extensions/. Native apps under apps/ and package
-// wrapper scripts under packages/ are reviewed elsewhere and stay outside this
-// TypeScript-only child_process exception scan.
+// Authority-boundary enforcement is intentionally scoped to the reviewed
+// server-side TypeScript runtime roots declared in
+// src/security/authority-boundaries.ts. That shared module, plus the shared
+// importer helper, remains the only source of truth for this guard.
 const scanRootPaths = AUTHORITY_BOUNDARY_SCAN_ROOTS.map((root) => path.resolve(root));
 const authorityBoundaryFiles = scanRootPaths.flatMap((rootDir) =>
   existsSync(rootDir) ? walkRuntimeTsFiles(rootDir) : [],
@@ -211,10 +211,10 @@ async function main(): Promise<void> {
       }
     }
     console.log(
-      `✅ Child-process boundary scan complete (${AUTHORITY_BOUNDARY_SCAN_ROOTS.join(", ")})`,
+      `✅ Child-process boundary scan complete for scoped runtime roots (${AUTHORITY_BOUNDARY_SCAN_ROOTS.join(", ")})`,
     );
   } else {
-    console.warn("⚠️  no authority-boundary scan roots found; skipping child-process scan");
+    console.warn("⚠️  no scoped authority-boundary scan roots found; skipping child-process scan");
   }
 
   const { unexpectedImporters, forbiddenImporters } = await scanAuthorityBoundaryImporters();
@@ -244,7 +244,7 @@ async function main(): Promise<void> {
     const content = readFileSync(entry.file, "utf8");
     for (const specifier of entry.bannedImports) {
       const escaped = specifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      if (new RegExp(`from\\s+[\"']${escaped}[\"']`).test(content)) {
+      if (new RegExp(`from\\s+["']${escaped}["']`).test(content)) {
         console.error(`❌ ${entry.file}: imports disallowed low-level authority ${specifier}`);
         failed = true;
       }

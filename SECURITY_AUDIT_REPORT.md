@@ -24,7 +24,7 @@ The `OPENCLAW-SECURITY` codebase contains a substantial defense-in-depth securit
 | `execFileSync("openclaw", ...)` in repair command bypassed RFSN   | `src/cli/commands/repair.ts` | ✅ Apr 2026                                             |
 | Unused `execSync` import leaked dead authority path               | `src/cli/commands/up.ts`     | ✅ Apr 2026                                             |
 
-The RFSN architecture, subprocess allowlisting, ledger append, and secret redaction are structurally intact. The gaps above have been patched. The reviewed execution-authority exceptions now live in `src/security/authority-boundaries.ts`, and both CI plus the structural boundary tests now consume the same shared authority-boundary model and importer-scan helper.
+The RFSN architecture, subprocess allowlisting, ledger append, and secret redaction are structurally intact. The gaps above have been patched. The reviewed execution-authority exceptions now live in `src/security/authority-boundaries.ts`, and both CI plus the structural boundary tests now consume the same shared authority-boundary model and importer-scan helper. That enforcement is scoped to the reviewed server-side TypeScript runtime roots in `src/` and `extensions/`; it is not presented as whole-repository proof over native apps, browser UI code, or compatibility wrapper packages.
 
 ## Detailed Phase Analysis
 
@@ -44,7 +44,7 @@ The RFSN architecture, subprocess allowlisting, ledger append, and secret redact
 - **Status:** ✅ **Reviewed Narrow Exception**
 - **Mechanism:** Low-level launcher used only by the exec subsystem for shell-backed exec sessions and Docker exec sessions.
 - **Scope note:** This is not the general runtime subprocess seam. It exists because the exec subsystem needs raw child-process handles for interactive sessions.
-- **Reachability:** Structural tests and CI pin the runtime importer set to `src/process/exec.ts` and `src/agents/bash-tools.exec.runtime.ts`, and the importer-boundary scan covers the shipped Node/TypeScript runtime roots in `src/` and `extensions/`.
+- **Reachability:** Structural tests and CI pin the runtime importer set to `src/process/exec.ts` and `src/agents/bash-tools.exec.runtime.ts`, and the shared importer-boundary scan covers the reviewed server-side TypeScript runtime roots in `src/` and `extensions/`. `apps/` stays out of scope for this check because it is native code, while `packages/` stays out of scope because it contains JavaScript compatibility shims rather than the reviewed TypeScript runtime roots.
 
 ### Phase 1: RFSN Policy Engine (`src/rfsn/policy.ts`)
 
@@ -119,6 +119,6 @@ The code quality is high in the security-focused modules.
 
 ## Conclusion
 
-The RFSN spine and reviewed execution boundaries are real and structurally checked. The bounded general subprocess seam, the narrower exec-session seam, the bootstrap-only respawn exception, and the local-TUI-only unbounded shell exception are now described separately and tested against drift.
+The RFSN spine and reviewed execution boundaries are real and structurally checked within the reviewed runtime roots. The bounded general subprocess seam, the narrower exec-session seam, the bootstrap-only respawn exception, and the local-TUI-only unbounded shell exception are now described separately and tested against drift.
 
 **Recommendation:** Keep treating these execution boundaries as a live review surface. In particular, `src/tui/tui-local-shell.ts` remains outside the bounded runtime model, and `src/entry.ts` remains a bootstrap exception rather than a tool-execution path.
