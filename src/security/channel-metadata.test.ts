@@ -100,9 +100,12 @@ describe("buildUntrustedChannelMetadata", () => {
       label: "Chat",
       entries: ["test"],
     });
-    // The wrapper should NOT include the suspicious-pattern warning prefix
-    // because includeWarning is false; just verify it's a well-formed string
-    expect(typeof result).toBe("string");
+    expect(result).toBeDefined();
+    // The wrapper should still be present, but without the extra warning text
+    expect(result).toContain("UNTRUSTED channel metadata");
+    expect(result).toContain("telegram");
+    expect(result).toContain("Chat");
+    expect(result).not.toContain("SECURITY NOTICE:");
   });
 
   it("handles a mix of null, undefined, and valid entries", () => {
