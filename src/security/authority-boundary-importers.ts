@@ -258,7 +258,8 @@ export async function findRuntimeImporters(
   const cwd = options?.cwd ?? process.cwd();
   const resolverContext = createAuthorityBoundaryResolverContext(cwd);
   const targetAbsPath = path.normalize(path.resolve(cwd, targetRelPath));
-  const runtimeFiles = files ? [...files] : await listRuntimeTsFiles();
+  const scanRootPaths = AUTHORITY_BOUNDARY_SCAN_ROOTS.map((root) => path.resolve(cwd, root));
+  const runtimeFiles = files ? [...files] : await listRuntimeTsFiles(scanRootPaths);
   const importers: string[] = [];
 
   for (const absPath of runtimeFiles) {
