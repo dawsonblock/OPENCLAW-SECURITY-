@@ -235,6 +235,8 @@ describe("guardInboundPayload", () => {
     obj.child = child;
     // Should not throw - the seen set breaks cycles
     expect(() => guardInboundPayload(obj)).not.toThrow();
+    const result = guardInboundPayload(obj);
+    expect(result.ok).toBe(true);
   });
 
   it("rejects a non-plain-object nested value", () => {
