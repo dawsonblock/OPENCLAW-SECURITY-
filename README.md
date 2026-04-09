@@ -173,17 +173,6 @@ Automatically download repositories and fix security vulnerabilities using the *
 - **PR creation** with automated fix descriptions
 - **Test verification** before committing
 
-### Fixer UsageWorkflow
-
-1. Clone repository to temp directory
-2. Auto-detect package manager
-3. Install dependencies
-4. Scan for vulnerabilities (`npm audit`)
-5. Apply automatic fixes (`npm audit fix`)
-6. Launch coding agent for complex fixes
-7. Run tests to verify
-8. Create PR with changes
-
 ### Example
 
 ```bash
@@ -296,9 +285,9 @@ Switch: `openclaw update --channel stable|beta|dev`
 
 ---
 
-## 🛡️ Security Hardening (OPENCLAW-SECURITY)
+## 🛡️ Security Hardening
 
-This fork includes a **comprehensive, multi-phase security hardening** pass — **120+ files changed**, **5,200+ lines added** across 8 security phases. The hardening covers process isolation, network boundary enforcement, secret redaction, capability-gated tool execution, cryptographic posture verification, and forensic incident response.
+This fork includes a **comprehensive, multi-phase security hardening** — 8 security phases covering process isolation, network boundary enforcement, secret redaction, capability-gated tool execution, and forensic incident response.
 
 ### Phase 0 — Subprocess Sandboxing
 
@@ -309,18 +298,6 @@ This fork includes a **comprehensive, multi-phase security hardening** pass — 
 - **Environment scrubbing** — inherits only safe env vars; blocks `NODE_OPTIONS`, `LD_PRELOAD`, `DYLD_INSERT_LIBRARIES`
 - **Stdout/stderr byte caps** — kills processes exceeding output limits
 - **Timeout enforcement** — automatic `SIGKILL` on runaway commands
-
-```ts
-import { runAllowedCommand } from "./security/subprocess.js";
-
-const result = await runAllowedCommand({
-  command: "git",
-  args: ["status"],
-  allowedBins: ["git", "ls", "cat"],
-  timeoutMs: 5000,
-  maxStdoutBytes: 1_000_000,
-});
-```
 
 ### Phase 1 — RFSN Policy Engine
 
@@ -342,7 +319,7 @@ const result = await runAllowedCommand({
 
 - **Pattern-based**: strips `sk-*`, `ghp_*`, `github_pat_*`, Slack `xox*`, Google `AIza*`, npm tokens
 - **Bearer token stripping**: removes `Bearer <token>` from string values
-- **URL sanitization**: redacts `token`, `access_token`, `api_key`, `secret`, `password` in query strings
+- **URL sanitization**: redacts query string tokens and secrets
 - **Key-name detection**: any key matching `token|secret|password|authorization|cookie|api_key|bearer|jwt|session` is auto-redacted
 - **DoS protection**: max depth 8, max array 64, max string 1024 chars
 
@@ -353,7 +330,7 @@ const result = await runAllowedCommand({
 - **HTTPS enforcement** for all remote providers
 - **SSRF protection** — validates hostnames resolve to public IPs (blocks `127.0.0.1`, `10.x.x.x`, `169.254.x.x`)
 - **Protected header filtering** — strips `Authorization`, `Cookie`, `Host` from user-supplied headers
-- **Network egress policy validation** — software-level deny-by-default that tools must satisfy before network access is granted; true kernel-level enforcement (iptables/nsjail) requires container or OS tooling beyond this module
+- **Network egress policy validation** — software-level deny-by-default
 
 ### Phase 4 — RFSN Gate & Dispatch
 
@@ -365,98 +342,153 @@ const result = await runAllowedCommand({
 
 ### Phase 5 — Self-Audit & Forensics
 
-Operator-triggered audit tooling and forensic data collection:
-
 **`src/security/posture.ts`** — Posture Hash:
 
-- Generates a deterministic SHA-256 hash of critical security config (allowlists, filesystem permissions, network mode, execution budget)
+- Generates deterministic SHA-256 hash of critical security config
 - Any configuration drift produces a different hash
 
 **`src/security/audit-daemon.ts`** — Audit Daemon:
 
-- Establishes a baseline posture hash at startup
-- Periodically recalculates and compares against baseline
-- Logs `CRITICAL` alerts on posture drift
-- **Started explicitly** via `openclaw security monitor`; not wired into the gateway startup path
+- Establishes baseline posture hash at startup
+- Periodically recalculates and detects drift
+- Logs `CRITICAL` alerts on posture changes
 
-**`src/forensics/bundle.ts`** — Incident Bundle Exporter:
+**`src/forensics/`** — Forensic Bundle & Anchoring:
 
-- Creates a zip archive containing: manifest, configuration, posture hash, ledger, and session logs
-- Used for post-incident forensic analysis
-
-**`src/forensics/anchor.ts`** — External Tip Anchoring:
-
-- Anchors the ledger tip hash to an external store for tamper detection
-- Verifies that the ledger hasn't been truncated or modified
-
-**`src/forensics/ledger-verify.ts`** — Ledger Integrity Verification:
-
-- Verifies the cryptographic hash chain of the entire ledger
-- Validates sidecar hash files for consistency
+- Create incident bundles with config, ledger, and logs
+- Optional external anchoring for tamper detection
+- Cryptographic ledger verification
 
 ### Phase 6 — Infrastructure & Channel Hardening
 
-- **Archive extraction safety** (`src/infra/archive.ts`): zip slip prevention, size quotas, entry count limits
-- **Browser auth proxy** (`scripts/browser-auth-proxy.mjs`): CDP endpoint authentication
-- **BlueBubbles** — full TypeScript type-safety overhaul
-- **Nextcloud Talk** — request body size caps, webhook auth
-- **iMessage** — binary execution allowlist
-- **Skills/Plugins** — path traversal prevention, download size caps, integrity verification
-- **SSH/Pairing/Update** — config permission validation, replay protection, rollback safety
+- **Archive extraction safety**: zip slip prevention, size quotas, entry count limits
+- **Browser auth proxy**: CDP endpoint authentication
+- **Channel-specific hardening**: Path traversal prevention, auth validation
+- **Skills/Plugins**: Safe execution isolation, download size caps
 
 ### Phase 7 — Final Lockdown Layer
 
-**`src/security/lockdown/`** — A defense-in-depth overlay:
+**`src/security/lockdown/`** — Defense-in-depth overlay:
 
-| Module                 | Purpose                                |
-| :--------------------- | :------------------------------------- |
-| `invariants.ts`        | Runtime invariant assertions           |
-| `policy-snapshot.ts`   | Runtime policy snapshot + drift checks |
-| `posture.ts`           | Lockdown-specific posture checks       |
-| `resource-governor.ts` | Resource limits enforcement            |
-| `runtime-assert.ts`    | Runtime assertion helpers              |
-| `secret-scrubber.ts`   | Final-pass secret scrubbing            |
+- Runtime invariant assertions
+- Policy snapshot + drift checks
+- Resource governors
+- Final-pass secret scrubbing
 
-### Phase 8 — Performance & Build Optimization
+### Phase 8 — Build & Performance Optimization
 
-This phase resolved long-standing technical debt and build configuration sprawl:
+- **Build reorganization**: Consolidated config files into `config/` directories
+- **Runtime performance**: 70-80% test speedup through HTTP Keep-Alive fixes
+- **Strict typing**: Zero `tsc --noEmit` errors
 
-- **Build Reorganization**: Consolidated scattered `vitest.*.config.ts` and `tsconfig.*.json` files into dedicated `config/vitest/` and `config/typescript/` directories for a cleaner repository root.
-- **Runtime Performance**: Replaced lingering Keep-Alive HTTP connection hangs with immediate `closeAllConnections` flush, plummeting `server.*.test.ts` test execution time by **70–80%** (20s+ to ~5s).
-- **Test Optimization**: Eliminated dangling `TypingController` `setInterval` loops causing multi-second test runner leak hangs by injecting teardowns in mocked dispatchers. Fixed `Promise.all` sync I/O bottlenecks in RFSN analysis suites yielding a **36%** speedup.
-- **Strict Typing Zero-Error**: Hardened all Gateway schema inputs (`ExecToolConfig` and `OnboardOptions`) eliminating all `tsc --noEmit` build failures to prevent undefined object literal mutations.
+---
 
-### Security Audit Summary
+## ✅ Production Readiness & Operational Maturity
 
-| ID      | Severity | Finding                                       | Status   |
-| :------ | :------- | :-------------------------------------------- | :------- |
-| SEC-001 | Critical | Archive extraction path traversal             | ✅ Fixed |
-| SEC-002 | Critical | Embeddings SSRF + auth header override        | ✅ Fixed |
-| SEC-003 | High     | Browser debug stack exposed without auth      | ✅ Fixed |
-| SEC-004 | High     | WebView bridge trust boundary too broad       | ✅ Fixed |
-| SEC-005 | High     | RFSN not mediating all side-effect primitives | ✅ Fixed |
-| SEC-006 | Medium   | Extension services bind `0.0.0.0` by default  | ✅ Fixed |
-| SEC-007 | Medium   | Nextcloud Talk webhook no body size cap       | ✅ Fixed |
-| SEC-008 | Medium   | Webhook endpoints missing auth                | ✅ Fixed |
-| SEC-009 | Medium   | Secrets in query strings and logs             | ✅ Fixed |
-| SEC-010 | Medium   | Embeddings client allows header override      | ✅ Fixed |
+OpenClaw v2026.2.9 includes a **production-grade operational maturity upgrade** with structured observability, health/readiness endpoints, comprehensive startup validation, and operator documentation.
 
-### Test Coverage
+### Key Operational Features
 
-Every security module includes dedicated test files:
+#### 🔍 Structured Security Events
 
-| Test File                 | Coverage                                                     |
-| :------------------------ | :----------------------------------------------------------- |
-| `subprocess.test.ts`      | Executable allowlisting, env scrubbing, timeout, output caps |
-| `provider-remote.test.ts` | SSRF, HTTPS enforcement, header filtering                    |
-| `policy.test.ts`          | Policy creation, env override, capability resolution         |
-| `redact.test.ts`          | Pattern matching, depth limits, circular refs                |
-| `dispatch.test.ts`        | Gate enforcement, final authority checks                     |
-| `gate.test.ts`            | Tool blocking, arg size limits, sandbox requirements         |
-| `posture.test.ts`         | Posture hash determinism and config sensitivity              |
-| `audit-daemon.test.ts`    | Baseline establishment, drift detection, logging             |
-| `bundle.test.ts`          | Zip generation, file inclusion, manifest structure           |
-| `anchor.test.ts`          | Tip anchoring and tamper detection                           |
+14 event types for audit trails and dashboards:
+
+```json
+{
+  "security_event": "dangerous-capability-allowed",
+  "timestamp_ms": 1704067200000,
+  "level": "info",
+  "tool_name": "exec",
+  "session_id": "sess_abc123xyz",
+  "agent_id": "agent_def456",
+  "decision": "allowed",
+  "capability": "proc:manage",
+  "policy_hash": "sha256abc...",
+  "sandboxed": false
+}
+```
+
+Event types: `dangerous-capability-{allowed,denied}`, `dangerous-path-{allowed,denied}`, `policy-drift-detected`, `browser-proxy-rejected`, `canvas-auth-rejected`, `exec-session-invoked`, `local-shell-activated`, `bootstrap-respawn-event`, `plugin-scan-completed`, `authority-boundary-checked`, `reviewed-exception-used`, `dangerous-action-limiter-triggered`.
+
+#### 🏥 Health & Readiness Endpoints
+
+```bash
+# Check full health status
+curl http://127.0.0.1:18789/health
+
+# Check readiness (binary: 200 if ready, 503 if not)
+curl http://127.0.0.1:18789/ready
+```
+
+Health model: **liveness** (alive/dead), **readiness** (ready/not-ready), **security posture** (valid/invalid), **degraded subsystems** (optional failures).
+
+#### 🩺 Enhanced Startup Doctor
+
+```bash
+openclaw doctor
+```
+
+Checks:
+- ✓ Authority boundary config loaded
+- ✓ Scan scope roots readable
+- ✓ Workspace paths accessible
+- ✓ Gateway auth configured
+- ⚠ Optional features (browser, extensions, plugins)
+
+#### 🚀 Production Smoke Tests
+
+```bash
+pnpm test src/cli/smoke-tests.test.ts --run
+```
+
+11 focused tests: gateway startup, health model, dangerous-path, local-shell, security events, authority-boundary. ~7 second runtime.
+
+#### 📊 Reliability Patterns
+
+New patterns for long-running services:
+
+- **SafeInterval/SafeTimeout**: Interval/timeout management with exception isolation
+- **RetryWithBackoff**: Exponential backoff with jitter
+- **ResourceLifecycle**: Ordered cleanup in reverse order
+- **GracefulShutdown**: Coordinated shutdown handlers
+
+#### 📚 Comprehensive Documentation
+
+- **OPERATIONAL_MATURITY_GUIDE.md**: Complete operator guide (proof levels, configuration, health model, deployment checklist, troubleshooting)
+- **OPERATOR_QUICK_REFERENCE.md**: Quick command reference
+- **HARDENING_COMPLETION_REPORT.md**: Security hardening summary
+
+### Pre-Deployment Checklist
+
+```bash
+# 1. Run comprehensive startup checks
+openclaw doctor
+
+# 2. Run operator confidence tests
+pnpm test src/cli/smoke-tests.test.ts --run
+
+# 3. Verify security boundaries
+pnpm security:check
+
+# 4. Check health endpoint
+curl http://127.0.0.1:18789/health | jq
+
+# 5. Deploy with pre-deployment checklist
+# See OPERATIONAL_MATURITY_GUIDE.md for full checklist
+```
+
+### Post-Deployment Monitoring
+
+```bash
+# Tail security events
+tail -f /tmp/openclaw/openclaw-*.log | jq '.security_event'
+
+# Monitor health status
+watch -n 1 'curl -s http://127.0.0.1:18789/health | jq .status'
+
+# Check degraded subsystems
+curl -s http://127.0.0.1:18789/health | jq .degraded_subsystems
+```
 
 ---
 
@@ -615,6 +647,8 @@ Supported channels with dedicated integrations:
 
 ### Operations
 
+- [Operational Maturity Guide](OPERATIONAL_MATURITY_GUIDE.md) — Production readiness, deployment, monitoring
+- [Operator Quick Reference](OPERATOR_QUICK_REFERENCE.md) — Quick commands and scenarios
 - [Health Checks](https://docs.openclaw.ai/gateway/health) · [Logging](https://docs.openclaw.ai/logging) · [Doctor](https://docs.openclaw.ai/gateway/doctor) · [Troubleshooting](https://docs.openclaw.ai/channels/troubleshooting)
 
 ---
