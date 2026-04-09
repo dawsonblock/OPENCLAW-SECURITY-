@@ -1,10 +1,15 @@
 import path from "node:path";
 
 /**
- * This importer-boundary proof covers the shipped Node/TypeScript runtime under
- * src/ and extensions/. Native apps under apps/ and package wrapper scripts
- * under packages/ are reviewed by other guards and stay outside this path-only
- * TypeScript authority scan.
+ * This authority-boundary scan intentionally covers the shipped server-side
+ * TypeScript runtime roots that participate in the child-process trust model:
+ * core runtime code in src/ plus Node-loaded extension code in extensions/.
+ *
+ * It intentionally does not treat the whole repository as one scan domain.
+ * apps/ contains native mobile/macOS code, packages/ contains tiny JavaScript
+ * compatibility shims that forward to the main package, and ui/ is browser
+ * code; none of those directories are part of this path-based TypeScript
+ * importer proof for the reviewed execution-authority exceptions.
  */
 export const AUTHORITY_BOUNDARY_SCAN_ROOTS = ["src", "extensions"] as const;
 
@@ -24,10 +29,7 @@ export const REVIEWED_CHILD_PROCESS_IMPORTERS = [
 ] as const;
 
 export const REVIEWED_AUTHORITY_IMPORTERS = {
-  "src/process/spawn-utils.ts": [
-    "src/agents/bash-tools.exec.runtime.ts",
-    "src/process/exec.ts",
-  ],
+  "src/process/spawn-utils.ts": ["src/agents/bash-tools.exec.runtime.ts", "src/process/exec.ts"],
   "src/tui/tui-local-shell.ts": ["src/tui/tui.ts"],
   "src/entry.ts": [],
 } as const satisfies Record<string, readonly string[]>;
@@ -39,9 +41,9 @@ export const FORBIDDEN_AUTHORITY_IMPORT_ROOTS = [
   "src/agents/tools/",
 ] as const;
 
-export const AUTHORITY_EXCEPTION_TARGETS = Object.keys(
-  REVIEWED_AUTHORITY_IMPORTERS,
-) as Array<keyof typeof REVIEWED_AUTHORITY_IMPORTERS>;
+export const AUTHORITY_EXCEPTION_TARGETS = Object.keys(REVIEWED_AUTHORITY_IMPORTERS) as Array<
+  keyof typeof REVIEWED_AUTHORITY_IMPORTERS
+>;
 
 /**
  * Normalize repo-relative paths to forward-slash form so tests and CI compare

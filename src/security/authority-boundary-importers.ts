@@ -24,7 +24,38 @@ const AUTHORITY_SCAN_ROOT_PATHS = AUTHORITY_BOUNDARY_SCAN_ROOTS.map((root) =>
   path.resolve(process.cwd(), root),
 );
 
-export async function listRuntimeTsFiles(scanRootPaths = AUTHORITY_SCAN_ROOT_PATHS): Promise<string[]> {
+type AuthorityBoundaryResolverContext = {
+  compilerOptions: ts.CompilerOptions;
+  moduleResolutionHost: ts.ModuleResolutionHost;
+};
+
+function createAuthorityBoundaryResolverContext(
+  cwd = process.cwd(),
+): AuthorityBoundaryResolverContext {
+  const configPath = ts.findConfigFile(cwd, ts.sys.fileExists, "tsconfig.json");
+  let compilerOptions: ts.CompilerOptions = {};
+
+  if (configPath) {
+    const readResult = ts.readConfigFile(configPath, ts.sys.readFile);
+    if (!readResult.error) {
+      const parsed = ts.parseJsonConfigFileContent(
+        readResult.config,
+        ts.sys,
+        path.dirname(configPath),
+      );
+      compilerOptions = parsed.options;
+    }
+  }
+
+  return {
+    compilerOptions,
+    moduleResolutionHost: ts.sys,
+  };
+}
+
+export async function listRuntimeTsFiles(
+  scanRootPaths = AUTHORITY_SCAN_ROOT_PATHS,
+): Promise<string[]> {
   const files: string[] = [];
   const stack = [...scanRootPaths];
 
@@ -75,7 +106,10 @@ export function collectRuntimeImportSpecifiers(
   );
 
   const hasRuntimeImportBinding = (importClause: ts.ImportClause | undefined): boolean => {
-    if (!importClause || importClause.isTypeOnly) {
+    if (!importClause) {
+      return true;
+    }
+    if (importClause.isTypeOnly) {
       return false;
     }
     if (importClause.name) {
@@ -109,10 +143,7 @@ export function collectRuntimeImportSpecifiers(
       hasRuntimeImportBinding(statement.importClause) &&
       ts.isStringLiteral(statement.moduleSpecifier)
     ) {
-      const specifier = statement.moduleSpecifier.text;
-      if (specifier.startsWith(".")) {
-        specifiers.add(specifier);
-      }
+      specifiers.add(statement.moduleSpecifier.text);
       continue;
     }
 
@@ -122,10 +153,7 @@ export function collectRuntimeImportSpecifiers(
       statement.moduleSpecifier &&
       ts.isStringLiteral(statement.moduleSpecifier)
     ) {
-      const specifier = statement.moduleSpecifier.text;
-      if (specifier.startsWith(".")) {
-        specifiers.add(specifier);
-      }
+      specifiers.add(statement.moduleSpecifier.text);
     }
   }
 
@@ -136,7 +164,7 @@ export function collectRuntimeImportSpecifiers(
       node.arguments.length > 0
     ) {
       const [firstArg] = node.arguments;
-      if (ts.isStringLiteral(firstArg) && firstArg.text.startsWith(".")) {
+      if (ts.isStringLiteral(firstArg)) {
         specifiers.add(firstArg.text);
       }
     }
@@ -147,7 +175,7 @@ export function collectRuntimeImportSpecifiers(
   return [...specifiers];
 }
 
-function resolveImportCandidates(importerAbsPath: string, specifier: string): string[] {
+function resolveRelativeImportCandidates(importerAbsPath: string, specifier: string): string[] {
   const base = path.resolve(path.dirname(importerAbsPath), specifier);
   const ext = path.extname(base);
   const candidates = new Set<string>([path.normalize(base)]);
@@ -168,6 +196,50 @@ function resolveImportCandidates(importerAbsPath: string, specifier: string): st
   return [...candidates];
 }
 
+function resolveConfiguredImportCandidate(
+  importerAbsPath: string,
+  specifier: string,
+  context: AuthorityBoundaryResolverContext,
+): string[] {
+  const resolved = ts.resolveModuleName(
+    specifier,
+    importerAbsPath,
+    context.compilerOptions,
+    context.moduleResolutionHost,
+  ).resolvedModule;
+
+  if (!resolved || resolved.isExternalLibraryImport) {
+    return [];
+  }
+  if (
+    resolved.extension === ts.Extension.Dts ||
+    resolved.extension === ts.Extension.Dcts ||
+    resolved.extension === ts.Extension.Dmts
+  ) {
+    return [];
+  }
+
+  return [path.normalize(resolved.resolvedFileName)];
+}
+
+/**
+ * The importer scan resolves normal relative runtime edges plus the repository's
+ * configured TypeScript path aliases from tsconfig.json. That keeps the
+ * authority proof aligned with the current repo without growing into a general
+ * package-manager/module resolver.
+ */
+function resolveImportCandidates(
+  importerAbsPath: string,
+  specifier: string,
+  context: AuthorityBoundaryResolverContext,
+): string[] {
+  if (specifier.startsWith(".")) {
+    return resolveRelativeImportCandidates(importerAbsPath, specifier);
+  }
+
+  return resolveConfiguredImportCandidate(importerAbsPath, specifier, context);
+}
+
 function areArraysEqual(array1: readonly string[], array2: readonly string[]): boolean {
   return array1.length === array2.length && array1.every((entry, index) => entry === array2[index]);
 }
@@ -175,8 +247,13 @@ function areArraysEqual(array1: readonly string[], array2: readonly string[]): b
 export async function findRuntimeImporters(
   targetRelPath: AuthorityExceptionTarget,
   files?: readonly string[],
+  options?: {
+    cwd?: string;
+  },
 ): Promise<string[]> {
-  const targetAbsPath = path.normalize(path.resolve(process.cwd(), targetRelPath));
+  const cwd = options?.cwd ?? process.cwd();
+  const resolverContext = createAuthorityBoundaryResolverContext(cwd);
+  const targetAbsPath = path.normalize(path.resolve(cwd, targetRelPath));
   const runtimeFiles = files ? [...files] : await listRuntimeTsFiles();
   const importers: string[] = [];
 
@@ -186,10 +263,10 @@ export async function findRuntimeImporters(
     }
     const content = await fs.readFile(absPath, "utf8");
     const importsTarget = collectRuntimeImportSpecifiers(content, absPath).some((specifier) =>
-      resolveImportCandidates(absPath, specifier).includes(targetAbsPath),
+      resolveImportCandidates(absPath, specifier, resolverContext).includes(targetAbsPath),
     );
     if (importsTarget) {
-      importers.push(toAuthorityBoundaryRepoPath(absPath));
+      importers.push(toAuthorityBoundaryRepoPath(absPath, cwd));
     }
   }
 
