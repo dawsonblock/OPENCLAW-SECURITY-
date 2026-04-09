@@ -71,6 +71,36 @@ describe("execution authority boundaries", () => {
     }
   });
 
+  test("cwd-scoped scans use the provided workspace roots when files are not passed", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-authority-scan-roots-"));
+
+    try {
+      const target = path.join(tempRoot, "src/process/spawn-utils.ts");
+      const importer = path.join(tempRoot, "src/process/exec.ts");
+
+      await fs.mkdir(path.dirname(target), { recursive: true });
+      await fs.writeFile(
+        path.join(tempRoot, "tsconfig.json"),
+        JSON.stringify({
+          compilerOptions: {
+            module: "NodeNext",
+            moduleResolution: "NodeNext",
+          },
+        }),
+      );
+      await fs.writeFile(target, "export function spawnWithFallback() { return 1; }\n");
+      await fs.writeFile(importer, 'export { spawnWithFallback } from "./spawn-utils.js";\n');
+
+      const importers = await findRuntimeImporters("src/process/spawn-utils.ts", undefined, {
+        cwd: tempRoot,
+      });
+
+      expect(importers).toEqual(["src/process/exec.ts"]);
+    } finally {
+      await fs.rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   test("spawn-utils stays limited to the reviewed exec-session runtime path", async () => {
     const importers = await findRuntimeImporters("src/process/spawn-utils.ts");
 
