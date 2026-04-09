@@ -10,16 +10,23 @@ import {
 } from "./authority-boundary-importers.js";
 
 describe("execution authority boundaries", () => {
-  test("type-only named imports and exports do not count as runtime importers", () => {
+  test("side-effect-only imports count as runtime importers", () => {
     const specifiers = collectRuntimeImportSpecifiers(`
       import "../process/spawn-utils.js";
+    `);
+
+    expect(specifiers).toEqual(["../process/spawn-utils.js"]);
+  });
+
+  test("type-only named imports and exports do not count as runtime importers", () => {
+    const specifiers = collectRuntimeImportSpecifiers(`
       import { type ExecProcessHandle } from "../agents/bash-tools.exec.types.js";
       import { runtimeValue, type Helper } from "../process/exec.js";
       export { type SpawnFallback } from "../process/spawn-utils.js";
       export { resolveCommandStdio, type SpawnWithFallbackResult } from "../process/spawn-utils.js";
     `);
 
-    expect(specifiers).toEqual(["../process/spawn-utils.js", "../process/exec.js"]);
+    expect(specifiers).toEqual(["../process/exec.js", "../process/spawn-utils.js"]);
   });
 
   test("tsconfig path aliases still count as runtime importers of reviewed authority files", async () => {

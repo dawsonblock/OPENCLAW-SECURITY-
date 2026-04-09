@@ -107,6 +107,8 @@ export function collectRuntimeImportSpecifiers(
 
   const hasRuntimeImportBinding = (importClause: ts.ImportClause | undefined): boolean => {
     if (!importClause) {
+      // `import "./module.js"` is still a runtime dependency edge even though it
+      // binds no local names, so it must count in the authority importer scan.
       return true;
     }
     if (importClause.isTypeOnly) {
