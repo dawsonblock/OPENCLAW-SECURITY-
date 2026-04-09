@@ -1,9 +1,8 @@
 /**
- * Structured security-critical events for operational observability.
+ * Enhanced security events with correlation and latency tracking.
  *
- * These events capture security decisions, policy enforcement, and reviewed
- * exception usage in a machine-readable, redacted, deterministic form suitable
- * for audit logging and operational dashboards.
+ * E4.1: Added correlationId for tracing proposal→decision→result
+ * E4.1: Added latency tracking for decision evaluation and execution
  */
 
 export type SecurityEventType =
@@ -39,6 +38,10 @@ export interface SecurityEvent {
   sandboxed?: boolean;
   breakGlass?: boolean; // whether a reviewed exception was used
   metadata?: Record<string, unknown>; // additional context
+  // E4.1: Correlation and latency tracking
+  correlationId?: string; // ties proposal→decision→result across flow
+  evaluationTimeMs?: number; // how long did gate evaluation take
+  executionTimeMs?: number; // how long did tool execution take
 }
 
 export interface DangerousCapabilityEvent extends SecurityEvent {
@@ -116,4 +119,11 @@ export function createNullSecurityEventEmitter(): SecurityEventEmitter {
     },
     child: () => createNullSecurityEventEmitter(),
   };
+}
+
+/**
+ * E4.1: Generate a correlation ID for tracing a decision through the system.
+ */
+export function generateCorrelationId(): string {
+  return `corr_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 }

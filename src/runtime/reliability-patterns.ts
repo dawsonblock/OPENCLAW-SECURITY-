@@ -1,6 +1,8 @@
 /**
  * Long-running service reliability patterns and guardrails.
  *
+ * E5.1: Added instrumentation hooks for metrics collection.
+ *
  * Common pitfalls in long-lived processes:
  * - Repeated retry loops with weak backoff
  * - Unhandled promise rejections
@@ -14,6 +16,7 @@
  * - Structured backoff with jitter
  * - Graceful degradation on transient failures
  * - Clear resource ownership
+ * - Instrumentation for metrics
  */
 
 import { EventEmitter } from "node:events";
@@ -79,11 +82,33 @@ export async function retryWithBackoff<T>(
 }
 
 /**
+ * E5.1: Metrics for SafeInterval instrumentation.
+ */
+export interface SafeIntervalMetrics {
+  iterationsCompleted: number;
+  iterationsFailed: number;
+  lastIterationTimeMs: number;
+  averageIterationTimeMs: number;
+  totalRunTimeMs: number;
+}
+
+/**
  * Safe interval management with cleanup.
+ * E5.1: Added metrics collection and backpressure detection.
  */
 export class SafeInterval {
   private handle: NodeJS.Timeout | null = null;
   private isCancelled = false;
+  // E5.1: Instrumentation fields
+  private iterationsCompleted = 0;
+  private iterationsFailed = 0;
+  private lastIterationTimeMs = 0;
+  private totalIterationTimeMs = 0;
+  private startTimeMs = 0;
+  private lastIterationStartMs = 0;
+  private onBackpressure?: (consecutiveMissedIntervals: number) => void;
+  private lastIterationComplete = true;
+  private consecutiveMissedIntervals = 0;
 
   constructor(
     private fn: () => void | Promise<void>,
@@ -91,22 +116,47 @@ export class SafeInterval {
     private label?: string,
   ) {}
 
+  /**
+   * E5.1: Set backpressure callback.
+   */
+  setBackpressureHandler(callback: (consecutiveMissedIntervals: number) => void): this {
+    this.onBackpressure = callback;
+    return this;
+  }
+
   start(): this {
     if (this.isCancelled) {
       return this;
     }
 
+    this.startTimeMs = Date.now();
     this.handle = setInterval(async () => {
       if (this.isCancelled) {
         return;
       }
 
+      // E5.1: Backpressure detection
+      if (!this.lastIterationComplete) {
+        this.consecutiveMissedIntervals++;
+        this.onBackpressure?.(this.consecutiveMissedIntervals);
+        return;
+      }
+
+      this.lastIterationComplete = false;
+      this.lastIterationStartMs = Date.now();
+
       try {
         await this.fn();
+        this.iterationsCompleted++;
+        this.consecutiveMissedIntervals = 0;
       } catch (err) {
-        // Log but don't crash the interval.
-        // (In real code, emit to logger)
+        this.iterationsFailed++;
         console.error(`[SafeInterval:${this.label}] Interval function failed:`, err);
+      } finally {
+        const elapsed = Date.now() - this.lastIterationStartMs;
+        this.lastIterationTimeMs = elapsed;
+        this.totalIterationTimeMs += elapsed;
+        this.lastIterationComplete = true;
       }
     }, this.intervalMs);
 
@@ -120,6 +170,22 @@ export class SafeInterval {
     }
     this.isCancelled = true;
     return this;
+  }
+
+  /**
+   * E5.1: Get metrics for this interval.
+   */
+  getMetrics(): SafeIntervalMetrics {
+    return {
+      iterationsCompleted: this.iterationsCompleted,
+      iterationsFailed: this.iterationsFailed,
+      lastIterationTimeMs: this.lastIterationTimeMs,
+      averageIterationTimeMs:
+        this.iterationsCompleted > 0
+          ? Math.round(this.totalIterationTimeMs / this.iterationsCompleted)
+          : 0,
+      totalRunTimeMs: this.startTimeMs > 0 ? Date.now() - this.startTimeMs : 0,
+    };
   }
 }
 

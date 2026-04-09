@@ -8,13 +8,18 @@
  * - proxy rejections
  * - reviewed exception use
  *
+ * E4.1: Added correlation ID and latency tracking support
+ *
  * Events are emitted via structured logging transport and can be
  * consumed by audit dashboards, SIEM systems, or forensic analysis tools.
  */
 
 import { getChildLogger } from "../logging/logger.js";
 import type { SecurityEvent, SecurityEventEmitter } from "./security-events.js";
-import { createNullSecurityEventEmitter } from "./security-events.js";
+import {
+  createNullSecurityEventEmitter,
+  generateCorrelationId,
+} from "./security-events.js";
 
 /**
  * Create a security event emitter backed by structured logging.
@@ -40,6 +45,10 @@ export function createSecurityEventEmitter(bindings?: Record<string, unknown>): 
         policy_hash: event.policyHash,
         sandboxed: event.sandboxed,
         break_glass: event.breakGlass,
+        // E4.1: Correlation and latency fields
+        correlation_id: event.correlationId,
+        evaluation_time_ms: event.evaluationTimeMs,
+        execution_time_ms: event.executionTimeMs,
         metadata: event.metadata,
       });
     },
@@ -92,7 +101,7 @@ export function redactAgentId(agentId: string): string {
 }
 
 /**
- * Helper to create common dangerous-capability events.
+ * E4.1: Helper to create dangerous-capability events with correlation ID and latency.
  */
 export function emitDangerousCapabilityEvent(params: {
   emitter: SecurityEventEmitter;
@@ -103,6 +112,8 @@ export function emitDangerousCapabilityEvent(params: {
   sessionId?: string;
   agentId?: string;
   sandboxed?: boolean;
+  correlationId?: string;
+  evaluationTimeMs?: number;
 }): void {
   emitter.emit({
     type:
@@ -118,11 +129,14 @@ export function emitDangerousCapabilityEvent(params: {
     sessionId: params.sessionId ? redactSessionId(params.sessionId) : undefined,
     agentId: params.agentId ? redactAgentId(params.agentId) : undefined,
     sandboxed: params.sandboxed,
+    // E4.1: Add correlation and latency
+    correlationId: params.correlationId,
+    evaluationTimeMs: params.evaluationTimeMs,
   });
 }
 
 /**
- * Helper to create dangerous-path decision events.
+ * E4.1: Helper to create dangerous-path decision events with correlation ID and latency.
  */
 export function emitDangerousPathEvent(params: {
   emitter: SecurityEventEmitter;
@@ -134,6 +148,9 @@ export function emitDangerousPathEvent(params: {
   agentId?: string;
   policyHash?: string;
   sandboxed?: boolean;
+  correlationId?: string;
+  evaluationTimeMs?: number;
+  executionTimeMs?: number;
 }): void {
   params.emitter.emit({
     type:
@@ -148,6 +165,10 @@ export function emitDangerousPathEvent(params: {
     agentId: params.agentId ? redactAgentId(params.agentId) : undefined,
     policyHash: params.policyHash,
     sandboxed: params.sandboxed,
+    // E4.1: Add correlation and latency
+    correlationId: params.correlationId,
+    evaluationTimeMs: params.evaluationTimeMs,
+    executionTimeMs: params.executionTimeMs,
   });
 }
 
@@ -177,4 +198,7 @@ export function emitReviewedException(params: {
   });
 }
 
-export { createNullSecurityEventEmitter };
+export {
+  createNullSecurityEventEmitter,
+  generateCorrelationId,
+};

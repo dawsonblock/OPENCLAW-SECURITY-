@@ -1,11 +1,8 @@
 /**
- * Health and readiness model for OpenCLAW runtime.
+ * Enhanced health model with detailed subsystem tracking.
  *
- * Supports:
- * - liveness: process is alive
- * - readiness: startup invariants passed, required components ready
- * - security posture readiness: authority config, policy hash, auth prerequisites valid
- * - degraded mode: runtime alive but non-critical subsystems unhealthy
+ * E2.1: Added subsystemHealth map for detailed per-subsystem status.
+ * Now tracks health status, last failure time, and consecutive failures per subsystem.
  */
 
 import type { OpenClawConfig } from "../config/config.js";
@@ -16,6 +13,17 @@ export interface ComponentHealth {
   name: string;
   status: HealthStatus;
   message?: string;
+}
+
+/**
+ * E2.1: Detailed subsystem health tracking.
+ */
+export interface SubsystemHealthDetail {
+  status: "healthy" | "degraded" | "error";
+  message?: string;
+  lastFailureTimeMs?: number;
+  consecutiveFailures: number;
+  lastRecoveryTimeMs?: number;
 }
 
 export interface RuntimeHealth {
@@ -34,6 +42,8 @@ export interface RuntimeHealth {
   };
   components: ComponentHealth[];
   degraded_subsystems: string[];
+  // E2.1: Detailed subsystem health tracking
+  subsystemHealth?: Record<string, SubsystemHealthDetail>;
 }
 
 /**
@@ -78,6 +88,7 @@ export function createEmptyHealth(): RuntimeHealth {
     },
     components: [],
     degraded_subsystems: [],
+    subsystemHealth: {},
   };
 }
 
@@ -148,6 +159,75 @@ export class HealthBuilder {
     return this;
   }
 
+  /**
+   * E2.1: Set detailed health for a subsystem.
+   */
+  setSubsystemHealth(
+    subsystem: string,
+    health: Omit<SubsystemHealthDetail, "consecutiveFailures">,
+    consecutiveFailures: number = 0,
+  ): this {
+    if (!this.health.subsystemHealth) {
+      this.health.subsystemHealth = {};
+    }
+    this.health.subsystemHealth[subsystem] = {
+      ...health,
+      consecutiveFailures,
+    };
+    return this;
+  }
+
+  /**
+   * E2.1: Mark a subsystem as having failed.
+   */
+  recordSubsystemFailure(subsystem: string, message?: string): this {
+    if (!this.health.subsystemHealth) {
+      this.health.subsystemHealth = {};
+    }
+
+    const existing = this.health.subsystemHealth[subsystem];
+    const consecutive = (existing?.consecutiveFailures ?? 0) + 1;
+
+    this.health.subsystemHealth[subsystem] = {
+      status: consecutive > 2 ? "error" : "degraded",
+      message,
+      lastFailureTimeMs: Date.now(),
+      consecutiveFailures: consecutive,
+      lastRecoveryTimeMs: existing?.lastRecoveryTimeMs,
+    };
+
+    // Auto-mark as degraded if not already
+    if (!this.health.degraded_subsystems.includes(subsystem)) {
+      this.health.degraded_subsystems.push(subsystem);
+    }
+
+    return this;
+  }
+
+  /**
+   * E2.1: Mark a subsystem as recovered.
+   */
+  recordSubsystemRecovery(subsystem: string): this {
+    if (!this.health.subsystemHealth) {
+      this.health.subsystemHealth = {};
+    }
+
+    this.health.subsystemHealth[subsystem] = {
+      status: "healthy",
+      consecutiveFailures: 0,
+      lastRecoveryTimeMs: Date.now(),
+      lastFailureTimeMs: this.health.subsystemHealth[subsystem]?.lastFailureTimeMs,
+    };
+
+    // Remove from degraded list
+    const index = this.health.degraded_subsystems.indexOf(subsystem);
+    if (index >= 0) {
+      this.health.degraded_subsystems.splice(index, 1);
+    }
+
+    return this;
+  }
+
   build(): RuntimeHealth {
     this.health.readiness.status =
       this.health.readiness.blockers.length === 0 ? "ready" : "not-ready";
@@ -201,7 +281,7 @@ export function runStartupChecks(params: {
   }
 
   // Warn if safe mode is enabled in production.
-  if ((process.env.OPENCLAW_SAFE_MODE ?? "").trim() === "1") {
+  if ((params.env.OPENCLAW_SAFE_MODE ?? "").trim() === "1") {
     warnings.push("OPENCLAW_SAFE_MODE=1 is enabled; some features are restricted");
   }
 
