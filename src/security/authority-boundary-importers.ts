@@ -107,8 +107,9 @@ export function collectRuntimeImportSpecifiers(
 
   const hasRuntimeImportBinding = (importClause: ts.ImportClause | undefined): boolean => {
     if (!importClause) {
-      // `import './module.js'` is still a runtime dependency edge even though it
-      // binds no local names, so it must count in the authority importer scan.
+      // `import './module.js';` is still a runtime dependency edge even though
+      // it binds no local names, so it must count in the authority importer
+      // scan.
       return true;
     }
     if (importClause.isTypeOnly) {
@@ -225,11 +226,11 @@ function resolveConfiguredImportCandidate(
 }
 
 /**
- * The importer scan resolves normal relative runtime edges plus the repository's
- * configured TypeScript path aliases from the working tree's tsconfig.json.
- * That keeps the authority proof aligned with the current repo without growing
- * into a general package-manager/module resolver or a multi-project config
- * crawler.
+ * The importer scan resolves normal relative runtime edges plus the configured
+ * TypeScript path aliases from the nearest tsconfig.json that TypeScript finds
+ * for the scan cwd. That keeps the authority proof aligned with the current
+ * repo without growing into a general package-manager/module resolver or a
+ * multi-project config crawler.
  */
 function resolveImportCandidates(
   importerAbsPath: string,
