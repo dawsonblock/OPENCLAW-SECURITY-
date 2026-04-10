@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
+import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import {
   isAllowedBrowserProxyPath,
   getAllowedBrowserProxyRoots,
   collectBrowserProxyPaths,
   isProfileAllowed,
+  readBrowserProxyFile,
 } from "./browser-proxy.js";
+import { ensureMediaDir } from "../media/store.js";
 
 /**
  * Integration test: Browser proxy path containment
@@ -379,6 +383,31 @@ describe("browser-proxy path containment (runtime integration)", () => {
       expect(paths.length).toBeGreaterThan(0);
       const extractedPath = paths[0];
       expect(extractedPath).toBeDefined();
+    });
+
+    it("proves the live file boundary allows in-root reads and rejects symlink escapes", async () => {
+      const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-browser-proxy-runtime-"));
+      const mediaDir = await ensureMediaDir();
+      const allowedDir = path.join(mediaDir, `runtime-proof-${Date.now()}`);
+      const allowedFile = path.join(allowedDir, "image.txt");
+      const outsideFile = path.join(tempDir, "outside-root.txt");
+      const escapeSymlink = path.join(allowedDir, "escape-link.txt");
+
+      await fs.mkdir(allowedDir, { recursive: true });
+      await fs.writeFile(allowedFile, "inside-root", "utf8");
+      await fs.writeFile(outsideFile, "outside-root", "utf8");
+      await fs.symlink(outsideFile, escapeSymlink);
+
+      try {
+        const inRoot = await readBrowserProxyFile(allowedFile);
+        expect(Buffer.from(inRoot?.base64 ?? "", "base64").toString("utf8")).toBe("inside-root");
+        await expect(readBrowserProxyFile(escapeSymlink)).rejects.toThrow(
+          /outside approved roots/,
+        );
+      } finally {
+        await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+        await fs.rm(allowedDir, { recursive: true, force: true }).catch(() => {});
+      }
     });
   });
 });

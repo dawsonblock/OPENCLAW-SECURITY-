@@ -4,6 +4,11 @@ import fs from "node:fs/promises";
 import { describe, expect, test } from "vitest";
 import type { AnyAgentTool } from "../agents/pi-tools.types.js";
 import { rfsnDispatch } from "./dispatch.js";
+import {
+  createGateEventEmissionMiddleware,
+  getGateEventEmissionMiddleware,
+  setGateEventEmissionMiddleware,
+} from "./gate-event-emission.js";
 import { createDefaultRfsnPolicy } from "./policy.js";
 import { readLedgerEntries, resolveLedgerFilePath } from "./ledger.js";
 
@@ -189,5 +194,74 @@ describe("RFSN Runtime Gateway Integration", () => {
     const entries = await readLedgerEntries(ledgerPath);
     expect(entries.length).toBeGreaterThanOrEqual(1);
     expect(entries.some((e) => e.payload.type === "decision")).toBe(true);
+  });
+
+  test("dangerous-path: runtime gate emits allow and deny events on the live dispatch path", async () => {
+    const workspaceDir = await createTmpDir();
+    const captured: Array<{
+      verdict: "allow" | "deny" | "error";
+      toolName: string;
+      reason?: string;
+    }> = [];
+    const previousMiddleware = getGateEventEmissionMiddleware();
+    setGateEventEmissionMiddleware(
+      createGateEventEmissionMiddleware((event) => {
+        captured.push(event);
+      }),
+    );
+
+    try {
+      const execTool = createTestTool("exec", async () => ({
+        content: [{ type: "text", text: "executed" as const }],
+        details: {},
+      }));
+
+      await expect(
+        rfsnDispatch({
+          tool: execTool,
+          toolCallId: "call-dangerous-denied-event",
+          args: {},
+          workspaceDir,
+          policy: createDefaultRfsnPolicy({
+            mode: "allowlist",
+            allowTools: ["read"],
+            useEnvOverrides: false,
+          }),
+          meta: {
+            actor: "embedded-agent",
+            sessionId: "session-dangerous-denied-event",
+          },
+        }),
+      ).rejects.toThrow(/RFSN gate denied tool/);
+
+      await rfsnDispatch({
+        tool: execTool,
+        toolCallId: "call-dangerous-allowed-event",
+        args: { command: "echo runtime-proof" },
+        workspaceDir,
+        policy: createDefaultRfsnPolicy({
+          mode: "allowlist",
+          allowTools: ["exec"],
+          grantedCapabilities: ["proc:manage"],
+          useEnvOverrides: false,
+        }),
+        meta: {
+          actor: "embedded-agent",
+          sessionId: "session-dangerous-allowed-event",
+        },
+        runtime: {
+          sandboxed: true,
+        },
+      });
+
+      expect(
+        captured.some((event) => event.toolName === "exec" && event.verdict === "deny"),
+      ).toBe(true);
+      expect(
+        captured.some((event) => event.toolName === "exec" && event.verdict === "allow"),
+      ).toBe(true);
+    } finally {
+      setGateEventEmissionMiddleware(previousMiddleware);
+    }
   });
 });

@@ -8,6 +8,37 @@ const runtime = {
   exit: vi.fn(),
 };
 
+const buildRuntimeSummary = () => ({
+  status: "healthy" as const,
+  alive: true,
+  ready: true,
+  degraded: false,
+  safeMode: false,
+  readinessBlockers: [],
+  degradedSubsystems: [],
+  securityIssues: [],
+  runtime: {
+    status: "healthy" as const,
+    alive: true,
+    ready: true,
+    degraded: false,
+    safeMode: false,
+    readinessBlockers: [],
+    degradedSubsystems: [],
+    securityIssues: [],
+    details: {
+      status: "healthy" as const,
+      timestamp: Date.now(),
+      liveness: { status: "alive" as const },
+      readiness: { status: "ready" as const, blockers: [] },
+      security_posture: { status: "valid" as const, issues: [] },
+      components: [],
+      degraded_subsystems: [],
+      subsystemHealth: {},
+    },
+  },
+});
+
 const callGatewayMock = vi.fn();
 vi.mock("../gateway/call.js", () => ({
   callGateway: (...args: unknown[]) => callGatewayMock(...args),
@@ -60,6 +91,7 @@ describe("healthCommand", () => {
           sessions: agentSessions,
         },
       ],
+      ...buildRuntimeSummary(),
       sessions: agentSessions,
     };
     callGatewayMock.mockResolvedValueOnce(snapshot);
@@ -107,6 +139,7 @@ describe("healthCommand", () => {
           sessions: { path: "/tmp/sessions.json", count: 0, recent: [] },
         },
       ],
+      ...buildRuntimeSummary(),
       sessions: { path: "/tmp/sessions.json", count: 0, recent: [] },
     } satisfies HealthSummary);
 
@@ -164,6 +197,7 @@ describe("healthCommand", () => {
           sessions: { path: "/tmp/sessions.json", count: 0, recent: [] },
         },
       ],
+      ...buildRuntimeSummary(),
       sessions: { path: "/tmp/sessions.json", count: 0, recent: [] },
     };
 

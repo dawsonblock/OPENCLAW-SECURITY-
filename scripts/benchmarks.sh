@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-# This script is a placeholder for future performance and reliability benchmarking.
-# Currently, it does not perform real measurements.
+# This script is an explicit placeholder for future benchmarking work.
+# It is not part of the current operator validation or release checklist.
 # Benchmarking infrastructure is not yet implemented.
 #
 # To add real benchmarks:
@@ -14,5 +14,5 @@ set -e
 # For now, this script explicitly does NOT capture mock metrics.
 
 echo "Benchmarking infrastructure is not yet implemented."
-echo "See scripts/benchmarks.sh for planned benchmark categories."
+echo "This placeholder is not a live operational benchmark surface."
 exit 0

@@ -1,6 +1,7 @@
 import type { ChannelAccountSnapshot } from "../channels/plugins/types.js";
 import type { OpenClawConfig } from "../config/config.js";
 import type { RuntimeEnv } from "../runtime.js";
+import type { RuntimeHealth } from "../runtime/health-model.js";
 import { resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { resolveChannelDefaultAccountId } from "../channels/plugins/helpers.js";
 import { getChannelPlugin, listChannelPlugins } from "../channels/plugins/index.js";
@@ -17,6 +18,8 @@ import {
 } from "../infra/heartbeat-runner.js";
 import { buildChannelAccountBindings, resolvePreferredAccountId } from "../routing/bindings.js";
 import { normalizeAgentId } from "../routing/session-key.js";
+import { HealthBuilder, runStartupChecks } from "../runtime/health-model.js";
+import { isSafeModeEnabled } from "../security/startup-validator.js";
 import { theme } from "../terminal/theme.js";
 
 export type ChannelAccountHealthSummary = {
@@ -43,6 +46,18 @@ export type AgentHealthSummary = {
   sessions: HealthSummary["sessions"];
 };
 
+export type GatewayRuntimeHealthSummary = {
+  status: RuntimeHealth["status"];
+  alive: boolean;
+  ready: boolean;
+  degraded: boolean;
+  safeMode: boolean;
+  readinessBlockers: string[];
+  degradedSubsystems: string[];
+  securityIssues: string[];
+  details: RuntimeHealth;
+};
+
 export type HealthSummary = {
   /**
    * Convenience top-level flag for UIs (e.g. WebChat) that only need a binary
@@ -59,6 +74,15 @@ export type HealthSummary = {
   heartbeatSeconds: number;
   defaultAgentId: string;
   agents: AgentHealthSummary[];
+  status: GatewayRuntimeHealthSummary["status"];
+  alive: boolean;
+  ready: boolean;
+  degraded: boolean;
+  safeMode: boolean;
+  readinessBlockers: string[];
+  degradedSubsystems: string[];
+  securityIssues: string[];
+  runtime: GatewayRuntimeHealthSummary;
   sessions: {
     path: string;
     count: number;
@@ -238,6 +262,33 @@ const formatAccountProbeTiming = (summary: ChannelAccountHealthSummary): string 
 
   return `${handle}:${accountId}:${timing}`;
 };
+
+function buildGatewayRuntimeHealthSummary(cfg: OpenClawConfig): GatewayRuntimeHealthSummary {
+  const safeMode = isSafeModeEnabled(process.env);
+  const startupChecks = runStartupChecks({
+    cfg,
+    env: process.env,
+    checkBrowser: true,
+    checkExtensions: true,
+  });
+  const builder = new HealthBuilder().setLiveness(true).clearSecurityIssues();
+  for (const blocker of startupChecks.criticalIssues) {
+    builder.addReadinessBlocker(blocker);
+  }
+  const details = builder.build();
+
+  return {
+    status: details.status,
+    alive: details.liveness.status === "alive",
+    ready: details.readiness.status === "ready",
+    degraded: details.status === "degraded",
+    safeMode,
+    readinessBlockers: [...details.readiness.blockers],
+    degradedSubsystems: [...details.degraded_subsystems],
+    securityIssues: [...details.security_posture.issues],
+    details,
+  };
+}
 
 const isProbeFailure = (summary: ChannelAccountHealthSummary): boolean => {
   const probe = asRecord(summary.probe);
@@ -539,6 +590,7 @@ export async function getHealthSnapshot(params?: {
     }
   }
 
+  const runtimeHealth = buildGatewayRuntimeHealthSummary(cfg);
   const summary: HealthSummary = {
     ok: true,
     ts: Date.now(),
@@ -549,6 +601,15 @@ export async function getHealthSnapshot(params?: {
     heartbeatSeconds,
     defaultAgentId,
     agents,
+    status: runtimeHealth.status,
+    alive: runtimeHealth.alive,
+    ready: runtimeHealth.ready,
+    degraded: runtimeHealth.degraded,
+    safeMode: runtimeHealth.safeMode,
+    readinessBlockers: runtimeHealth.readinessBlockers,
+    degradedSubsystems: runtimeHealth.degradedSubsystems,
+    securityIssues: runtimeHealth.securityIssues,
+    runtime: runtimeHealth,
     sessions: {
       path: sessions.path,
       count: sessions.count,
@@ -704,6 +765,17 @@ export async function healthCommand(
         : formatHealthChannelLines(summary, {
             accountMode: opts.verbose ? "all" : "default",
           });
+    const runtimeLine = [
+      `Gateway runtime: ${summary.status}`,
+      summary.safeMode ? "safe mode active" : null,
+      summary.ready ? "ready" : `not ready (${summary.readinessBlockers.join(", ") || "blocked"})`,
+      summary.degradedSubsystems.length > 0
+        ? `degraded subsystems ${summary.degradedSubsystems.join(", ")}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    runtime.log(info(runtimeLine));
     for (const line of channelLines) {
       runtime.log(styleHealthChannelLine(line));
     }

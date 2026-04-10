@@ -11,7 +11,9 @@ export const reportCommand = new Command("report")
     const manager = new RecoveryManager(recoveryPath);
 
     const report = manager.generateReport();
-    console.log("Report generated successfully. Check the json file in current directory.");
+    console.log(
+      `Report generated successfully. Check ${path.dirname(recoveryPath)}/recovery-report-${report.timestamp}.json.`,
+    );
 
     if (options.bundle) {
       console.log("Bundling report with logs and config into recovery-bundle.zip... (Simulated)");

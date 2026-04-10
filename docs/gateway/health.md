@@ -32,4 +32,4 @@ Short guide to verify channel connectivity without guessing.
 
 ## Dedicated "health" command
 
-`openclaw health --json` asks the running Gateway for its health snapshot (no direct channel sockets from the CLI). It reports linked creds/auth age when available, per-channel probe summaries, session-store summary, and a probe duration. It exits non-zero if the Gateway is unreachable or the probe fails/timeouts. Use `--timeout <ms>` to override the 10s default.
+`openclaw health --json` asks the running Gateway for its canonical health snapshot (no direct channel sockets from the CLI). It reports the gateway-method health fields (`alive`, `ready`, `degraded`, `safeMode`, `status`) plus linked creds/auth age when available, per-channel probe summaries, session-store summary, and a probe duration. It exits non-zero if the Gateway is unreachable or the probe fails/timeouts. Use `--timeout <ms>` to override the 10s default.

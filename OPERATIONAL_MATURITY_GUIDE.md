@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the operational maturity, validation surfaces, and known limitations of OpenCLAW v2026.2.9 as a production control plane.
+This document describes the current runtime proof surface, configuration requirements, and known limitations for the hardened gateway branch. It is intentionally narrower than earlier maturity drafts: helper schemas and placeholder surfaces are not treated as live operator guarantees unless the runtime wiring and tests prove them.
 
 ## What is Proven
 
@@ -30,15 +30,15 @@ The following are proven through static code analysis and CI validation:
   3. `src/tui/tui-local-shell.ts`: Intentional TUI-only unbounded shell
   4. `src/entry.ts`: Bootstrap-only respawn exception
 
-### Runtime Proof (Integration Tests)
+### Runtime Proof
 
 The following are validated through runtime integration tests:
 
-- **Dangerous-Path Gate Enforcement** (`src/rfsn/runtime-gate-integration.test.ts`):
-  - High-risk exec tool is blocked when policy forbids it
-  - Allowed tools execute successfully when policy permits
-  - Missing required capabilities block execution even if tool is allowlisted
-  - Ledger records proposal/decision/result flow
+- **Dangerous-Path Gate Enforcement** (`src/rfsn/runtime-gate-integration.test.ts`, `src/gateway/node-command-kernel-gate.runtime.test.ts`):
+  - High-risk exec flow is blocked when policy or safe mode forbids it
+  - Allowed commands execute successfully only under the reviewed conditions
+  - Missing required capabilities block execution even if a command is allowlisted
+  - Dangerous-path allow/deny events are emitted on the live RFSN dispatch path
 
 - **Local-Shell Isolation** (`src/tui/tui-local-shell.integration.test.ts`):
   - Shell execution blocked when `OPENCLAW_LOCAL_SHELL_ENABLED` is not set
@@ -47,20 +47,27 @@ The following are validated through runtime integration tests:
   - Remote input, gateway messages, and agent output cannot trigger shell
   - Feature disabled by default; enabled only with explicit env flags + user consent
 
-### Smoke Tests (Confidence Coverage)
+- **Browser Path Containment** (`src/node-host/browser-proxy.runtime.test.ts`, `src/node-host/browser-containment.integration.test.ts`):
+  - In-root file access succeeds through the live browser-proxy seam
+  - Outside-root access and symlink escapes are rejected at the live containment boundary
 
-Quick operational validation points (run: `pnpm test src/cli/smoke-tests.test.ts`):
+- **Canonical Health / Safe Mode Scope** (`src/runtime/runtime-truth.smoke.test.ts`, `src/runtime/safe-mode.behavior.test.ts`, `src/commands/health.test.ts`):
+  - Canonical health is the gateway method/RPC path used by `openclaw health` and `status --deep`
+  - Safe mode is surfaced in the health payload
+  - Safe mode forces loopback bind, clears explicit host override, denies dangerous node commands, and disables insecure control-UI auth bypasses
+
+### Fast Confidence Coverage
+
+Quick operational validation points (run: `pnpm exec vitest run src/runtime/runtime-truth.smoke.test.ts`):
 
 - Gateway starts with sane config
 - Startup invariants pass in normal hardened configuration
-- Doctor report shows readiness
 - Authority-boundary structural integrity
-- Browser-proxy disabled by default
-- Local-shell disabled by default without explicit env flags
-- Health model initializes correctly
-- Dangerous-path RFSN gate enforcement active
-- Local-shell import structure intact
-- Security event emission available
+- Browser-proxy rejects outside-root access through the live boundary
+- Canonical health payload returns runtime-ready fields
+- Dangerous-path gate enforcement is active
+- Safe-mode guarantees match the documented scope
+- Recovery fallback remains lightweight and bounded
 
 ## What Requires Configuration
 
@@ -95,7 +102,7 @@ The following security properties depend on operator configuration:
 2. **Audit Logging**
    - Enable security events: Keep `OPENCLAW_SECURITY_EVENTS_ENABLED=1` (default)
    - Configure log rotation: Set `logging.file` to a dated path (default: `/tmp/openclaw/openclaw-YYYY-MM-DD.log`)
-   - Monitor security event types: "dangerous-capability-allowed", "dangerous-path-denied", etc.
+   - Monitor the event types that are live-wired on this branch: `dangerous-path-denied`, `dangerous-path-allowed`, `browser-proxy-rejected`, `gateway-startup-invariant-failed`
    - Verify: Check `/tmp/openclaw/openclaw-*.log` for structured JSON events
 
 3. **Browser Features (if enabled)**
@@ -143,7 +150,7 @@ These subsystems are disabled by default and can fail independently:
 
 ### Degraded Mode Behavior
 
-Health endpoint indicates "degraded" when:
+The canonical gateway-method health payload indicates `"degraded"` when:
 - One or more optional subsystems failed to initialize
 - Background audit daemon is behind schedule
 - Forensics anchor temporarily unavailable
@@ -193,7 +200,7 @@ Health endpoint indicates "degraded" when:
 
 4. **Model Provider Availability**: All configured agents need a reachable model provider.
    - Offline agents are degraded but don't crash gateway
-   - Health endpoint marks provider as "error" if unreachable
+   - Canonical health marks degraded subsystems and readiness blockers when appropriate
 
 ## Startup and Health
 
@@ -204,45 +211,40 @@ Health endpoint indicates "degraded" when:
 3. **Startup Invariants**: Check gateway auth, workspace paths, permissions (see `cli/startup-doctor.ts`)
 4. **Initialize Core**: Load plugins, start channels, initialize browser/memory backends
 5. **Optional Sidecars**: Start Gmail watcher, forensics anchor, audit daemon
-6. **Ready to Receive**: Health endpoint returns "ready"
+6. **Ready to Receive**: the canonical gateway-method health payload returns `ready`
 
-### Health Endpoint Model
+### Canonical Health Model
 
-**Liveness** (process alive):
-- HTTP response: `200 OK`
-- Check: Process receives signals
+The live health contract is the gateway method/RPC path consumed by `openclaw health` and `openclaw status --deep`. Helper HTTP health endpoint files are not treated as the canonical operator contract unless they are explicitly mounted by the running gateway.
 
-**Readiness** (safe to receive work):
+**Liveness** (`alive`):
+- Process is up and the gateway health method responds
+
+**Readiness** (`ready`):
 - Startup invariants passed
 - Critical components initialized
 - No blocking security issues
-- Check: `GET /health` → `readiness.status == "ready"`
+- Check: `openclaw health --json` → `.ready == true`
 
-**Security Posture**:
-- Authority boundary config loaded
-- Policy posture hash computable
-- No drift detected
-- Check: `GET /health` → `security_posture.status == "valid"`
-
-**Degraded**:
-- Readiness: ready
-- Status: degraded
+**Degraded** (`degraded`):
 - One or more optional subsystems failed
-- Check: `GET /health` → `degraded_subsystems` is non-empty
+- Readiness can still remain true
+- Check: `openclaw health --json` → `.degraded == true`
+
+**Safe Mode** (`safeMode`):
+- Safe mode is active and the runtime is using the narrowed hardening profile
+- Check: `openclaw health --json` → `.safeMode == true`
 
 Example health response:
 ```json
 {
   "status": "healthy",
-  "liveness": { "status": "alive" },
-  "readiness": { "status": "ready", "blockers": [] },
-  "security_posture": { "status": "valid", "issues": [] },
-  "components": [
-    { "name": "gateway", "status": "healthy" },
-    { "name": "auth", "status": "healthy" },
-    { "name": "browser", "status": "healthy" }
-  ],
-  "degraded_subsystems": []
+  "alive": true,
+  "ready": true,
+  "degraded": false,
+  "safeMode": false,
+  "readinessBlockers": [],
+  "degradedSubsystems": []
 }
 ```
 
@@ -256,29 +258,22 @@ Events are emitted as JSON log lines in `/tmp/openclaw/openclaw-YYYY-MM-DD.log`:
 
 ```json
 {
-  "security_event": "dangerous-capability-allowed",
+  "security_event": "dangerous-path-denied",
   "timestamp_ms": 1704067200000,
-  "level": "info",
+  "level": "warn",
   "tool_name": "exec",
-  "action": "run_command",
-  "session_id": "sess_abc123xyz",
-  "agent_id": "agent_def456",
-  "decision": "allowed",
-  "capability": "proc:manage",
-  "policy_hash": "sha256abc...",
-  "sandboxed": false,
-  "break_glass": false
+  "decision": "denied",
+  "reason": "tool not allowlisted"
 }
 ```
 
-Key event types:
-- `dangerous-capability-allowed`, `dangerous-capability-denied`
-- `dangerous-path-allowed`, `dangerous-path-denied`
-- `policy-drift-detected`
-- `browser-proxy-rejected`, `canvas-auth-rejected`
-- `exec-session-invoked`, `local-shell-activated`, `bootstrap-respawn-event`
-- `plugin-scan-completed`
-- `authority-boundary-checked`
+Live event types on this branch:
+- `dangerous-path-allowed`
+- `dangerous-path-denied`
+- `browser-proxy-rejected`
+- `gateway-startup-invariant-failed`
+
+The schema files define additional event types, but they should be treated as type inventory unless the runtime path is explicitly wired and tested.
 
 ### Forensic Ledger
 
@@ -322,8 +317,8 @@ Non-zero exit code if critical issues found.
 - [ ] Browser proxy configured if browser features needed
 - [ ] Policy posture hash can be computed (`pnpm security:check`)
 - [ ] Startup doctor passes (`openclaw doctor`)
-- [ ] Smoke tests pass (`pnpm test src/cli/smoke-tests.test.ts`)
-- [ ] Health endpoint accessible and returns "ready"
+- [ ] Fast runtime smoke passes (`pnpm exec vitest run src/runtime/runtime-truth.smoke.test.ts`)
+- [ ] Canonical health method accessible and returns `ready`
 - [ ] Structured security events flowing to logs
 - [ ] Audit logs are collected and monitored
 
