@@ -130,7 +130,7 @@ describe("runtime truth smoke", () => {
           status: "healthy",
         }),
         logHealth: { error: () => {} },
-      } as never,
+      } as any,
     });
 
     expect(response?.ok).toBe(true);
