@@ -1,5 +1,7 @@
 /**
- * Helper-only HTTP health endpoint builders.
+ * DEPRECATED: Helper-only HTTP health endpoint builders.
+ *
+ * THIS IS NON-CANONICAL REFERENCE CODE.
  *
  * The live health contract in this branch is the gateway RPC/method path in
  * `src/gateway/server-methods/health.ts`. These handlers are reference code

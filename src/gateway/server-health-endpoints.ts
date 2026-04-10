@@ -1,11 +1,12 @@
 /**
  * DEPRECATED: Example health endpoints (for reference only).
  *
- * THIS IS NOT THE CANONICAL IMPLEMENTATION.
+ * THIS IS NON-CANONICAL REFERENCE CODE.
+ *
  * Use `health-endpoints.ts` instead for the production health/readiness/liveness interface.
  *
  * This file is kept for documentation purposes only and should not be used
- * in actual gateway runtime wiring.
+ * in actual gateway runtime wiring. The actual live health path is via RPC.
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -29,8 +30,7 @@ export interface RuntimeState {
 export function createHealthEndpoint(state: RuntimeState) {
   return async (req: IncomingMessage, res: ServerResponse) => {
     const uptime = Date.now() - state.gatewayStartedAtMs;
-    const allComponentsReady =
-      state.componentsReady.size > 0 && !state.lastSecurityIssue;
+    const allComponentsReady = state.componentsReady.size > 0 && !state.lastSecurityIssue;
 
     const builder = new HealthBuilder();
 
