@@ -383,7 +383,53 @@ This fork includes a **comprehensive, multi-phase security hardening** — 8 sec
 
 ---
 
-## ✅ Production Readiness & Operational Maturity
+## 🔒 Security & Testing
+
+### Runtime-Proven Security Guarantees
+
+OpenClaw's security claims are backed by **158 integration tests** that prove behavior under realistic conditions:
+
+| Guarantee | Tests | Evidence |
+|-----------|-------|----------|
+| Dangerous command denial | 11 | `node-command-kernel-gate.runtime.test.ts` |
+| Browser path containment | 42 | `browser-proxy.runtime.test.ts` |
+| Health & readiness | 31 | `health-model.runtime.test.ts` |
+| Recovery behavior | 20 | `recovery.runtime.test.ts` |
+| Smoke validation | 15 | `cli/smoke-tests.test.ts` |
+| Safe-mode integration | 14 | `safe-mode.integration.test.ts` |
+| Authority boundaries | 17 | `authority-boundaries.test.ts` |
+| Execution isolation | 8 | `execution-authority-boundaries.test.ts` |
+
+**Verification**:
+```bash
+# Run all security tests
+pnpm test src/security/*.test.ts \
+  src/runtime/*.runtime.test.ts \
+  src/gateway/*.runtime.test.ts \
+  src/node-host/*.runtime.test.ts \
+  src/cli/smoke-tests.test.ts --run
+
+# Run security integrity check
+pnpm security:check
+
+# Run fast smoke tests (~7 seconds)
+pnpm test src/cli/smoke-tests.test.ts --run
+```
+
+### Key Proven Capabilities
+
+✅ **Safe Mode**: Disables all dangerous commands on demand (`OPENCLAW_SAFE_MODE=1`)  
+✅ **Gateway Binding Enforcement**: Dangerous commands denied on exposed gateways without override  
+✅ **Path Containment**: Browser proxy enforces file system boundaries (no `..` traversal, no `/etc`)  
+✅ **Startup Validation**: Health checks detect critical issues before accepting commands  
+✅ **Config Rollback**: Recovery manager restores to `.bak` on crash  
+✅ **Secret Redaction**: Recovery reports automatically redact tokens, secrets, API keys  
+✅ **Degradation Handling**: Optional subsystems (browser, plugins) can fail without blocking operation  
+✅ **Authority Boundaries**: Execution scoped to `src/` and `extensions/` directories  
+
+---
+
+## ✅ Production Readiness
 
 OpenClaw v2026.2.9 includes a **production-grade operational maturity upgrade** with structured observability, health/readiness endpoints, comprehensive startup validation, and operator documentation.
 
