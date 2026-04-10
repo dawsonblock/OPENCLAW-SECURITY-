@@ -1,5 +1,6 @@
 #!/bin/bash
 set -eo pipefail
+# cspell:ignore OPENCLAW vitest
 
 echo "🛡️  Running fast runtime confidence pass..."
 

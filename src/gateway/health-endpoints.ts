@@ -1,3 +1,4 @@
+// cspell:ignore openclaw healthz readyz livez
 /**
  * DEPRECATED: Helper-only HTTP health endpoint builders.
  *
