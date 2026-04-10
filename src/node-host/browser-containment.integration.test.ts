@@ -1,7 +1,23 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { mockEmit } = vi.hoisted(() => ({ mockEmit: vi.fn() }));
+vi.mock("../security/security-events-emit.js", async (importOriginal) => {
+  const actual = await importOriginal<any>();
+  return {
+    ...actual,
+    getSecurityEventEmitter: () => ({
+      emit: mockEmit,
+      child: vi.fn().mockImplementation(() => ({
+        emit: mockEmit,
+        child: vi.fn().mockImplementation(() => ({ emit: mockEmit })),
+      })),
+    }),
+  };
+});
+
 import { ensureMediaDir } from "../media/store.js";
 import { isAllowedBrowserProxyPath, readBrowserProxyFile } from "./browser-proxy.js";
 
@@ -17,6 +33,7 @@ describe("browser-containment enforcement (runtime integration)", () => {
   let escapeSymlink = "";
 
   beforeEach(async () => {
+    mockEmit.mockClear();
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-browser-containment-"));
     const mediaDir = await ensureMediaDir();
     allowedDir = path.join(mediaDir, `runtime-proof-${Date.now()}`);
@@ -47,5 +64,15 @@ describe("browser-containment enforcement (runtime integration)", () => {
   it("rejects a realpath escape outside approved roots", async () => {
     await expect(readBrowserProxyFile(escapeSymlink)).rejects.toThrow(/outside approved roots/);
     expect(await isAllowedBrowserProxyPath(outsideFile)).toBe(false);
+
+    expect(mockEmit).toHaveBeenCalled();
+    const eventPayload = mockEmit.mock.calls.find(
+      (call) => call[0].type === "browser-proxy-rejected",
+    )?.[0];
+
+    expect(eventPayload).toBeDefined();
+    expect(eventPayload.type).toBe("browser-proxy-rejected");
+    expect(eventPayload.reason).toBe("outside approved browser proxy roots");
+    expect(eventPayload.metadata.attemptedPath).toBe("escape-link.txt");
   });
 });

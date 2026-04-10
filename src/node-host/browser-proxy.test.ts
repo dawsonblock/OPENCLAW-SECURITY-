@@ -44,7 +44,8 @@ describe("readBrowserProxyFile", () => {
       await fs.writeFile(filePath, "hello media", "utf8");
 
       const file = await readBrowserProxyFile(filePath);
-      expect(file?.path).toBe(filePath);
+      const resolvedPath = await fs.realpath(filePath);
+      expect(file?.path).toBe(resolvedPath);
       expect(Buffer.from(file?.base64 ?? "", "base64").toString("utf8")).toBe("hello media");
     });
   });
@@ -56,7 +57,8 @@ describe("readBrowserProxyFile", () => {
     await fs.writeFile(filePath, "hello download", "utf8");
 
     const file = await readBrowserProxyFile(filePath);
-    expect(file?.path).toBe(filePath);
+    const resolvedPath = await fs.realpath(filePath);
+    expect(file?.path).toBe(resolvedPath);
     expect(Buffer.from(file?.base64 ?? "", "base64").toString("utf8")).toBe("hello download");
 
     await fs.rm(filePath, { force: true });
