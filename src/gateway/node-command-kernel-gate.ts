@@ -1,5 +1,6 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { NodeInvokeResult, NodeRegistry, NodeSession } from "./node-registry.js";
+import { getSecurityEventEmitter } from "../security/security-events-emit.js";
 import { isSafeModeEnabled } from "../security/startup-validator.js";
 import {
   DEFAULT_DANGEROUS_NODE_COMMANDS,
@@ -68,6 +69,15 @@ export async function invokeNodeCommandWithKernelGate(params: {
     allowlist,
   });
   if (!allowed.ok) {
+    getSecurityEventEmitter().emit({
+      type: "dangerous-capability-denied",
+      timestamp: Date.now(),
+      level: "warning",
+      toolName: "node-command-kernel-gate",
+      capability: command,
+      decision: "denied",
+      reason: allowed.reason,
+    });
     return {
       ok: false,
       code: "NOT_ALLOWED",
@@ -81,6 +91,15 @@ export async function invokeNodeCommandWithKernelGate(params: {
 
   const dangerous = DEFAULT_DANGEROUS_NODE_COMMANDS.includes(command);
   if (dangerous && isSafeModeEnabled(process.env)) {
+    getSecurityEventEmitter().emit({
+      type: "dangerous-capability-denied",
+      timestamp: Date.now(),
+      level: "warning",
+      toolName: "node-command-kernel-gate",
+      capability: command,
+      decision: "denied",
+      reason: "dangerous command blocked by safe mode",
+    });
     return {
       ok: false,
       code: "NOT_ALLOWED",
@@ -92,6 +111,15 @@ export async function invokeNodeCommandWithKernelGate(params: {
     };
   }
   if (dangerous && !isSafeExposure(params.cfg) && !dangerousExposureOverrideEnabled()) {
+    getSecurityEventEmitter().emit({
+      type: "dangerous-capability-denied",
+      timestamp: Date.now(),
+      level: "warning",
+      toolName: "node-command-kernel-gate",
+      capability: command,
+      decision: "denied",
+      reason: "dangerous command blocked on exposed gateway",
+    });
     return {
       ok: false,
       code: "NOT_ALLOWED",
