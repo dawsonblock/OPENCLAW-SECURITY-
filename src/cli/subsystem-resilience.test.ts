@@ -10,8 +10,8 @@
 
 import { describe, expect, test, beforeAll } from "vitest";
 import { HealthBuilder } from "../runtime/health-model.js";
-import { getSecurityEventEmitter } from "../security/security-events-emit.js";
 import { SafeInterval, SafeTimeout, retryWithBackoff } from "../runtime/reliability-patterns.js";
+import { getSecurityEventEmitter } from "../security/security-events-emit.js";
 
 describe("Enhanced Production Smoke Tests", () => {
   test("smoke: health model handles degraded subsystems gracefully", async () => {
@@ -223,9 +223,7 @@ describe("Enhanced Production Smoke Tests", () => {
     expect(degraded.status).toBe("degraded");
 
     // Unhealthy case (readiness blocker)
-    const unhealthyReady = new HealthBuilder()
-      .addReadinessBlocker("test blocker")
-      .build();
+    const unhealthyReady = new HealthBuilder().addReadinessBlocker("test blocker").build();
     expect(unhealthyReady.status).toBe("unhealthy");
 
     // Unhealthy case (security issue)
