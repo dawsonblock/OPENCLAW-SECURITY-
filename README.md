@@ -22,7 +22,7 @@
 
 **OpenClaw** is a personal AI assistant that runs entirely on your own devices. It connects to the channels you already use — WhatsApp, Telegram, Slack, Discord, Google Chat, Signal, iMessage, Microsoft Teams, WebChat — and provides a unified, secure intelligence layer over your digital life. It can speak and listen on macOS/iOS/Android, render a live Canvas you control, and execute tools in a hardened sandbox.
 
-If you want a personal, single-user assistant that feels local, fast, always-on, and **cryptographically secure**, this is it.
+If you want a personal, single-user assistant that feels local, fast, always-on, and **security-hardened with capability-based access controls**, this is it.
 
 [Website](https://openclaw.ai) · [Docs](https://docs.openclaw.ai) · [DeepWiki](https://deepwiki.com/openclaw/openclaw) · [Getting Started](https://docs.openclaw.ai/start/getting-started) · [Showcase](https://docs.openclaw.ai/start/showcase) · [FAQ](https://docs.openclaw.ai/start/faq) · [Discord](https://discord.gg/clawd)
 
