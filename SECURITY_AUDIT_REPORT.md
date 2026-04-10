@@ -26,6 +26,15 @@ The `OPENCLAW-SECURITY` codebase contains a substantial defense-in-depth securit
 
 The RFSN architecture, subprocess allowlisting, ledger append, and secret redaction are structurally intact. The gaps above have been patched. The reviewed execution-authority exceptions now live in `src/security/authority-boundaries.ts`, and both CI plus the structural boundary tests now consume the same shared authority-boundary model and importer-scan helper. That enforcement is scoped to the reviewed server-side TypeScript runtime roots in `src/` and `extensions/`; it is not presented as whole-repository proof over native apps, browser UI code, or compatibility wrapper packages.
 
+## Runtime Truth Alignment
+
+This report is primarily a structural security review. The live runtime contract for the current branch is narrower and should be read with these constraints:
+
+- Canonical health/status is the gateway method/RPC path used by `openclaw health` and `openclaw status --deep`, not an implied `/health` HTTP route.
+- Safe mode is documented only for the guarantees the runtime currently enforces: loopback bind override, dangerous node-command denial, insecure control-UI auth bypass disablement, and health/status surfacing.
+- Recovery remains a lightweight fallback helper: it triggers safe mode, restores a sibling `.bak` config when present, and writes a sanitized local report. It is not a full rollback or disaster-recovery subsystem.
+- Security event schemas cover more cases than the runtime currently emits. The live-wired event set on this branch is limited to dangerous-path allow/deny, browser-proxy rejection, and startup-invariant failure.
+
 ## Detailed Phase Analysis
 
 ### Phase 0: Bounded General Subprocess Sandboxing (`src/security/subprocess.ts`)

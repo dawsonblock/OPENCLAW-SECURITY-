@@ -84,3 +84,5 @@ local/
 !src/commands/onboard-non-interactive/local/
 
 .fake
+package-lock.json
+node_modules/

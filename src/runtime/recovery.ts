@@ -10,25 +10,26 @@ export interface RecoveryReport {
 }
 
 /**
- * Lightweight Recovery and Safe Mode Management
- * 
- * This module provides basic recovery capabilities for handling runtime faults:
+ * Lightweight recovery and safe-mode management.
+ *
+ * This module provides bounded local fallback behavior:
  * - Safe mode activation when crashes are detected
- * - Config rollback to a known-good backup state
+ * - Config restore from a sibling `.bak` file when present
  * - Sanitized recovery reports for troubleshooting
- * 
- * This is NOT a full backup/restore system. It is a lightweight fallback mechanism
- * for operational continuity. For production disaster recovery, use external backup
- * solutions (Git, database snapshots, configuration management systems).
+ *
+ * This is not a full backup/restore system. For broader rollback or disaster
+ * recovery, operators still need external backup/versioning systems.
  */
 export class RecoveryManager {
   private isSafeMode: boolean = false;
   private configPath: string;
   private backupConfigPath: string;
+  private reportDir: string;
 
   constructor(configPath: string) {
     this.configPath = configPath;
     this.backupConfigPath = `${configPath}.bak`;
+    this.reportDir = path.dirname(configPath);
   }
 
   public triggerSafeMode(triggeringProvider?: string) {
@@ -53,7 +54,7 @@ export class RecoveryManager {
       environmentSnapshot: this.getSanitizedEnv(),
     };
 
-    const reportPath = path.join(process.cwd(), `recovery-report-${report.timestamp}.json`);
+    const reportPath = path.join(this.reportDir, `recovery-report-${report.timestamp}.json`);
     fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
     console.log(`[RecoveryManager] Recovery report saved to ${reportPath}`);
     return report;

@@ -9,6 +9,7 @@ import type {
   RfsnProvenance,
 } from "./types.js";
 import { getGateFeedbackTracker, isAdaptiveRiskEnabled } from "./gate-feedback.js";
+import { getGateEventEmissionMiddleware } from "./gate-event-emission.js";
 import { evaluateGate, hasValidGateStamp } from "./gate.js";
 import { appendLedgerEntry } from "./ledger.js";
 
@@ -81,6 +82,7 @@ export async function rfsnDispatch(params: {
   };
 }): Promise<Awaited<ReturnType<AnyAgentTool["execute"]>>> {
   const captureToolOutput = process.env.OPENCLAW_RFSN_LEDGER_CAPTURE_OUTPUT === "1";
+  const gateEventEmitter = getGateEventEmissionMiddleware();
 
   // Guard: reject double-wrapped tools to prevent infinite recursion
   if (isToolAlreadyWrapped(params.tool)) {
@@ -142,6 +144,18 @@ export async function rfsnDispatch(params: {
   });
 
   if (decision.verdict !== "allow") {
+    if (decision.risk === "high") {
+      gateEventEmitter.emitDecision({
+        verdict: "deny",
+        toolName: proposal.toolName,
+        action: "execute",
+        reason: decision.reasons.join(","),
+        sessionId: params.meta.sessionId,
+        agentId: params.meta.agentId,
+        policyHash: proposal.provenance?.policySha256,
+        sandboxed: params.runtime?.sandboxed,
+      });
+    }
     const deniedResult: RfsnActionResult = {
       status: "error",
       toolName: proposal.toolName,
@@ -195,6 +209,17 @@ export async function rfsnDispatch(params: {
         result: resultEntry,
       },
     });
+    if (decision.risk === "high") {
+      gateEventEmitter.emitDecision({
+        verdict: "allow",
+        toolName: proposal.toolName,
+        action: "execute",
+        sessionId: params.meta.sessionId,
+        agentId: params.meta.agentId,
+        policyHash: proposal.provenance?.policySha256,
+        sandboxed: params.runtime?.sandboxed,
+      });
+    }
     if (isAdaptiveRiskEnabled()) {
       getGateFeedbackTracker().recordOutcome(proposal.toolName, "success");
     }

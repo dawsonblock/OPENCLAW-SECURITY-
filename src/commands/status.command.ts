@@ -564,10 +564,30 @@ export async function statusCommand(
     runtime.log("");
     runtime.log(theme.heading("Health"));
     const rows: Array<Record<string, string>> = [];
+    const runtimeDetail = [
+      health.status,
+      health.safeMode ? "safe mode active" : null,
+      health.ready ? "ready" : `blocked: ${health.readinessBlockers.join(", ") || "not ready"}`,
+      health.degradedSubsystems.length > 0
+        ? `degraded: ${health.degradedSubsystems.join(", ")}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
     rows.push({
       Item: "Gateway",
       Status: ok("reachable"),
       Detail: `${health.durationMs}ms`,
+    });
+    rows.push({
+      Item: "Runtime",
+      Status:
+        health.status === "healthy"
+          ? ok("HEALTHY")
+          : health.status === "degraded"
+            ? warn("DEGRADED")
+            : warn("UNHEALTHY"),
+      Detail: runtimeDetail,
     });
 
     for (const line of formatHealthChannelLines(health, { accountMode: "all" })) {

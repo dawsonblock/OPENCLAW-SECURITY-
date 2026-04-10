@@ -10,9 +10,11 @@ import { createBrowserRouteDispatcher } from "../browser/routes/dispatcher.js";
 import { loadConfig } from "../config/config.js";
 import { detectMime } from "../media/mime.js";
 import { getMediaDir } from "../media/store.js";
+import { getSecurityEventEmitter } from "../security/security-events-emit.js";
 import { BROWSER_PROXY_MAX_FILE_BYTES } from "./types.js";
 
 const BROWSER_PROXY_DOWNLOADS_ROOT = "/tmp/openclaw/downloads";
+const browserProxySecurityEmitter = getSecurityEventEmitter().child({ surface: "browser-proxy" });
 
 export function normalizeProfileAllowlist(raw?: string[]): string[] {
   return Array.isArray(raw) ? raw.map((entry) => entry.trim()).filter(Boolean) : [];
@@ -111,6 +113,11 @@ export function getAllowedBrowserProxyRoots(): string[] {
   return [getMediaDir(), BROWSER_PROXY_DOWNLOADS_ROOT].map((root) => path.resolve(root));
 }
 
+function redactAttemptedBrowserProxyPath(filePath: string): string {
+  const fileName = path.basename(filePath);
+  return fileName && fileName !== path.sep ? fileName : "<path-redacted>";
+}
+
 function isPathWithinRoot(rootPath: string, candidatePath: string): boolean {
   const normalizedRoot = path.resolve(rootPath);
   const normalizedCandidate = path.resolve(candidatePath);
@@ -152,6 +159,17 @@ async function resolveAllowedBrowserProxyPath(filePath: string): Promise<string 
       .filter((root): root is string => typeof root === "string")
       .some((root) => isPathWithinRoot(root, resolvedFilePath))
   ) {
+    browserProxySecurityEmitter.emit({
+      type: "browser-proxy-rejected",
+      timestamp: Date.now(),
+      level: "warning",
+      reason: "outside approved browser proxy roots",
+      metadata: {
+        attemptedPath: redactAttemptedBrowserProxyPath(filePath),
+        approvedRootCount: resolvedRoots.filter((root): root is string => typeof root === "string")
+          .length,
+      },
+    });
     throw new Error(`browser proxy file path is outside approved roots: ${filePath}`);
   }
   return resolvedFilePath;

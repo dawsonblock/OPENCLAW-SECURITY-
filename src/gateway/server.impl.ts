@@ -52,6 +52,8 @@ import {
   resolveStartupBindOverride,
   validateGatewayStartupSecurity,
 } from "../security/startup-validator.js";
+import { emitGatewayStartupInvariantFailed } from "../security/security-events-extended-emit.js";
+import { getSecurityEventEmitter } from "../security/security-events-emit.js";
 import { runOnboardingWizard } from "../wizard/onboarding.js";
 import { startGatewayConfigReloader } from "./config-reload.js";
 import { ExecApprovalManager } from "./exec-approval-manager.js";
@@ -107,6 +109,7 @@ const logPlugins = log.child("plugins");
 const logWsControl = log.child("ws");
 const gatewayRuntime = runtimeForLogger(log);
 const canvasRuntime = runtimeForLogger(logCanvas);
+const startupSecurityEmitter = getSecurityEventEmitter().child({ surface: "gateway-startup" });
 
 export type GatewayServer = {
   close: (opts?: { reason?: string; restartExpectedMs?: number | null }) => Promise<void>;
@@ -314,6 +317,14 @@ export async function startGatewayServer(
     tailscaleMode,
   });
   if (!invariantCheck.ok) {
+    for (const error of invariantCheck.errors) {
+      emitGatewayStartupInvariantFailed({
+        emitter: startupSecurityEmitter,
+        invariant: "gateway-startup",
+        details: error,
+        recoveryStep: "Fix startup invariants and restart the gateway.",
+      });
+    }
     throw new Error(
       `Startup Security Invariant Failed:\n- ${invariantCheck.errors.join("\n- ")}\n` +
         "Refusing startup due to critical security violation.",

@@ -25,6 +25,37 @@ describe("healthCommand (coverage)", () => {
     exit: vi.fn(),
   };
 
+  const buildRuntimeSummary = () => ({
+    status: "healthy" as const,
+    alive: true,
+    ready: true,
+    degraded: false,
+    safeMode: false,
+    readinessBlockers: [],
+    degradedSubsystems: [],
+    securityIssues: [],
+    runtime: {
+      status: "healthy" as const,
+      alive: true,
+      ready: true,
+      degraded: false,
+      safeMode: false,
+      readinessBlockers: [],
+      degradedSubsystems: [],
+      securityIssues: [],
+      details: {
+        status: "healthy" as const,
+        timestamp: Date.now(),
+        liveness: { status: "alive" as const },
+        readiness: { status: "ready" as const, blockers: [] },
+        security_posture: { status: "valid" as const, issues: [] },
+        components: [],
+        degraded_subsystems: [],
+        subsystemHealth: {},
+      },
+    },
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     setActivePluginRegistry(
@@ -111,6 +142,7 @@ describe("healthCommand (coverage)", () => {
           },
         },
       ],
+      ...buildRuntimeSummary(),
       sessions: {
         path: "/tmp/sessions.json",
         count: 2,

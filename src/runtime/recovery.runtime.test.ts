@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -92,11 +92,14 @@ describe("recovery manager (runtime integration)", () => {
     it("should handle missing backup gracefully", () => {
       // Don't create a backup file
       const recovery = new RecoveryManager(configPath);
-      
-      // Should not throw, just warn
+
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
       recovery.triggerSafeMode("test");
-      
-      expect(true).toBe(true);
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("No backup config found"),
+      );
+      warnSpy.mockRestore();
     });
 
     it("should preserve backup file after rollback", () => {

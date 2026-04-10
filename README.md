@@ -385,155 +385,126 @@ This fork includes a **comprehensive, multi-phase security hardening** — 8 sec
 
 ## 🔒 Security & Testing
 
-### Runtime-Proven Security Guarantees
+### Runtime-Proven Guarantees
 
-OpenClaw's security claims are backed by **158 integration tests** that prove behavior under realistic conditions:
+The current branch has a real security spine, but the runtime proof is intentionally narrower than the full schema and helper surface.
 
-| Guarantee | Tests | Evidence |
-|-----------|-------|----------|
-| Dangerous command denial | 11 | `node-command-kernel-gate.runtime.test.ts` |
-| Browser path containment | 42 | `browser-proxy.runtime.test.ts` |
-| Health & readiness | 31 | `health-model.runtime.test.ts` |
-| Recovery behavior | 20 | `recovery.runtime.test.ts` |
-| Smoke validation | 15 | `cli/smoke-tests.test.ts` |
-| Safe-mode integration | 14 | `safe-mode.integration.test.ts` |
-| Authority boundaries | 17 | `authority-boundaries.test.ts` |
-| Execution isolation | 8 | `execution-authority-boundaries.test.ts` |
+High-value validation surfaces:
 
-**Verification**:
+| Guarantee | Evidence |
+|-----------|----------|
+| Dangerous node-command denial in live kernel-gate flow | `src/gateway/node-command-kernel-gate.runtime.test.ts` |
+| Browser proxy root containment through live file boundary | `src/node-host/browser-proxy.runtime.test.ts`, `src/node-host/browser-containment.integration.test.ts` |
+| Canonical gateway health/status payload | `src/commands/health.test.ts`, `src/commands/health.command.coverage.test.ts`, `src/runtime/runtime-truth.smoke.test.ts` |
+| Lightweight recovery and `.bak` restore behavior | `src/runtime/recovery.test.ts`, `src/runtime/recovery.runtime.test.ts` |
+| Safe-mode guarantees that the runtime actually enforces | `src/runtime/safe-mode.behavior.test.ts` |
+| Authority-boundary governance for reviewed runtime roots | `src/security/authority-boundaries.test.ts`, `src/security/execution-authority-boundaries.test.ts` |
+
+**Focused validation**:
 ```bash
-# Run all security tests
-pnpm test src/security/*.test.ts \
-  src/runtime/*.runtime.test.ts \
-  src/gateway/*.runtime.test.ts \
-  src/node-host/*.runtime.test.ts \
-  src/cli/smoke-tests.test.ts --run
-
-# Run security integrity check
 pnpm security:check
-
-# Run fast smoke tests (~7 seconds)
-pnpm test src/cli/smoke-tests.test.ts --run
+pnpm exec vitest run \
+  src/security/authority-boundaries.test.ts \
+  src/security/execution-authority-boundaries.test.ts \
+  src/gateway/node-command-kernel-gate.runtime.test.ts \
+  src/node-host/browser-proxy.runtime.test.ts \
+  src/node-host/browser-containment.integration.test.ts \
+  src/runtime/safe-mode.behavior.test.ts \
+  src/runtime/recovery.runtime.test.ts \
+  src/runtime/runtime-truth.smoke.test.ts
 ```
 
-### Key Proven Capabilities
+### What Is Proven Today
 
-✅ **Safe Mode**: Disables all dangerous commands on demand (`OPENCLAW_SAFE_MODE=1`)  
-✅ **Gateway Binding Enforcement**: Dangerous commands denied on exposed gateways without override  
-✅ **Path Containment**: Browser proxy enforces file system boundaries (no `..` traversal, no `/etc`)  
-✅ **Startup Validation**: Health checks detect critical issues before accepting commands  
-✅ **Config Rollback**: Recovery manager restores to `.bak` on crash  
-✅ **Secret Redaction**: Recovery reports automatically redact tokens, secrets, API keys  
-✅ **Degradation Handling**: Optional subsystems (browser, plugins) can fail without blocking operation  
-✅ **Authority Boundaries**: Execution scoped to `src/` and `extensions/` directories  
+- **Safe mode**: `OPENCLAW_SAFE_MODE=1` forces loopback bind, clears explicit host override, denies dangerous node commands, disables insecure control-UI auth bypasses, and is surfaced in the canonical health payload.
+- **Gateway binding enforcement**: dangerous node commands are denied unless the reviewed conditions are met.
+- **Browser containment**: browser proxy reads stay inside approved roots and reject outside-root escapes, including symlink escapes.
+- **Startup validation**: startup invariants are checked before the runtime reports ready.
+- **Lightweight recovery**: recovery triggers safe mode, restores `config.json.bak` when present, and writes a sanitized local report. It is not a full rollback or disaster-recovery system.
+- **Authority boundaries**: importer governance remains scoped to the reviewed runtime roots in `src/` and `extensions/`.
 
 ---
 
-## ✅ Production Readiness
+## ✅ Operational Reality
 
-OpenClaw v2026.2.9 includes a **production-grade operational maturity upgrade** with structured observability, health/readiness endpoints, comprehensive startup validation, and operator documentation.
+This branch is hardened and test-backed, but the live operator contract is narrower than earlier drafts of the docs implied.
 
-### Key Operational Features
+### Live Security Events
 
-#### 🔍 Structured Security Events
+Structured event schemas cover more cases than the runtime currently emits. The events that are wired on live paths in this branch are:
 
-14 event types for audit trails and dashboards:
+- `dangerous-path-denied`
+- `dangerous-path-allowed`
+- `browser-proxy-rejected`
+- `gateway-startup-invariant-failed`
 
-```json
-{
-  "security_event": "dangerous-capability-allowed",
-  "timestamp_ms": 1704067200000,
-  "level": "info",
-  "tool_name": "exec",
-  "session_id": "sess_abc123xyz",
-  "agent_id": "agent_def456",
-  "decision": "allowed",
-  "capability": "proc:manage",
-  "policy_hash": "sha256abc...",
-  "sandboxed": false
-}
-```
+These events are emitted as compact JSON log lines when `OPENCLAW_SECURITY_EVENTS_ENABLED=1` is left at its default enabled value.
 
-Event types: `dangerous-capability-{allowed,denied}`, `dangerous-path-{allowed,denied}`, `policy-drift-detected`, `browser-proxy-rejected`, `canvas-auth-rejected`, `exec-session-invoked`, `local-shell-activated`, `bootstrap-respawn-event`, `plugin-scan-completed`, `authority-boundary-checked`, `reviewed-exception-used`, `dangerous-action-limiter-triggered`.
+### Canonical Health Path
 
-#### 🏥 Health & Readiness Endpoints
+The canonical health surface is the **gateway method/RPC** path consumed by:
 
-```bash
-# Check full health status
-curl http://127.0.0.1:18789/health
+- `openclaw health`
+- `openclaw health --json`
+- `openclaw status --deep`
 
-# Check readiness (binary: 200 if ready, 503 if not)
-curl http://127.0.0.1:18789/ready
-```
+It reports:
 
-Health model: **liveness** (alive/dead), **readiness** (ready/not-ready), **security posture** (valid/invalid), **degraded subsystems** (optional failures).
+- `alive`
+- `ready`
+- `degraded`
+- `safeMode`
+- `status`
+- readiness blockers
+- degraded subsystems
 
-#### 🩺 Enhanced Startup Doctor
+Helper HTTP health endpoint files exist in the tree, but they are not the documented live operator contract unless they are explicitly mounted by the runtime.
+
+### Startup Doctor
 
 ```bash
 openclaw doctor
 ```
 
 Checks:
-- ✓ Authority boundary config loaded
-- ✓ Scan scope roots readable
-- ✓ Workspace paths accessible
-- ✓ Gateway auth configured
-- ⚠ Optional features (browser, extensions, plugins)
+- Authority boundary config loaded
+- Scan scope roots readable
+- Workspace paths accessible
+- Gateway auth configured
+- Optional features reported as optional
 
-#### 🚀 Production Smoke Tests
+### Fast Confidence Pass
 
 ```bash
-pnpm test src/cli/smoke-tests.test.ts --run
+pnpm exec vitest run src/runtime/runtime-truth.smoke.test.ts
 ```
 
-11 focused tests: gateway startup, health model, dangerous-path, local-shell, security events, authority-boundary. ~7 second runtime.
-
-#### 📊 Reliability Patterns
-
-New patterns for long-running services:
-
-- **SafeInterval/SafeTimeout**: Interval/timeout management with exception isolation
-- **RetryWithBackoff**: Exponential backoff with jitter
-- **ResourceLifecycle**: Ordered cleanup in reverse order
-- **GracefulShutdown**: Coordinated shutdown handlers
-
-#### 📚 Comprehensive Documentation
-
-- **OPERATIONAL_MATURITY_GUIDE.md**: Complete operator guide (proof levels, configuration, health model, deployment checklist, troubleshooting)
-- **OPERATOR_QUICK_REFERENCE.md**: Quick command reference
-- **HARDENING_COMPLETION_REPORT.md**: Security hardening summary
+This is a fast runtime-smoke pass for the highest-value guarantees on this branch: authority-boundary governance, dangerous node-command denial, browser containment, safe-mode scope, canonical health, and lightweight recovery behavior.
 
 ### Pre-Deployment Checklist
 
 ```bash
-# 1. Run comprehensive startup checks
+# 1. Run startup checks
 openclaw doctor
 
-# 2. Run operator confidence tests
-pnpm test src/cli/smoke-tests.test.ts --run
-
-# 3. Verify security boundaries
+# 2. Verify reviewed authority boundaries
 pnpm security:check
 
-# 4. Check health endpoint
-curl http://127.0.0.1:18789/health | jq
+# 3. Run the fast runtime confidence pass
+pnpm exec vitest run src/runtime/runtime-truth.smoke.test.ts
 
-# 5. Deploy with pre-deployment checklist
-# See OPERATIONAL_MATURITY_GUIDE.md for full checklist
+# 4. Check canonical health through the gateway method
+openclaw health --json
 ```
 
 ### Post-Deployment Monitoring
 
 ```bash
-# Tail security events
+# Tail live security events
 tail -f /tmp/openclaw/openclaw-*.log | jq '.security_event'
 
-# Monitor health status
-watch -n 1 'curl -s http://127.0.0.1:18789/health | jq .status'
-
-# Check degraded subsystems
-curl -s http://127.0.0.1:18789/health | jq .degraded_subsystems
+# Check canonical health/status output
+openclaw health --json | jq '.status, .safeMode, .degradedSubsystems'
 ```
 
 ---

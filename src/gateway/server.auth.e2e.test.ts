@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { WebSocket } from "ws";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
 import { buildDeviceAuthPayload } from "./device-auth.js";
@@ -421,6 +421,42 @@ describe("gateway server auth/connect", () => {
     }
   });
 
+  test("safe mode disables insecure control ui auth bypass", async () => {
+    const previousSafeMode = process.env.OPENCLAW_SAFE_MODE;
+    process.env.OPENCLAW_SAFE_MODE = "1";
+    testState.gatewayControlUi = { allowInsecureAuth: true };
+    const { server, ws, prevToken } = await startServerWithClient("secret");
+
+    try {
+      const res = await connectReq(ws, {
+        token: "secret",
+        device: null,
+        client: {
+          id: GATEWAY_CLIENT_NAMES.CONTROL_UI,
+          version: "1.0.0",
+          platform: "web",
+          mode: GATEWAY_CLIENT_MODES.WEBCHAT,
+        },
+      });
+
+      expect(res.ok).toBe(false);
+      expect(res.error?.message ?? "").toContain("device identity required");
+    } finally {
+      ws.close();
+      await server.close();
+      if (prevToken === undefined) {
+        delete process.env.OPENCLAW_GATEWAY_TOKEN;
+      } else {
+        process.env.OPENCLAW_GATEWAY_TOKEN = prevToken;
+      }
+      if (previousSafeMode === undefined) {
+        delete process.env.OPENCLAW_SAFE_MODE;
+      } else {
+        process.env.OPENCLAW_SAFE_MODE = previousSafeMode;
+      }
+    }
+  });
+
   test("allows control ui with stale device identity when device auth is disabled", async () => {
     testState.gatewayControlUi = { dangerouslyDisableDeviceAuth: true };
     testState.gatewayAuth = { mode: "token", token: "secret" };
@@ -466,6 +502,66 @@ describe("gateway server auth/connect", () => {
       delete process.env.OPENCLAW_GATEWAY_TOKEN;
     } else {
       process.env.OPENCLAW_GATEWAY_TOKEN = prevToken;
+    }
+  });
+
+  test("safe mode disables stale-device bypass for control ui", async () => {
+    const previousSafeMode = process.env.OPENCLAW_SAFE_MODE;
+    process.env.OPENCLAW_SAFE_MODE = "1";
+    testState.gatewayControlUi = { dangerouslyDisableDeviceAuth: true };
+    testState.gatewayAuth = { mode: "token", token: "secret" };
+    const prevToken = process.env.OPENCLAW_GATEWAY_TOKEN;
+    process.env.OPENCLAW_GATEWAY_TOKEN = "secret";
+    const port = await getFreePort();
+    const server = await startGatewayServer(port);
+    const ws = await openWs(port);
+    const { loadOrCreateDeviceIdentity, publicKeyRawBase64UrlFromPem, signDevicePayload } =
+      await import("../infra/device-identity.js");
+    const identity = loadOrCreateDeviceIdentity();
+    const signedAtMs = Date.now() - 60 * 60 * 1000;
+    const payload = buildDeviceAuthPayload({
+      deviceId: identity.deviceId,
+      clientId: GATEWAY_CLIENT_NAMES.CONTROL_UI,
+      clientMode: GATEWAY_CLIENT_MODES.WEBCHAT,
+      role: "operator",
+      scopes: [],
+      signedAtMs,
+      token: "secret",
+    });
+    const device = {
+      id: identity.deviceId,
+      publicKey: publicKeyRawBase64UrlFromPem(identity.publicKeyPem),
+      signature: signDevicePayload(identity.privateKeyPem, payload),
+      signedAt: signedAtMs,
+    };
+
+    try {
+      const res = await connectReq(ws, {
+        token: "secret",
+        device,
+        client: {
+          id: GATEWAY_CLIENT_NAMES.CONTROL_UI,
+          version: "1.0.0",
+          platform: "web",
+          mode: GATEWAY_CLIENT_MODES.WEBCHAT,
+        },
+      });
+
+      expect(res.ok).toBe(false);
+      expect(res.error?.message ?? "").toContain("device signature expired");
+    } finally {
+      ws.close();
+      await server.close();
+      if (prevToken === undefined) {
+        delete process.env.OPENCLAW_GATEWAY_TOKEN;
+      } else {
+        process.env.OPENCLAW_GATEWAY_TOKEN = prevToken;
+      }
+      if (previousSafeMode === undefined) {
+        delete process.env.OPENCLAW_SAFE_MODE;
+      } else {
+        process.env.OPENCLAW_SAFE_MODE = previousSafeMode;
+      }
     }
   });
 
