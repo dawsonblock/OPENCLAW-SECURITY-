@@ -142,7 +142,7 @@ describe("core guarantees smoke test (fast validation)", () => {
           command: cmd,
         });
 
-        expect(result.ok).toBe(false, `${cmd} should be blocked`);
+        expect(result.ok, `${cmd} should be blocked`).toBe(false);
         expect(result.code).toBe("NOT_ALLOWED");
       }
     });
