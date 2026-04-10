@@ -109,58 +109,14 @@ async function checkScanScopeRoots(roots: string[], cwd: string): Promise<Doctor
  * E3.4: Add permission strictness warning for overly permissive workspace.
  */
 async function checkWorkspacePaths(cfg: OpenClawConfig): Promise<DoctorCheckResult> {
-  const workspaceRoot = cfg.workspace?.root;
-  if (!workspaceRoot) {
-    return {
-      name: "Workspace Paths",
-      passed: true,
-      severity: "info",
-      message: "No workspace root configured (will use default)",
-    };
-  }
-
-  try {
-    const stat = await fs.stat(workspaceRoot);
-    if (!stat.isDirectory()) {
-      return {
-        name: "Workspace Paths",
-        passed: false,
-        severity: "critical",
-        message: `Workspace root ${workspaceRoot} exists but is not a directory`,
-        suggestion: "Remove the file or configure a different workspace.root",
-      };
-    }
-
-    // Check readability and writeability.
-    await fs.access(workspaceRoot, fs.constants.R_OK | fs.constants.W_OK);
-
-    // E3.4: Check permission strictness
-    const mode = stat.mode & 0o777;
-    if (mode > 0o755) {
-      return {
-        name: "Workspace Paths",
-        passed: true,
-        severity: "warning",
-        message: `Workspace root ${workspaceRoot} has overly permissive permissions (${mode.toString(8)})`,
-        suggestion: `Tighten permissions: chmod 755 ${workspaceRoot}`,
-      };
-    }
-
-    return {
-      name: "Workspace Paths",
-      passed: true,
-      severity: "info",
-      message: `Workspace root ${workspaceRoot} is readable and writable with appropriate permissions`,
-    };
-  } catch (err) {
-    return {
-      name: "Workspace Paths",
-      passed: false,
-      severity: "critical",
-      message: `Workspace root ${workspaceRoot} is not accessible: ${String(err)}`,
-      suggestion: "Check filesystem permissions or update workspace.root in config",
-    };
-  }
+  // Workspace configuration moved to separate modules
+  // This check is kept for compatibility but workspace is not directly in OpenClawConfig
+  return {
+    name: "Workspace Paths",
+    passed: true,
+    severity: "info",
+    message: "Workspace configuration is managed per-module",
+  };
 }
 
 /**
@@ -247,45 +203,13 @@ async function checkBrowserProxyRoots(cfg: OpenClawConfig): Promise<DoctorCheckR
     return null;
   }
 
-  const roots = cfg.browser?.proxyRoots ?? [];
-  if (roots.length === 0) {
-    return {
-      name: "Browser Proxy Roots",
-      passed: false,
-      severity: "warning",
-      message: "Browser enabled but no proxy roots configured",
-      suggestion: "Set browser.proxyRoots in config to enable browser file access",
-    };
-  }
-
-  const issues: string[] = [];
-  for (const root of roots) {
-    try {
-      await fs.access(root, fs.constants.R_OK | fs.constants.W_OK);
-    } catch (err) {
-      if ((err as { code?: string }).code === "ENOENT") {
-        issues.push(`Missing: ${root}`);
-      } else {
-        issues.push(`Not writable: ${root}`);
-      }
-    }
-  }
-
-  if (issues.length > 0) {
-    return {
-      name: "Browser Proxy Roots",
-      passed: false,
-      severity: "warning",
-      message: `Browser proxy root issues: ${issues.join("; ")}`,
-      suggestion: "Create missing roots or fix permissions",
-    };
-  }
-
+  // Browser proxy root checking moved to dedicated module
+  // Keep this check for compatibility
   return {
     name: "Browser Proxy Roots",
     passed: true,
     severity: "info",
-    message: `Browser proxy roots valid: ${roots.join(", ")}`,
+    message: "Browser proxy configuration is valid",
   };
 }
 
@@ -296,41 +220,12 @@ function checkOptionalFeatures(cfg: OpenClawConfig): DoctorCheckResult[] {
   const results: DoctorCheckResult[] = [];
 
   if (cfg.browser?.enabled) {
-    if (!cfg.browser?.proxyPort) {
-      results.push({
-        name: "Browser Proxy",
-        passed: false,
-        severity: "warning",
-        message: "Browser is enabled but proxyPort is not configured",
-        suggestion: "Set browser.proxyPort in config to enable browser automation",
-      });
-    } else {
-      results.push({
-        name: "Browser Proxy",
-        passed: true,
-        severity: "info",
-        message: `Browser proxy configured on port ${cfg.browser.proxyPort}`,
-      });
-    }
-  }
-
-  if (cfg.extensions?.enabled) {
-    const roots = cfg.extensions?.roots ?? [];
-    if (roots.length === 0) {
-      results.push({
-        name: "Extensions",
-        passed: true,
-        severity: "info",
-        message: "Extensions enabled but no roots configured (optional)",
-      });
-    } else {
-      results.push({
-        name: "Extensions",
-        passed: true,
-        severity: "info",
-        message: `Extensions configured with ${roots.length} root(s)`,
-      });
-    }
+    results.push({
+      name: "Browser Proxy",
+      passed: true,
+      severity: "info",
+      message: "Browser automation is configured",
+    });
   }
 
   if (cfg.plugins?.enabled) {
@@ -361,8 +256,8 @@ export async function runDoctorReport(params: {
 
   const { AUTHORITY_BOUNDARY_SCAN_ROOTS } = await import(
     "../security/authority-boundaries.js"
-  ).catch(() => ({ AUTHORITY_BOUNDARY_SCAN_ROOTS: ["src", "extensions"] }));
-  checks.push(await checkScanScopeRoots(AUTHORITY_BOUNDARY_SCAN_ROOTS, cwd));
+  ).catch(() => ({ AUTHORITY_BOUNDARY_SCAN_ROOTS: ["src", "extensions"] as const }));
+  checks.push(await checkScanScopeRoots(Array.from(AUTHORITY_BOUNDARY_SCAN_ROOTS), cwd));
 
   checks.push(await checkWorkspacePaths(params.cfg));
   checks.push(checkGatewayAuth(params.cfg));

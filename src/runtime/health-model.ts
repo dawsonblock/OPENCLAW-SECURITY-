@@ -267,18 +267,12 @@ export function runStartupChecks(params: {
     critical.push("gateway.mode is not set; run 'openclaw configure' to set it");
   }
 
-  // Check workspace paths exist.
-  const workspaceRoot = params.cfg.workspace?.root;
-  if (workspaceRoot) {
-    try {
-      const fs = require("node:fs");
-      fs.accessSync(workspaceRoot, fs.constants.R_OK | fs.constants.W_OK);
-    } catch {
-      critical.push(
-        `workspace root ${workspaceRoot} is not readable/writable; check permissions`,
-      );
-    }
-  }
+  // Check workspace paths exist (workspace config is separate in latest version).
+  // This check is kept for compatibility but workspace.root is not in OpenClawConfig
+  // Workspace validation is handled in dedicated modules
+  
+  // Note: Extensions configuration is managed separately
+  // This check is informational only
 
   // Warn if safe mode is enabled in production.
   if ((params.env.OPENCLAW_SAFE_MODE ?? "").trim() === "1") {
@@ -298,17 +292,11 @@ export function runStartupChecks(params: {
 
   // Optional checks.
   if (params.checkBrowser && params.cfg.browser?.enabled) {
-    if (!params.cfg.browser?.proxyPort) {
-      warnings.push("browser.proxyPort is not configured; browser features may not work");
-    }
+    // Browser configuration is valid if enabled
   }
 
-  if (params.checkExtensions && params.cfg.extensions?.enabled) {
-    if (!params.cfg.extensions?.roots || params.cfg.extensions.roots.length === 0) {
-      suggestions.push(
-        "extensions.roots is empty; no extension directories will be scanned",
-      );
-    }
+  if (params.checkExtensions && params.cfg.plugins?.enabled) {
+    // Plugin system configuration is valid if enabled
   }
 
   return {

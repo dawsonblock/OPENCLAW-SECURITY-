@@ -19,7 +19,15 @@ export type SecurityEventType =
   | "plugin-scan-completed"
   | "authority-boundary-checked"
   | "reviewed-exception-used"
-  | "dangerous-action-limiter-triggered";
+  | "dangerous-action-limiter-triggered"
+  | "sandbox-startup-failure"
+  | "sandbox-execution-failure"
+  | "capability-grant-denied"
+  | "policy-enforcement-degraded"
+  | "gateway-startup-invariant-failed"
+  | "gateway-startup-invariant-passed"
+  | "tool-invocation-timeout"
+  | "resource-limit-exceeded";
 
 export type SecurityEventLevel = "critical" | "warning" | "info";
 

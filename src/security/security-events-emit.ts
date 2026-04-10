@@ -115,7 +115,7 @@ export function emitDangerousCapabilityEvent(params: {
   correlationId?: string;
   evaluationTimeMs?: number;
 }): void {
-  emitter.emit({
+  params.emitter.emit({
     type:
       params.decision === "allowed"
         ? "dangerous-capability-allowed"

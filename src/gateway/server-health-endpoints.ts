@@ -8,9 +8,9 @@
  * in actual gateway runtime wiring.
  */
 
-import type { Response } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import type { OpenClawConfig } from "../config/config.js";
-import { HealthBuilder } from "./health-model.js";
+import { HealthBuilder } from "../runtime/health-model.js";
 
 /**
  * Runtime state for health monitoring (inject as needed).
@@ -27,7 +27,7 @@ export interface RuntimeState {
  * Create a health status HTTP endpoint (liveness + full status).
  */
 export function createHealthEndpoint(state: RuntimeState) {
-  return async (req: any, res: Response) => {
+  return async (req: IncomingMessage, res: ServerResponse) => {
     const uptime = Date.now() - state.gatewayStartedAtMs;
     const allComponentsReady =
       state.componentsReady.size > 0 && !state.lastSecurityIssue;
@@ -74,7 +74,7 @@ export function createHealthEndpoint(state: RuntimeState) {
  * Use this for orchestrator probes that just need a binary ready state.
  */
 export function createReadinessEndpoint(state: RuntimeState) {
-  return async (req: any, res: Response) => {
+  return async (req: IncomingMessage, res: ServerResponse) => {
     const ready =
       state.componentsReady.size > 0 &&
       !state.lastSecurityIssue &&

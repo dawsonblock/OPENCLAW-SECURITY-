@@ -47,7 +47,7 @@ export function createGateEventEmissionMiddleware(
         emitter,
         toolName: params.toolName,
         action: params.action ?? "execute",
-        decision: params.verdict === "error" ? "denied" : params.verdict,
+        decision: params.verdict === "allow" ? "allowed" : "denied",
         reason: params.reason,
         sessionId: params.sessionId,
         agentId: params.agentId,
