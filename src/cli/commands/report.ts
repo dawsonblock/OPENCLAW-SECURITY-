@@ -12,7 +12,7 @@ export const reportCommand = new Command("report")
 
     const report = manager.generateReport();
     console.log(
-      `Report generated successfully. Check ${path.dirname(recoveryPath)}/recovery-report-${report.timestamp}.json.`,
+      `Report generated successfully. Check ${path.join(path.dirname(recoveryPath), `recovery-report-${report.timestamp}.json`)}.`,
     );
 
     if (options.bundle) {
