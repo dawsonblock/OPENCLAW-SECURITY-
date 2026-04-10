@@ -22,7 +22,7 @@ describe("browser-containment enforcement (runtime integration)", () => {
     allowedDir = path.join(mediaDir, `runtime-proof-${Date.now()}`);
 
     await fs.mkdir(allowedDir, { recursive: true });
-    await fs.mkdir("/tmp/openclaw/downloads", { recursive: true });
+    await fs.mkdir(path.join(os.tmpdir(), "openclaw", "downloads"), { recursive: true });
 
     allowedFile = path.join(allowedDir, "tab-001.json");
     outsideFile = path.join(tempDir, "outside-root.txt");
