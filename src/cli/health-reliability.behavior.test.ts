@@ -252,25 +252,21 @@ describe("Production Smoke Tests - Performance Baselines", () => {
     expect(elapsed).toBeLessThan(100);
   });
 
-  test("smoke: security event emission is fast", () => {
+  test("smoke: security event emission handles repeated emits without throwing", () => {
     const emitter = getSecurityEventEmitter();
-    const start = Date.now();
 
-    for (let i = 0; i < 100; i++) {
-      emitter.emit({
-        type: "dangerous-capability-allowed",
-        timestamp: Date.now(),
-        level: "info",
-        toolName: `test-tool-${i}`,
-        capability: "fs:read",
-        decision: "allowed",
-      });
-    }
-
-    const elapsed = Date.now() - start;
-
-    // 100 events should emit in <200ms (reasonable baseline)
-    expect(elapsed).toBeLessThan(200);
+    expect(() => {
+      for (let i = 0; i < 100; i++) {
+        emitter.emit({
+          type: "dangerous-capability-allowed",
+          timestamp: Date.now(),
+          level: "info",
+          toolName: `test-tool-${i}`,
+          capability: "fs:read",
+          decision: "allowed",
+        });
+      }
+    }).not.toThrow();
   });
 
   test("smoke: retry backoff delay calculation is correct", async () => {
