@@ -320,9 +320,12 @@ export async function startGatewayServer(
     for (const error of invariantCheck.errors) {
       emitGatewayStartupInvariantFailed({
         emitter: startupSecurityEmitter,
-        invariant: "gateway-startup",
-        details: error,
-        recoveryStep: "Fix startup invariants and restart the gateway.",
+        reason: "Gateway startup invariant validation failed.",
+        metadata: {
+          invariant: "gateway-startup",
+          details: error,
+          recoveryStep: "Fix startup invariants and restart the gateway.",
+        },
       });
     }
     throw new Error(
