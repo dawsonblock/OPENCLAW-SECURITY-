@@ -60,7 +60,7 @@ describe("Enhanced Production Smoke Tests", () => {
       });
 
       // Events should be emitted with consistent structure
-      expect(capturedEvents.length).toBeGreaterThanOrEqual(0); // May be captured differently
+      expect(capturedEvents.length).toBeGreaterThan(0);
     } finally {
       console.log = originalInfo;
     }
