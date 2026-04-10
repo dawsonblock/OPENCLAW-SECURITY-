@@ -1,12 +1,17 @@
 /**
- * HTTP health check endpoints for gateway operational observability.
+ * CANONICAL: HTTP health check endpoints for gateway operational observability.
  *
+ * This is the production implementation for health, readiness, and liveness checks.
+ * 
  * Provides:
- * - /health (full health status)
- * - /ready (readiness check)
- * - /alive (liveness check)
+ * - /health (full health status) - use for comprehensive monitoring
+ * - /ready or /readyz (readiness check) - use for orchestrator load balancer decisions
+ * - /alive or /livez (liveness check) - use for crash detection
+ * - /status (quick cached status) - lightweight status check
+ * - /metrics (Prometheus-compatible metrics)
  *
- * Can be integrated into Express, Fastify, or other HTTP frameworks.
+ * All other health endpoint files are for reference/example only.
+ * This is the only implementation that should be wired into production runtime.
  */
 
 import type { RuntimeHealth } from "../runtime/health-model.js";

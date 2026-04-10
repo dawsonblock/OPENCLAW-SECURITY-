@@ -10,7 +10,16 @@ export interface RecoveryReport {
 }
 
 /**
- * Handles automatic rollback and safe-mode transitions for system faults.
+ * Lightweight Recovery and Safe Mode Management
+ * 
+ * This module provides basic recovery capabilities for handling runtime faults:
+ * - Safe mode activation when crashes are detected
+ * - Config rollback to a known-good backup state
+ * - Sanitized recovery reports for troubleshooting
+ * 
+ * This is NOT a full backup/restore system. It is a lightweight fallback mechanism
+ * for operational continuity. For production disaster recovery, use external backup
+ * solutions (Git, database snapshots, configuration management systems).
  */
 export class RecoveryManager {
   private isSafeMode: boolean = false;
@@ -62,13 +71,20 @@ export class RecoveryManager {
   }
 
   private getLastLogs(): string[] {
-    // Dummy implementation for fetching last 500 lines of logs
-    return ["Log retrieval not fully implemented yet."];
+    // Note: This is a stub. Full log retrieval would require access to logging infrastructure.
+    // In production, logs should be ingested into centralized log aggregation (ELK, Datadog, etc.)
+    return ["[Recovery report stub: full log history not available in this version]"];
   }
 
   private getConfigDiff(): string {
-    // Dummy implementation for diffing current vs backup config
-    return "Config diff not fully implemented yet.";
+    // Note: This is a stub. Full config diffing would require:
+    // 1. Maintaining config history (not implemented)
+    // 2. Structured diff computation (use external tools for production)
+    // This stub shows what changed is not detailed here.
+    if (!fs.existsSync(this.backupConfigPath)) {
+      return "[No backup available for diff]";
+    }
+    return "[Config diff not implemented - use Git or versioning system for production]";
   }
 
   private getSanitizedEnv(): Record<string, string> {

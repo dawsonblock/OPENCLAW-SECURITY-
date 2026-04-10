@@ -1,13 +1,11 @@
 /**
- * Example health and readiness HTTP endpoints for OpenCLAW gateway.
+ * DEPRECATED: Example health endpoints (for reference only).
  *
- * This module shows how to integrate the health model into the gateway's
- * HTTP server for operational observability.
+ * THIS IS NOT THE CANONICAL IMPLEMENTATION.
+ * Use `health-endpoints.ts` instead for the production health/readiness/liveness interface.
  *
- * Add to gateway/server-http.ts or your HTTP setup:
- *
- *   app.get("/health", createHealthEndpoint(runtimeState))
- *   app.get("/ready", createReadinessEndpoint(runtimeState))
+ * This file is kept for documentation purposes only and should not be used
+ * in actual gateway runtime wiring.
  */
 
 import type { Response } from "node:http";
