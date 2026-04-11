@@ -287,7 +287,7 @@ Switch: `openclaw update --channel stable|beta|dev`
 
 ## 🛡️ Security Hardening
 
-This fork includes a **comprehensive, multi-phase security hardening** — 8 security phases covering process isolation, network boundary enforcement, secret redaction, capability-gated tool execution, and forensic incident response.
+This fork includes a **comprehensive, multi-phase security hardening** — 8 security phases covering process isolation, network boundary enforcement, secret redaction, capability-gated tool execution, and forensic incident response. See the [Threat Model](docs/threat-model.md) for the exact scope of runtime proofs.
 
 ### Phase 0 — Subprocess Sandboxing
 
@@ -465,13 +465,13 @@ Checks:
 - Gateway auth configured
 - Optional features reported as optional
 
-### Fast Confidence Pass
+### Fast Confidence & Release Gate
 
 ```bash
-./scripts/fast-smoke.sh
+pnpm release:gate
 ```
 
-This is a fast runtime-smoke pass for the highest-value guarantees on this branch: authority-boundary governance, dangerous node-command denial, browser containment, safe-mode scope, canonical health, and lightweight recovery behavior.
+This is the canonical release gate that verifies structural security, determinism, threat model requirements, config backward-compatibility, and operational failure modes.
 
 ### Pre-Deployment Checklist
 
@@ -479,13 +479,10 @@ This is a fast runtime-smoke pass for the highest-value guarantees on this branc
 # 1. Run startup checks
 openclaw doctor
 
-# 2. Verify reviewed authority boundaries
-pnpm security:check
+# 2. Run the canonical release gate and confidence pass
+pnpm release:gate
 
-# 3. Run the fast runtime confidence pass
-./scripts/fast-smoke.sh
-
-# 4. Check canonical health through the gateway method
+# 3. Check canonical health through the gateway method
 openclaw health --json
 ```
 

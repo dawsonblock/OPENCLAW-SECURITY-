@@ -318,7 +318,8 @@ Non-zero exit code if critical issues found.
 - [ ] Browser proxy configured if browser features needed
 - [ ] Policy posture hash can be computed (`pnpm security:check`)
 - [ ] Startup doctor passes (`openclaw doctor`)
-- [ ] Fast runtime smoke passes (`./scripts/fast-smoke.sh`)
+- [ ] Release Gate script passes (`pnpm release:gate`)
+- [ ] Fast runtime smoke passes (via release gate)
 - [ ] Canonical health method accessible and returns `ready`
 - [ ] Structured security events flowing to logs (check `/tmp/openclaw-gateway.log`)
 - [ ] Audit logs are collected and monitored
@@ -365,8 +366,7 @@ Non-zero exit code if critical issues found.
 
 ## See Also
 
-- [Security Audit Report](SECURITY_AUDIT_REPORT.md): Architecture and threat model
-- [Hardening Completion Report](HARDENING_COMPLETION_REPORT.md): What was added and proven
+- [Threat Model](docs/threat-model.md): Exact scope of runtime security boundary proofs.
 - Source: Authority boundary definitions at `src/security/authority-boundaries.ts`
 - Security events: `src/security/security-events.ts` and `src/security/security-events-emit.ts`
 - Health model: `src/runtime/health-model.ts`
