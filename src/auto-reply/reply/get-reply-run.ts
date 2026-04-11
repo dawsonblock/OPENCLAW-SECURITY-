@@ -105,6 +105,7 @@ type RunPreparedReplyParams = {
   storePath?: string;
   workspaceDir: string;
   abortedLastRun: boolean;
+  extraInstructions?: string;
 };
 
 export async function runPreparedReply(
@@ -147,6 +148,7 @@ export async function runPreparedReply(
     storePath,
     workspaceDir,
     sessionStore,
+    extraInstructions,
   } = params;
   let {
     sessionEntry,
@@ -185,7 +187,7 @@ export async function runPreparedReply(
   const inboundMetaPrompt = buildInboundMetaSystemPrompt(
     isNewSession ? sessionCtx : { ...sessionCtx, ThreadStarterBody: undefined },
   );
-  const extraSystemPrompt = [inboundMetaPrompt, groupIntro, groupSystemPrompt]
+  const extraSystemPrompt = [inboundMetaPrompt, extraInstructions, groupIntro, groupSystemPrompt]
     .filter(Boolean)
     .join("\n\n");
   const baseBody = sessionCtx.BodyStripped ?? sessionCtx.Body ?? "";

@@ -11,7 +11,8 @@ import {
   parseAgentSessionKey,
 } from "../../routing/session-key.js";
 import { normalizeDeliveryContext } from "../../utils/delivery-context.js";
-import { resolveAgentConfig } from "../agent-scope.js";
+import { resolveAgentConfig, resolveAgentDir } from "../agent-scope.js";
+import { loadAgentInstructions } from "../instruction-loader.js";
 import { AGENT_LANE_SUBAGENT } from "../lanes.js";
 import { optionalStringEnum } from "../schema/typebox.js";
 import { buildSubagentSystemPrompt } from "../subagent-announce.js";
@@ -234,13 +235,23 @@ export function createSessionsSpawnTool(opts?: {
           });
         }
       }
-      const childSystemPrompt = buildSubagentSystemPrompt({
+      const baseChildSystemPrompt = buildSubagentSystemPrompt({
         requesterSessionKey,
         requesterOrigin,
         childSessionKey,
         label: label || undefined,
         task,
       });
+
+      const targetAgentDir = resolveAgentDir(cfg, targetAgentId);
+      const specializedInstructions = await loadAgentInstructions({
+        agentId: targetAgentId,
+        agentDir: targetAgentDir,
+      });
+
+      const childSystemPrompt = [baseChildSystemPrompt, specializedInstructions]
+        .filter(Boolean)
+        .join("\n\n");
 
       const childIdem = crypto.randomUUID();
       let childRunId: string = childIdem;

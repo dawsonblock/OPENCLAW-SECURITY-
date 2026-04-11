@@ -6,6 +6,7 @@ import {
   resolveSessionAgentId,
   resolveAgentSkillsFilter,
 } from "../../agents/agent-scope.js";
+import { loadAgentInstructions } from "../../agents/instruction-loader.js";
 import { resolveModelRefFromString } from "../../agents/model-selection.js";
 import { resolveAgentTimeoutMs } from "../../agents/timeout.js";
 import { DEFAULT_AGENT_WORKSPACE_DIR, ensureAgentWorkspace } from "../../agents/workspace.js";
@@ -287,6 +288,11 @@ export async function getReplyFromConfig(
     workspaceDir,
   });
 
+  const extraInstructions = await loadAgentInstructions({
+    agentId,
+    agentDir,
+  });
+
   return runPreparedReply({
     ctx,
     sessionCtx,
@@ -331,5 +337,6 @@ export async function getReplyFromConfig(
     storePath,
     workspaceDir,
     abortedLastRun,
+    extraInstructions,
   });
 }

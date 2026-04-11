@@ -291,8 +291,60 @@ export function applyModelDefaults(cfg: OpenClawConfig): OpenClawConfig {
   };
 }
 
+export function applyOperatorAgents(cfg: OpenClawConfig): OpenClawConfig {
+  const agents = cfg.agents?.list;
+  if (!Array.isArray(agents)) {
+    return cfg;
+  }
+
+  const existingIds = new Set(
+    agents.map((a) => (typeof a.id === "string" ? a.id.toLowerCase() : "")).filter(Boolean),
+  );
+
+  const operatorAgents = [
+    {
+      id: "triage",
+      name: "Triage",
+      subagents: {
+        allowAgents: ["*"],
+      },
+    },
+    {
+      id: "coder",
+      name: "Coder",
+    },
+    {
+      id: "admin",
+      name: "Admin",
+    },
+  ];
+
+  let mutated = false;
+  const nextAgents = [...agents];
+
+  for (const opAgent of operatorAgents) {
+    if (!existingIds.has(opAgent.id)) {
+      nextAgents.push(opAgent);
+      mutated = true;
+    }
+  }
+
+  if (!mutated) {
+    return cfg;
+  }
+
+  return {
+    ...cfg,
+    agents: {
+      ...cfg.agents,
+      list: nextAgents,
+    },
+  };
+}
+
 export function applyAgentDefaults(cfg: OpenClawConfig): OpenClawConfig {
-  const agents = cfg.agents;
+  const nextCfg = applyOperatorAgents(cfg);
+  const agents = nextCfg.agents;
   const defaults = agents?.defaults;
   const hasMax =
     typeof defaults?.maxConcurrent === "number" && Number.isFinite(defaults.maxConcurrent);
@@ -300,7 +352,7 @@ export function applyAgentDefaults(cfg: OpenClawConfig): OpenClawConfig {
     typeof defaults?.subagents?.maxConcurrent === "number" &&
     Number.isFinite(defaults.subagents.maxConcurrent);
   if (hasMax && hasSubMax) {
-    return cfg;
+    return nextCfg;
   }
 
   let mutated = false;
@@ -317,7 +369,7 @@ export function applyAgentDefaults(cfg: OpenClawConfig): OpenClawConfig {
   }
 
   if (!mutated) {
-    return cfg;
+    return nextCfg;
   }
 
   return {
