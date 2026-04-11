@@ -13,7 +13,14 @@ describe("validateStartupInvariants", () => {
   };
 
   it("should pass with clean environment and default config", () => {
-    const result = validateStartupInvariants({ cfg: baseConfig, env: { ...cleanEnv } });
+    const result = validateStartupInvariants({
+      cfg: baseConfig,
+      env: { ...cleanEnv },
+      deps: {
+        computePolicyHash: () => "mock-hash",
+        getBrowserProxyRoots: () => ["/tmp/safe"],
+      },
+    });
     expect(result.ok).toBe(true);
     expect(result.errors).toHaveLength(0);
   });
@@ -22,6 +29,10 @@ describe("validateStartupInvariants", () => {
     const result = validateStartupInvariants({
       cfg: baseConfig,
       env: { ...cleanEnv, OPENCLAW_ALLOW_HOST_EXEC: "1" },
+      deps: {
+        computePolicyHash: () => "mock-hash",
+        getBrowserProxyRoots: () => ["/tmp/safe"],
+      },
     });
     expect(result.ok).toBe(false);
     expect(result.errors.some((e) => e.includes("Break-glass flags detection"))).toBe(true);
@@ -31,6 +42,10 @@ describe("validateStartupInvariants", () => {
     const result = validateStartupInvariants({
       cfg: baseConfig,
       env: { ...cleanEnv, OPENCLAW_SANDBOX_NETWORK: "host" },
+      deps: {
+        computePolicyHash: () => "mock-hash",
+        getBrowserProxyRoots: () => ["/tmp/safe"],
+      },
     });
     expect(result.ok).toBe(false);
     expect(result.errors.some((e) => e.includes("Sandbox network must be 'none'"))).toBe(true);
@@ -44,7 +59,14 @@ describe("validateStartupInvariants", () => {
         },
       },
     };
-    const result = validateStartupInvariants({ cfg: dangerousConfig, env: { ...cleanEnv } });
+    const result = validateStartupInvariants({
+      cfg: dangerousConfig,
+      env: { ...cleanEnv },
+      deps: {
+        computePolicyHash: () => "mock-hash",
+        getBrowserProxyRoots: () => ["/tmp/safe"],
+      },
+    });
     expect(result.ok).toBe(false);
     expect(result.errors.some((e) => e.includes("Dangerous commands allowed"))).toBe(true);
   });
@@ -89,7 +111,8 @@ describe("validateStartupInvariants", () => {
       },
       env: { ...cleanEnv },
       deps: {
-        getBrowserProxyRoots: () => ["/"],
+        computePolicyHash: () => "mock-hash",
+        getBrowserProxyRoots: () => ["/"], // Should be ignored
       },
     });
     expect(result.ok).toBe(true);
@@ -97,7 +120,14 @@ describe("validateStartupInvariants", () => {
 
   it("should allow break-glass flags in development", () => {
     const devEnv = { NODE_ENV: "development", OPENCLAW_ALLOW_HOST_EXEC: "1" };
-    const result = validateStartupInvariants({ cfg: baseConfig, env: devEnv });
+    const result = validateStartupInvariants({
+      cfg: baseConfig,
+      env: devEnv,
+      deps: {
+        computePolicyHash: () => "mock-hash",
+        getBrowserProxyRoots: () => ["/tmp/safe"],
+      },
+    });
     expect(result.ok).toBe(true);
   });
 });

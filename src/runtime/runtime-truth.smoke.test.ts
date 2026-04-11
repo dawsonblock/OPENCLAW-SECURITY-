@@ -37,16 +37,16 @@ describe("runtime truth smoke", () => {
     expect(result.forbiddenImporters).toEqual([]);
   });
 
-  it("denies a dangerous node command in a live kernel-gate flow", async () => {
+  it("denies a dangerous node command in a live kernel-gate flow (absolute enforcement)", async () => {
     process.env.OPENCLAW_SAFE_MODE = "1";
 
     const node: NodeSession = {
       nodeId: "node-1",
       platform: "macos",
-      commands: ["system.run"],
+      commands: ["system.run"], // Node says it can do it
       metadata: {},
     };
-    const nodeRegistry: Pick<NodeRegistry, "get" | "invoke"> = {
+    const nodeRegistry: NodeRegistryLike = {
       get: vi.fn().mockReturnValue(node),
       invoke: vi.fn(),
     };
@@ -54,11 +54,12 @@ describe("runtime truth smoke", () => {
       gateway: {
         bind: "loopback",
         nodes: {
-          allowCommands: ["system.run"],
+          allowCommands: ["system.run"], // Config says it's allowed
         },
       },
     };
 
+    // The Gate should still block it because it's in DEFAULT_DANGEROUS_NODE_COMMANDS and safe mode is on.
     const result = await invokeNodeCommandWithKernelGate({
       cfg,
       nodeRegistry,
@@ -67,7 +68,8 @@ describe("runtime truth smoke", () => {
     });
 
     expect(result.ok).toBe(false);
-    expect(result.details?.reason).toContain("requires explicit gateway.nodes.allowCommands");
+    expect(result.message).toContain("safe mode active");
+    expect(result.code).toBe("NOT_ALLOWED");
   });
 
   it("rejects an outside-root browser-proxy escape through the live file boundary", async () => {
