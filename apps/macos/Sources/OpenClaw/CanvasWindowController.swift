@@ -324,7 +324,7 @@ final class CanvasWindowController: NSWindowController, WKNavigationDelegate, NS
         guard self.isUiJsEvalAllowed() else {
             throw NSError(domain: "ui_js_eval_disabled", code: 1)
         }
-        try await withCheckedThrowingContinuation { cont in
+        return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
             self.webView.evaluateJavaScript(javaScript) { result, error in
                 if let error {
                     cont.resume(throwing: error)
@@ -340,7 +340,7 @@ final class CanvasWindowController: NSWindowController, WKNavigationDelegate, NS
     }
 
     func snapshot(to outPath: String?) async throws -> String {
-        let image: NSImage = try await withCheckedThrowingContinuation { cont in
+        let image: NSImage = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<NSImage, Error>) in
             self.webView.takeSnapshot(with: nil) { image, error in
                 if let error {
                     cont.resume(throwing: error)

@@ -80,7 +80,7 @@ actor SessionPreviewLimiter {
             return
         }
         let id = UUID()
-        await withCheckedContinuation { cont in
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
             self.waitQueue.append(id)
             self.waiters[id] = cont
         }

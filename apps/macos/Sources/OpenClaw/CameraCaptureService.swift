@@ -99,7 +99,7 @@ actor CameraCaptureService {
         settings.photoQualityPrioritization = .quality
 
         var delegate: PhotoCaptureDelegate?
-        let rawData: Data = try await withCheckedThrowingContinuation { cont in
+        let rawData: Data = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Data, Error>) in
             let d = PhotoCaptureDelegate(cont)
             delegate = d
             output.capturePhoto(with: settings, delegate: d)
@@ -184,7 +184,7 @@ actor CameraCaptureService {
 
         let logger = self.logger
         var delegate: MovieFileDelegate?
-        let recordedURL: URL = try await withCheckedThrowingContinuation { cont in
+        let recordedURL: URL = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<URL, Error>) in
             let d = MovieFileDelegate(cont, logger: logger)
             delegate = d
             output.startRecording(to: tmpMovURL, recordingDelegate: d)
@@ -201,7 +201,7 @@ actor CameraCaptureService {
         case .authorized:
             return
         case .notDetermined:
-            let ok = await withCheckedContinuation(isolation: nil) { cont in
+            let ok = await withCheckedContinuation(isolation: nil) { (cont: CheckedContinuation<Bool, Never>) in
                 AVCaptureDevice.requestAccess(for: mediaType) { granted in
                     cont.resume(returning: granted)
                 }

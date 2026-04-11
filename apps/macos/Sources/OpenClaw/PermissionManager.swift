@@ -305,7 +305,7 @@ final class LocationPermissionRequester: NSObject, CLLocationManagerDelegate {
             return current
         }
 
-        return await withCheckedContinuation { cont in
+        return await withCheckedContinuation { (cont: CheckedContinuation<CLAuthorizationStatus, Never>) in
             self.continuation = cont
             self.timeoutTask?.cancel()
             self.timeoutTask = Task { [weak self] in

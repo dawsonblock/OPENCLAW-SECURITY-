@@ -54,7 +54,7 @@ final class MacNodeLocationService: NSObject, CLLocationManagerDelegate {
     }
 
     private func requestLocation() async throws -> CLLocation {
-        try await withCheckedThrowingContinuation { cont in
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<CLLocation, Swift.Error>) in
             self.locationContinuation = cont
             self.manager.requestLocation()
         }
@@ -68,7 +68,7 @@ final class MacNodeLocationService: NSObject, CLLocationManagerDelegate {
             return try await operation()
         }
 
-        return try await withCheckedThrowingContinuation { continuation in
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<T, Swift.Error>) in
             var didFinish = false
 
             func finish(returning value: T) {

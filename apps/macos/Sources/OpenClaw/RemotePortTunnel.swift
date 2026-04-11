@@ -185,7 +185,7 @@ final class RemotePortTunnel {
                 ])
         }
 
-        return try await withCheckedThrowingContinuation { cont in
+        return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<UInt16, Error>) in
             let queue = DispatchQueue(label: "ai.openclaw.remote.tunnel.port", qos: .utility)
             do {
                 let listener = try NWListener(using: .tcp, on: .any)

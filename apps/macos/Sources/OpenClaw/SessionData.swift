@@ -103,7 +103,7 @@ struct SessionRow: Identifiable {
     }
 }
 
-enum SessionKind {
+enum SessionKind: Equatable {
     case direct, group, global, operatorLane(id: String), unknown
 
     /// Well-known operator agent IDs that receive first-class UI treatment.

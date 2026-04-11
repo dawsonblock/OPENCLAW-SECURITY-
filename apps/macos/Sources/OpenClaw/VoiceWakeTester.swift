@@ -437,7 +437,7 @@ final class VoiceWakeTester {
     private nonisolated static func ensurePermissions() async throws -> Bool {
         let speechStatus = SFSpeechRecognizer.authorizationStatus()
         if speechStatus == .notDetermined {
-            let granted = await withCheckedContinuation { continuation in
+            let granted = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
                 SFSpeechRecognizer.requestAuthorization { status in
                     continuation.resume(returning: status == .authorized)
                 }
@@ -452,7 +452,7 @@ final class VoiceWakeTester {
         case .authorized: return true
 
         case .notDetermined:
-            return await withCheckedContinuation { continuation in
+            return await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
                 AVCaptureDevice.requestAccess(for: .audio) { granted in
                     continuation.resume(returning: granted)
                 }

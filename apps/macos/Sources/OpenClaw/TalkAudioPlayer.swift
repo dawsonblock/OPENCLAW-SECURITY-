@@ -55,7 +55,7 @@ final class TalkAudioPlayer: NSObject, @preconcurrency AVAudioPlayerDelegate {
         let playback = Playback()
         self.playback = playback
 
-        return await withCheckedContinuation { continuation in
+        return await withCheckedContinuation { (continuation: CheckedContinuation<TalkPlaybackResult, Never>) in
             playback.setContinuation(continuation)
             do {
                 let player = try AVAudioPlayer(data: data)
