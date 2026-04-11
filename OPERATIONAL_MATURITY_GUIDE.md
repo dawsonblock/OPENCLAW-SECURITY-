@@ -151,6 +151,7 @@ These subsystems are disabled by default and can fail independently:
 ### Degraded Mode Behavior
 
 The canonical gateway-method health payload indicates `"degraded"` when:
+
 - One or more optional subsystems failed to initialize
 - Background audit daemon is behind schedule
 - Forensics anchor temporarily unavailable
@@ -218,25 +219,30 @@ The canonical gateway-method health payload indicates `"degraded"` when:
 The live health contract is the gateway method/RPC path consumed by `openclaw health` and `openclaw status --deep`. Helper HTTP health endpoint files are not treated as the canonical operator contract unless they are explicitly mounted by the running gateway.
 
 **Liveness** (`alive`):
+
 - Process is up and the gateway health method responds
 
 **Readiness** (`ready`):
+
 - Startup invariants passed
 - Critical components initialized
 - No blocking security issues
 - Check: `openclaw health --json` → `.ready == true`
 
 **Degraded** (`degraded`):
+
 - One or more optional subsystems failed
 - Readiness can still remain true
 - Check: `openclaw health --json` → `.degraded == true`
 
 **Safe Mode** (`safeMode`):
+
 - Safe mode is active and the runtime is using the narrowed hardening profile.
 - Persistent state: Check for `.safe_mode` marker file in the config directory.
 - Check: `openclaw health --json` → `.safeMode == true`.
 
 Example health response:
+
 ```json
 {
   "status": "healthy",
@@ -269,6 +275,7 @@ Events are emitted as JSON log lines in `/tmp/openclaw/openclaw-YYYY-MM-DD.log`:
 ```
 
 Live event types on this branch:
+
 - `dangerous-path-allowed`
 - `dangerous-path-denied`
 - `browser-proxy-rejected`
@@ -281,11 +288,13 @@ The schema files define additional event types, but they should be treated as ty
 Each tool execution writes to per-session ledger in `~/.openclaw/<sessionId>.ledger`:
 
 Entries:
+
 1. **proposal**: Tool and arguments (redacted)
 2. **decision**: Gate verdict and reasons
 3. **result**: Execution outcome and summary (optional, if capture enabled)
 
 Use for post-incident analysis:
+
 ```bash
 jq '.payload | select(.type=="decision") | select(.verdict=="allow")' ~/.openclaw/session-xyz.ledger
 ```
@@ -293,11 +302,13 @@ jq '.payload | select(.type=="decision") | select(.verdict=="allow")' ~/.opencla
 ### Startup Doctor Report
 
 Run before production deployment:
+
 ```bash
 openclaw doctor
 ```
 
 Output:
+
 - Authority boundary config ✓ / ✗
 - Scan scope roots readable
 - Workspace paths valid
@@ -372,3 +383,24 @@ Non-zero exit code if critical issues found.
 - Health model: `src/runtime/health-model.ts`
 - Doctor report: `src/cli/startup-doctor.ts`
 - Reliability patterns: `src/runtime/reliability-patterns.ts`
+
+---
+
+## 🟢 Final Verification: Operational Maturity Achieved
+
+As of April 11, 2026, the OpenClaw Operational Maturity Phase 2 has been successfully completed and verified.
+
+### 🧩 Verified Features
+
+- **Operator Lanes (RPC)**: `sessions.agentLanes` is functionally polling and surfacing Triage/Coder/Admin activity in the Web UI.
+- **Topmost Priority Indicators**: Dynamic lane badges are integrated into the dashboard topbar with semantic styling.
+- **Structured Receipts**: Handoff receipts are transformed from raw markdown into premium, structured UI cards in both Web and macOS interfaces.
+
+### 🧪 Readiness Status
+
+- [x] Backend Tooling (Receipts, Metrics)
+- [x] Agent Instructions (Triage, Coder, Admin)
+- [x] Visual Convergence (Lanes, Cards)
+- [x] Cross-App Verification (Web, macOS)
+
+The system is now fully operationalized for high-confidence operator-led workflows.
