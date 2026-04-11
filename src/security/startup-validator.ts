@@ -1,3 +1,5 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
 import type { GatewayBindMode } from "../config/types.gateway.js";
 import { isLoopbackHost } from "../gateway/net.js";
@@ -9,7 +11,17 @@ function truthyEnv(value: string | undefined): boolean {
 }
 
 export function isSafeModeEnabled(env: NodeJS.ProcessEnv): boolean {
-  return truthyEnv(env.OPENCLAW_SAFE_MODE);
+  if (truthyEnv(env.OPENCLAW_SAFE_MODE)) {
+    return true;
+  }
+  // Also check for persistent marker file in common config locations
+  const configPath = env.OPENCLAW_CONFIG_PATH || path.join(os.homedir(), ".openclaw", "openclaw.json");
+  const markerPath = path.join(path.dirname(configPath), ".safe_mode");
+  try {
+    return fs.existsSync(markerPath);
+  } catch {
+    return false;
+  }
 }
 
 export function allowUnsafeGatewayConfig(env: NodeJS.ProcessEnv): boolean {

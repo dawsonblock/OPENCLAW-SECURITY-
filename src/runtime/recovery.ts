@@ -24,25 +24,57 @@ export class RecoveryManager {
   private isSafeMode: boolean = false;
   private configPath: string;
   private backupConfigPath: string;
+  private markerPath: string;
   private reportDir: string;
 
   constructor(configPath: string) {
     this.configPath = configPath;
     this.backupConfigPath = `${configPath}.bak`;
+    this.markerPath = path.join(path.dirname(configPath), ".safe_mode");
     this.reportDir = path.dirname(configPath);
   }
 
   public triggerSafeMode(triggeringProvider?: string) {
-    if (this.isSafeMode) {
-      return;
-    }
-    this.isSafeMode = true;
-
     console.error(
       `[RecoveryManager] Triggering SAFE MODE. Provider '${triggeringProvider}' caused crash loop.`,
     );
+
+    try {
+      if (!fs.existsSync(this.markerPath)) {
+        fs.writeFileSync(this.markerPath, `triggered-by: ${triggeringProvider || "unknown"}\n`, "utf8");
+      }
+    } catch (err) {
+      console.error(`[RecoveryManager] Failed to write safe-mode marker: ${String(err)}`);
+    }
+
     this.generateReport(triggeringProvider);
     this.rollbackConfig();
+  }
+
+  public clearSafeMode() {
+    try {
+      if (fs.existsSync(this.markerPath)) {
+        fs.unlinkSync(this.markerPath);
+        console.log("[RecoveryManager] Persistent safe-mode marker cleared.");
+      }
+    } catch (err) {
+      console.error(`[RecoveryManager] Failed to clear safe-mode marker: ${String(err)}`);
+    }
+  }
+
+  /**
+   * Creates a baseline config backup if one does not already exist.
+   * This should be called early in the gateway startup on a successful boot.
+   */
+  public createSnapshotIfMissing() {
+    if (!fs.existsSync(this.backupConfigPath) && fs.existsSync(this.configPath)) {
+      try {
+        fs.copyFileSync(this.configPath, this.backupConfigPath);
+        console.log(`[RecoveryManager] Created baseline config backup at ${this.backupConfigPath}`);
+      } catch (err) {
+        console.warn(`[RecoveryManager] Failed to create config backup: ${String(err)}`);
+      }
+    }
   }
 
   public generateReport(triggeringProvider?: string): RecoveryReport {
@@ -72,9 +104,18 @@ export class RecoveryManager {
   }
 
   private getLastLogs(): string[] {
-    // Note: This is a stub. Full log retrieval would require access to logging infrastructure.
-    // In production, logs should be ingested into centralized log aggregation (ELK, Datadog, etc.)
-    return ["[Recovery report stub: full log history not available in this version]"];
+    // Try to find the last few lines of the gateway log
+    const logPath = "/tmp/openclaw-gateway.log";
+    try {
+      if (fs.existsSync(logPath)) {
+        const content = fs.readFileSync(logPath, "utf8");
+        const lines = content.split("\n").filter(Boolean);
+        return lines.slice(-20); // Last 20 lines
+      }
+    } catch {
+      // Ignore
+    }
+    return ["[Recovery report: gateway log not found or unreadable]"];
   }
 
   private getConfigDiff(): string {
