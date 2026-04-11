@@ -197,7 +197,7 @@ describe("QmdMemoryManager", () => {
     } as unknown as any;
 
     let releaseUpdate: (() => void) | null = null;
-    spawnMock.mockImplementation(({ args }: any) => {
+    spawnMock.mockImplementation(({ args }: unknown) => {
       if (args[0] === "update") {
         const child = createMockChild({ autoClose: false });
         releaseUpdate = () => child.closeWith(0);
@@ -241,7 +241,7 @@ describe("QmdMemoryManager", () => {
     } as unknown as any;
 
     let releaseUpdate: (() => void) | null = null;
-    spawnMock.mockImplementation(({ args }: any) => {
+    spawnMock.mockImplementation(({ args }: unknown) => {
       if (args[0] === "update") {
         const child = createMockChild({ autoClose: false });
         releaseUpdate = () => child.closeWith(0);
@@ -284,7 +284,7 @@ describe("QmdMemoryManager", () => {
       },
     } as unknown as any;
 
-    spawnMock.mockImplementation(({ args }: any) => {
+    spawnMock.mockImplementation(({ args }: unknown) => {
       if (args[0] === "collection" && args[1] === "list") {
         return createMockChild({ autoClose: false });
       }
@@ -316,7 +316,7 @@ describe("QmdMemoryManager", () => {
         },
       },
     } as unknown as any;
-    spawnMock.mockImplementation(({ args }: any) => {
+    spawnMock.mockImplementation(({ args }: unknown) => {
       if (args[0] === "update") {
         return createMockChild({ autoClose: false });
       }
@@ -364,7 +364,7 @@ describe("QmdMemoryManager", () => {
 
     let updateCalls = 0;
     let releaseFirstUpdate: (() => void) | null = null;
-    spawnMock.mockImplementation(({ args }: any) => {
+    spawnMock.mockImplementation(({ args }: unknown) => {
       if (args[0] === "update") {
         updateCalls += 1;
         if (updateCalls === 1) {
@@ -413,9 +413,9 @@ describe("QmdMemoryManager", () => {
           ],
         },
       },
-    } as any;
+    } as unknown;
 
-    spawnMock.mockImplementation(({ args }: any) => {
+    spawnMock.mockImplementation(({ args }: unknown) => {
       if (args[0] === "query") {
         const child = createMockChild({ autoClose: false });
         setTimeout(() => {
