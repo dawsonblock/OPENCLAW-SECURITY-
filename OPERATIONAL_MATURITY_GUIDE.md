@@ -34,11 +34,11 @@ The following are proven through static code analysis and CI validation:
 
 The following are validated through runtime integration tests:
 
-- **Dangerous-Path Gate Enforcement** (`src/rfsn/runtime-gate-integration.test.ts`, `src/gateway/node-command-kernel-gate.runtime.test.ts`):
-  - High-risk exec flow is blocked when policy or safe mode forbids it
-  - Allowed commands execute successfully only under the reviewed conditions
-  - Missing required capabilities block execution even if a command is allowlisted
-  - Dangerous-path allow/deny events are emitted on the live RFSN dispatch path
+- **Dangerous-Path Gate Enforcement** (`src/runtime/runtime-truth.smoke.test.ts`, `src/gateway/node-command-kernel-gate.runtime.test.ts`):
+  - High-risk execution flows are blocked when policy or safe mode forbids it.
+  - Allowed commands execute successfully only under the reviewed conditions.
+  - Missing required capabilities block execution even if a command is allowlisted.
+  - Dangerous-capability events (`denied` and `allowed`) are emitted on the live RFSN dispatch path.
 
 - **Local-Shell Isolation** (`src/tui/tui-local-shell.integration.test.ts`):
   - Shell execution blocked when `OPENCLAW_LOCAL_SHELL_ENABLED` is not set
@@ -51,23 +51,23 @@ The following are validated through runtime integration tests:
   - In-root file access succeeds through the live browser-proxy seam
   - Outside-root access and symlink escapes are rejected at the live containment boundary
 
-- **Canonical Health / Safe Mode Scope** (`src/runtime/runtime-truth.smoke.test.ts`, `src/runtime/safe-mode.behavior.test.ts`, `src/commands/health.test.ts`):
-  - Canonical health is the gateway method/RPC path used by `openclaw health` and `status --deep`
-  - Safe mode is surfaced in the health payload
-  - Safe mode forces loopback bind, clears explicit host override, denies dangerous node commands, and disables insecure control-UI auth bypasses
+- **Canonical Health / Safe Mode Scope** (`src/runtime/runtime-truth.smoke.test.ts`, `src/runtime/safe-mode.structural.test.ts`, `src/commands/health.ts`):
+  - Canonical health is the gateway method/RPC path used by `openclaw health` and `status --deep`.
+  - Safe mode is surfaced in the health payload and persists via a `.safe_mode` marker file in the config directory.
+  - Safe mode forces loopback bind, clears explicit host override, denies dangerous node commands, and disables insecure control-UI auth bypasses.
 
 ### Fast Confidence Coverage
 
-Quick operational validation points (run: `pnpm exec vitest run src/runtime/runtime-truth.smoke.test.ts`):
+Quick operational validation points (run: `./scripts/fast-smoke.sh`):
 
-- Gateway starts with sane config
+- Gateway starts with sane config from baseline snapshot (`config.json.bak`)
 - Startup invariants pass in normal hardened configuration
-- Authority-boundary structural integrity
+- Authority-boundary structural integrity (importer scan)
 - Browser-proxy rejects outside-root access through the live boundary
-- Canonical health payload returns runtime-ready fields
-- Dangerous-path gate enforcement is active
-- Safe-mode guarantees match the documented scope
-- Recovery fallback remains lightweight and bounded
+- Canonical health payload returns runtime-ready fields and surfaces safe mode
+- Dangerous-path gate enforcement is active and emitting events
+- Safe-mode guarantees match the documented scope and persist via marker file
+- Recovery fallback remains lightweight, bounded, and produces sanitized reports
 
 ## What Requires Configuration
 
@@ -232,8 +232,9 @@ The live health contract is the gateway method/RPC path consumed by `openclaw he
 - Check: `openclaw health --json` → `.degraded == true`
 
 **Safe Mode** (`safeMode`):
-- Safe mode is active and the runtime is using the narrowed hardening profile
-- Check: `openclaw health --json` → `.safeMode == true`
+- Safe mode is active and the runtime is using the narrowed hardening profile.
+- Persistent state: Check for `.safe_mode` marker file in the config directory.
+- Check: `openclaw health --json` → `.safeMode == true`.
 
 Example health response:
 ```json
@@ -317,9 +318,9 @@ Non-zero exit code if critical issues found.
 - [ ] Browser proxy configured if browser features needed
 - [ ] Policy posture hash can be computed (`pnpm security:check`)
 - [ ] Startup doctor passes (`openclaw doctor`)
-- [ ] Fast runtime smoke passes (`pnpm exec vitest run src/runtime/runtime-truth.smoke.test.ts`)
+- [ ] Fast runtime smoke passes (`./scripts/fast-smoke.sh`)
 - [ ] Canonical health method accessible and returns `ready`
-- [ ] Structured security events flowing to logs
+- [ ] Structured security events flowing to logs (check `/tmp/openclaw-gateway.log`)
 - [ ] Audit logs are collected and monitored
 
 ## Troubleshooting

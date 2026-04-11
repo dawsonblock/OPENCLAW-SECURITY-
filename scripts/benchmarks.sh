@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 
+# ⚠️ NON-OPERATIONAL PLACEHOLDER
 # This script is an explicit placeholder for future benchmarking work.
 # It is not part of the current operator validation or release checklist.
 # Benchmarking infrastructure is not yet implemented.

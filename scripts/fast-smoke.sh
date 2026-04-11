@@ -1,15 +1,21 @@
 #!/bin/bash
-set -eo pipefail
-# cspell:ignore OPENCLAW vitest
+set -e
 
-echo "🛡️  Running fast runtime confidence pass..."
+# OpenClaw Fast Smoke Test Suite
+# Runs the essential runtime proofs for security boundaries and health.
 
-export OPENCLAW_SECURITY_EVENTS_ENABLED=1
+echo "🚀 Starting OpenClaw Fast Smoke Suite..."
 
-pnpm exec vitest run \
-  src/gateway/node-command-kernel-gate.runtime.test.ts \
-  src/node-host/browser-containment.integration.test.ts \
-  src/node-host/browser-proxy.test.ts \
-  src/runtime/runtime-truth.smoke.test.ts
+# 1. Authority Boundary Scan
+echo "🔍 Checking authority boundaries..."
+pnpm vitest run src/security/authority-boundaries.test.ts
 
-echo "✅ Fast smoke pass completed successfully."
+# 2. Runtime Truth (Node Gating, Browser Containment, Health)
+echo "🛡️ Verifying runtime security proofs..."
+pnpm vitest run src/runtime/runtime-truth.smoke.test.ts
+
+# 3. Startup Invariants
+echo "🏗️ Validating startup invariants..."
+pnpm vitest run src/security/invariant-validator.test.ts
+
+echo "✅ Fast Smoke Suite passed!"

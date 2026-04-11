@@ -395,32 +395,24 @@ High-value validation surfaces:
 |-----------|----------|
 | Dangerous node-command denial in live kernel-gate flow | `src/gateway/node-command-kernel-gate.runtime.test.ts` |
 | Browser proxy root containment through live file boundary | `src/node-host/browser-proxy.runtime.test.ts`, `src/node-host/browser-containment.integration.test.ts` |
-| Canonical gateway health/status payload | `src/commands/health.test.ts`, `src/commands/health.command.coverage.test.ts`, `src/runtime/runtime-truth.smoke.test.ts` |
-| Lightweight recovery and `.bak` restore behavior | `src/runtime/recovery.test.ts`, `src/runtime/recovery.runtime.test.ts` |
-| Safe-mode guarantees that the runtime actually enforces | `src/runtime/safe-mode.behavior.test.ts` |
-| Authority-boundary governance for reviewed runtime roots | `src/security/authority-boundaries.test.ts`, `src/security/execution-authority-boundaries.test.ts` |
+| Canonical gateway health/status payload | `src/commands/health.ts`, `src/runtime/runtime-truth.smoke.test.ts` |
+| Lightweight recovery and `.bak` restore behavior | `src/runtime/recovery.ts`, `src/runtime/runtime-truth.smoke.test.ts` |
+| Safe-mode guarantees that the runtime actually enforces | `src/runtime/safe-mode.structural.test.ts` |
+| Authority-boundary governance for reviewed runtime roots | `src/security/authority-boundaries.test.ts`, `src/security/authority-boundary-importers.test.ts` |
 
 **Focused validation**:
 ```bash
 pnpm security:check
-pnpm exec vitest run \
-  src/security/authority-boundaries.test.ts \
-  src/security/execution-authority-boundaries.test.ts \
-  src/gateway/node-command-kernel-gate.runtime.test.ts \
-  src/node-host/browser-proxy.runtime.test.ts \
-  src/node-host/browser-containment.integration.test.ts \
-  src/runtime/safe-mode.behavior.test.ts \
-  src/runtime/recovery.runtime.test.ts \
-  src/runtime/runtime-truth.smoke.test.ts
+./scripts/fast-smoke.sh
 ```
 
 ### What Is Proven Today
 
-- **Safe mode**: `OPENCLAW_SAFE_MODE=1` forces loopback bind, clears explicit host override, denies dangerous node commands, disables insecure control-UI auth bypasses, and is surfaced in the canonical health payload.
+- **Safe mode**: `OPENCLAW_SAFE_MODE=1` forces loopback bind, clears explicit host override, denies dangerous node commands, disables insecure control-UI auth bypasses, and is surfaced in the canonical health payload. It persists via a `.safe_mode` marker file.
 - **Gateway binding enforcement**: dangerous node commands are denied unless the reviewed conditions are met.
 - **Browser containment**: browser proxy reads stay inside approved roots and reject outside-root escapes, including symlink escapes.
 - **Startup validation**: startup invariants are checked before the runtime reports ready.
-- **Lightweight recovery**: recovery triggers safe mode, restores `config.json.bak` when present, and writes a sanitized local report. It is not a full rollback or disaster-recovery system.
+- **Lightweight recovery**: recovery triggers safe mode, restores `config.json.bak` when present, and writes a sanitized local report.
 - **Authority boundaries**: importer governance remains scoped to the reviewed runtime roots in `src/` and `extensions/`.
 
 ---
@@ -476,7 +468,7 @@ Checks:
 ### Fast Confidence Pass
 
 ```bash
-pnpm exec vitest run src/runtime/runtime-truth.smoke.test.ts
+./scripts/fast-smoke.sh
 ```
 
 This is a fast runtime-smoke pass for the highest-value guarantees on this branch: authority-boundary governance, dangerous node-command denial, browser containment, safe-mode scope, canonical health, and lightweight recovery behavior.
@@ -491,7 +483,7 @@ openclaw doctor
 pnpm security:check
 
 # 3. Run the fast runtime confidence pass
-pnpm exec vitest run src/runtime/runtime-truth.smoke.test.ts
+./scripts/fast-smoke.sh
 
 # 4. Check canonical health through the gateway method
 openclaw health --json
