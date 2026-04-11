@@ -3,11 +3,10 @@ import { logWarn } from "../logger.js";
 
 type CanvasModule = typeof import("@napi-rs/canvas");
 type PdfJsModule = typeof import("pdfjs-dist/legacy/build/pdf.mjs");
-type JSZipModule = typeof import("jszip");
 
 let canvasModulePromise: Promise<CanvasModule> | null = null;
 let pdfJsModulePromise: Promise<PdfJsModule> | null = null;
-let jsZipModulePromise: Promise<any> | null = null;
+let jsZipModulePromise: Promise<unknown> | null = null;
 
 // Lazy-load optional PDF/image deps so non-PDF paths don't require native installs.
 async function loadCanvasModule(): Promise<CanvasModule> {
@@ -46,20 +45,6 @@ async function loadJsZipModule(): Promise<any> {
       });
   }
   return jsZipModulePromise;
-}
-
-/** Strip XML/HTML tags, collapse whitespace, deduplicate blank lines. */
-function stripXmlTags(xml: string): string {
-  return xml
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
 }
 
 /** Specialized XML stripper for DOCX that preserves paragraph breaks. */
