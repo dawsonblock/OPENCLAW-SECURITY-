@@ -162,14 +162,14 @@ function serveFile(res: ServerResponse, filePath: string) {
   res.end(fs.readFileSync(filePath));
 }
 
-interface ControlUiInjectionOpts {
+export interface ControlUiInjectionOpts {
   basePath: string;
   assistantName?: string;
   assistantAvatar?: string;
   operatorAgentIds?: string[];
 }
 
-function injectControlUiConfig(html: string, opts: ControlUiInjectionOpts): string {
+export function injectControlUiConfig(html: string, opts: ControlUiInjectionOpts): string {
   const { basePath, assistantName, assistantAvatar, operatorAgentIds } = opts;
   const script =
     `<script>` +
