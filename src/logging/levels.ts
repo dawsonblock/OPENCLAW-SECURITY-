@@ -10,6 +10,8 @@ export const ALLOWED_LOG_LEVELS = [
 
 export type LogLevel = (typeof ALLOWED_LOG_LEVELS)[number];
 
+export type ConsoleStyle = "pretty" | "compact" | "json";
+
 export function normalizeLogLevel(level?: string, fallback: LogLevel = "info") {
   const candidate = (level ?? fallback).trim();
   return ALLOWED_LOG_LEVELS.includes(candidate as LogLevel) ? (candidate as LogLevel) : fallback;

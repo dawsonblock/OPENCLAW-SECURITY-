@@ -26,6 +26,9 @@ const DEFAULT_ALLOWED_ENV_KEYS = [
   "WINDIR",
   "COMSPEC",
   "PATHEXT",
+  // Testing stubs
+  "OPENCLAW_TEST_LAUNCHCTL_LOG",
+  "OPENCLAW_TEST_LAUNCHCTL_LIST_OUTPUT",
 ] as const;
 
 const BLOCKED_ENV_KEYS = new Set([

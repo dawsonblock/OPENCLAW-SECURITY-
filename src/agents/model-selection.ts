@@ -2,7 +2,9 @@ import type { OpenClawConfig } from "../config/config.js";
 import type { ModelCatalogEntry } from "./model-catalog.js";
 import { resolveAgentModelPrimary } from "./agent-scope.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "./defaults.js";
-import { normalizeGoogleModelId } from "./models-config.providers.js";
+import { modelKey, normalizeGoogleModelId, normalizeProviderId } from "./provider-utils.js";
+
+export { modelKey, normalizeGoogleModelId, normalizeProviderId };
 
 export type ModelRef = {
   provider: string;
@@ -24,27 +26,6 @@ const ANTHROPIC_MODEL_ALIASES: Record<string, string> = {
 
 function normalizeAliasKey(value: string): string {
   return value.trim().toLowerCase();
-}
-
-export function modelKey(provider: string, model: string) {
-  return `${provider}/${model}`;
-}
-
-export function normalizeProviderId(provider: string): string {
-  const normalized = provider.trim().toLowerCase();
-  if (normalized === "z.ai" || normalized === "z-ai") {
-    return "zai";
-  }
-  if (normalized === "opencode-zen") {
-    return "opencode";
-  }
-  if (normalized === "qwen") {
-    return "qwen-portal";
-  }
-  if (normalized === "kimi-code") {
-    return "kimi-coding";
-  }
-  return normalized;
 }
 
 export function isCliProvider(provider: string, cfg?: OpenClawConfig): boolean {

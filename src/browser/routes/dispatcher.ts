@@ -1,7 +1,6 @@
 import type { BrowserRouteContext } from "../server-context.js";
 import type { BrowserRequest, BrowserResponse, BrowserRouteRegistrar } from "./types.js";
 import { escapeRegExp } from "../../utils.js";
-import { registerBrowserRoutes } from "./index.js";
 
 type BrowserDispatchRequest = {
   method: "GET" | "POST" | "DELETE";
@@ -58,9 +57,12 @@ function normalizePath(path: string) {
   return path.startsWith("/") ? path : `/${path}`;
 }
 
-export function createBrowserRouteDispatcher(ctx: BrowserRouteContext) {
+export function createBrowserRouteDispatcher(
+  ctx: BrowserRouteContext,
+  registerRoutes: (app: BrowserRouteRegistrar, ctx: BrowserRouteContext) => void,
+) {
   const registry = createRegistry();
-  registerBrowserRoutes(registry.router, ctx);
+  registerRoutes(registry.router, ctx);
 
   return {
     dispatch: async (req: BrowserDispatchRequest): Promise<BrowserDispatchResponse> => {

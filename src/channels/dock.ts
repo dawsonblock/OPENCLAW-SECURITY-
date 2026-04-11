@@ -1,4 +1,3 @@
-import type { OpenClawConfig } from "../config/config.js";
 import type {
   ChannelCapabilities,
   ChannelCommandAdapter,
@@ -10,6 +9,7 @@ import type {
   ChannelPlugin,
   ChannelThreadingAdapter,
 } from "./plugins/types.js";
+import type { ChannelDock, ChannelDockStreaming } from "./types.js";
 import { resolveDiscordAccount } from "../discord/accounts.js";
 import { resolveIMessageAccount } from "../imessage/accounts.js";
 import { requireActivePluginRegistry } from "../plugins/runtime.js";
@@ -36,39 +36,6 @@ import {
   resolveWhatsAppGroupToolPolicy,
 } from "./plugins/group-mentions.js";
 import { CHAT_CHANNEL_ORDER, type ChatChannelId, getChatChannelMeta } from "./registry.js";
-
-export type ChannelDock = {
-  id: ChannelId;
-  capabilities: ChannelCapabilities;
-  commands?: ChannelCommandAdapter;
-  outbound?: {
-    textChunkLimit?: number;
-  };
-  streaming?: ChannelDockStreaming;
-  elevated?: ChannelElevatedAdapter;
-  config?: {
-    resolveAllowFrom?: (params: {
-      cfg: OpenClawConfig;
-      accountId?: string | null;
-    }) => Array<string | number> | undefined;
-    formatAllowFrom?: (params: {
-      cfg: OpenClawConfig;
-      accountId?: string | null;
-      allowFrom: Array<string | number>;
-    }) => string[];
-  };
-  groups?: ChannelGroupAdapter;
-  mentions?: ChannelMentionAdapter;
-  threading?: ChannelThreadingAdapter;
-  agentPrompt?: ChannelAgentPromptAdapter;
-};
-
-type ChannelDockStreaming = {
-  blockStreamingCoalesceDefaults?: {
-    minChars?: number;
-    idleMs?: number;
-  };
-};
 
 const formatLower = (allowFrom: Array<string | number>) =>
   allowFrom

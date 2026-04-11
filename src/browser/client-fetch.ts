@@ -3,7 +3,6 @@ import {
   createBrowserControlContext,
   startBrowserControlServiceFromConfig,
 } from "./control-service.js";
-import { createBrowserRouteDispatcher } from "./routes/dispatcher.js";
 
 function isAbsoluteHttp(url: string): boolean {
   return /^https?:\/\//i.test(url.trim());
@@ -61,7 +60,12 @@ export async function fetchBrowserJson<T>(
     if (!started) {
       throw new Error("browser control disabled");
     }
-    const dispatcher = createBrowserRouteDispatcher(createBrowserControlContext());
+    const { createBrowserRouteDispatcher } = await import("./routes/dispatcher.js");
+    const { registerBrowserRoutes } = await import("./routes/index.js");
+    const dispatcher = createBrowserRouteDispatcher(
+      createBrowserControlContext(),
+      registerBrowserRoutes,
+    );
     const parsed = new URL(url, "http://localhost");
     const query: Record<string, unknown> = {};
     for (const [key, value] of parsed.searchParams.entries()) {

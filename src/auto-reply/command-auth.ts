@@ -1,5 +1,5 @@
-import type { ChannelDock } from "../channels/dock.js";
 import type { ChannelId } from "../channels/plugins/types.js";
+import type { ChannelDock } from "../channels/types.js";
 import type { OpenClawConfig } from "../config/config.js";
 import type { MsgContext } from "./templating.js";
 import { getChannelDock, listChannelDocks } from "../channels/dock.js";

@@ -78,7 +78,7 @@ export { emptyPluginConfigSchema } from "../plugins/config-schema.js";
 export type { OpenClawConfig } from "../config/config.js";
 /** @deprecated Use OpenClawConfig instead */
 export type { OpenClawConfig as ClawdbotConfig } from "../config/config.js";
-export type { ChannelDock } from "../channels/dock.js";
+export type { ChannelDock } from "../channels/types.js";
 export { getChatChannelMeta } from "../channels/registry.js";
 export type {
   BlockStreamingCoalesceConfig,

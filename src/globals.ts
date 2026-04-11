@@ -1,19 +1,11 @@
+import { isVerbose, isYes, setVerbose, setYes } from "./infra/cli-state.js";
 import { getLogger, isFileLogLevelEnabled } from "./logging/logger.js";
 import { theme } from "./terminal/theme.js";
 
-let globalVerbose = false;
-let globalYes = false;
-
-export function setVerbose(v: boolean) {
-  globalVerbose = v;
-}
-
-export function isVerbose() {
-  return globalVerbose;
-}
+export { isVerbose, setVerbose };
 
 export function shouldLogVerbose() {
-  return globalVerbose || isFileLogLevelEnabled("debug");
+  return isVerbose() || isFileLogLevelEnabled("debug");
 }
 
 export function logVerbose(message: string) {
@@ -25,26 +17,20 @@ export function logVerbose(message: string) {
   } catch {
     // ignore logger failures to avoid breaking verbose printing
   }
-  if (!globalVerbose) {
+  if (!isVerbose()) {
     return;
   }
   console.log(theme.muted(message));
 }
 
 export function logVerboseConsole(message: string) {
-  if (!globalVerbose) {
+  if (!isVerbose()) {
     return;
   }
   console.log(theme.muted(message));
 }
 
-export function setYes(v: boolean) {
-  globalYes = v;
-}
-
-export function isYes() {
-  return globalYes;
-}
+export { isYes, setYes };
 
 export const success = theme.success;
 export const warn = theme.warn;
