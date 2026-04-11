@@ -62,6 +62,28 @@ export async function invokeNodeCommandWithKernelGate(params: {
     };
   }
 
+  const dangerous = DEFAULT_DANGEROUS_NODE_COMMANDS.includes(command);
+  if (dangerous && isSafeModeEnabled(process.env)) {
+    getSecurityEventEmitter().emit({
+      type: "dangerous-capability-denied",
+      timestamp: Date.now(),
+      level: "warning",
+      toolName: "node-command-kernel-gate",
+      capability: command,
+      decision: "denied",
+      reason: "dangerous command blocked by safe mode",
+    });
+    return {
+      ok: false,
+      code: "NOT_ALLOWED",
+      message: "node command not allowed: safe mode active (OPENCLAW_SAFE_MODE=1) disables dangerous node commands",
+      details: {
+        reason: "dangerous command blocked by safe mode",
+        command,
+      },
+    };
+  }
+
   const allowlist = resolveNodeCommandAllowlist(params.cfg, node);
   const allowed = isNodeCommandAllowed({
     command,
@@ -89,27 +111,6 @@ export async function invokeNodeCommandWithKernelGate(params: {
     };
   }
 
-  const dangerous = DEFAULT_DANGEROUS_NODE_COMMANDS.includes(command);
-  if (dangerous && isSafeModeEnabled(process.env)) {
-    getSecurityEventEmitter().emit({
-      type: "dangerous-capability-denied",
-      timestamp: Date.now(),
-      level: "warning",
-      toolName: "node-command-kernel-gate",
-      capability: command,
-      decision: "denied",
-      reason: "dangerous command blocked by safe mode",
-    });
-    return {
-      ok: false,
-      code: "NOT_ALLOWED",
-      message: "node command not allowed: OPENCLAW_SAFE_MODE=1 disables dangerous node commands",
-      details: {
-        reason: "dangerous command blocked by safe mode",
-        command,
-      },
-    };
-  }
   if (dangerous && !isSafeExposure(params.cfg) && !dangerousExposureOverrideEnabled()) {
     getSecurityEventEmitter().emit({
       type: "dangerous-capability-denied",

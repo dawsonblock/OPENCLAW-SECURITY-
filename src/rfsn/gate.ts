@@ -3,6 +3,7 @@ import type { RfsnActionProposal, RfsnGateDecision, RfsnRisk } from "./types.js"
 import { evaluateShellAllowlist } from "../infra/exec-approvals.js";
 import { getGateFeedbackTracker, isAdaptiveRiskEnabled } from "./gate-feedback.js";
 import { validateAndNormalizeActionProposal } from "./schemas.js";
+import { getSecurityEventEmitter } from "../security/security-events-emit.js";
 
 // ── Decision integrity registry ──────────────────────────────────────
 // Module-private WeakSet that only evaluateGate can write to. Nothing
@@ -329,11 +330,21 @@ export function evaluateGate(params: {
     sandboxed: params.sandboxed,
   });
   if (!validated.ok) {
-    return stampDecision({
+    const decision: RfsnGateDecision = {
       verdict: "deny",
       reasons: validated.reasons,
       risk: "high",
+    };
+    getSecurityEventEmitter().emit({
+      type: "dangerous-capability-denied",
+      timestamp: Date.now(),
+      level: "warning",
+      toolName: params.proposal.toolName,
+      capability: "validation",
+      decision: "denied",
+      reason: validated.reasons.join(", "),
     });
+    return stampDecision(decision);
   }
 
   const proposal = validated.proposal;
@@ -344,6 +355,15 @@ export function evaluateGate(params: {
     : baseRisk;
 
   if (params.policy.denyTools.has(proposal.toolName)) {
+    getSecurityEventEmitter().emit({
+      type: "dangerous-capability-denied",
+      timestamp: Date.now(),
+      level: "warning",
+      toolName: proposal.toolName,
+      capability: "tool",
+      decision: "denied",
+      reason: "tool explicitly denied in policy",
+    });
     return stampDecision({
       verdict: "deny",
       reasons: ["policy:tool_denied"],
@@ -352,6 +372,15 @@ export function evaluateGate(params: {
   }
 
   if (params.policy.mode === "allowlist" && !params.policy.allowTools.has(proposal.toolName)) {
+    getSecurityEventEmitter().emit({
+      type: "dangerous-capability-denied",
+      timestamp: Date.now(),
+      level: "warning",
+      toolName: proposal.toolName,
+      capability: "tool",
+      decision: "denied",
+      reason: "tool not in allowlist",
+    });
     return stampDecision({
       verdict: "deny",
       reasons: ["policy:tool_not_allowlisted"],
@@ -426,12 +455,33 @@ export function evaluateGate(params: {
       granted: params.policy.grantedCapabilities,
     });
     if (missing.length > 0) {
+      getSecurityEventEmitter().emit({
+        type: "dangerous-capability-denied",
+        timestamp: Date.now(),
+        level: "warning",
+        toolName: proposal.toolName,
+        capability: missing.join(", "),
+        decision: "denied",
+        reason: "missing required capabilities",
+      });
       return stampDecision({
         verdict: "deny",
         reasons: missing,
         risk,
       });
     }
+  }
+
+  // Record allowed high-risk operations as well
+  if (risk === "high") {
+    getSecurityEventEmitter().emit({
+      type: "dangerous-capability-allowed",
+      timestamp: Date.now(),
+      level: "info",
+      toolName: proposal.toolName,
+      capability: dedupedCapabilities.join(", ") || "none",
+      decision: "allowed",
+    });
   }
 
   return stampDecision({
