@@ -14,18 +14,17 @@
  * consumed by audit dashboards, SIEM systems, or forensic analysis tools.
  */
 
-import { getChildLogger } from "../logging/logger.js";
 import type { SecurityEvent, SecurityEventEmitter } from "./security-events.js";
-import {
-  createNullSecurityEventEmitter,
-  generateCorrelationId,
-} from "./security-events.js";
+import { getChildLogger } from "../logging/logger.js";
+import { createNullSecurityEventEmitter, generateCorrelationId } from "./security-events.js";
 
 /**
  * Create a security event emitter backed by structured logging.
  * Events are emitted as JSON log lines with a stable "security_event" marker.
  */
-export function createSecurityEventEmitter(bindings?: Record<string, unknown>): SecurityEventEmitter {
+export function createSecurityEventEmitter(
+  bindings?: Record<string, unknown>,
+): SecurityEventEmitter {
   const logger = getChildLogger({ module: "security-events", ...bindings });
 
   return {
@@ -54,7 +53,7 @@ export function createSecurityEventEmitter(bindings?: Record<string, unknown>): 
     },
     child(morBindings: Record<string, unknown>) {
       return createSecurityEventEmitter({
-        ...(bindings || {}),
+        ...bindings,
         ...morBindings,
       });
     },
@@ -153,8 +152,7 @@ export function emitDangerousPathEvent(params: {
   executionTimeMs?: number;
 }): void {
   params.emitter.emit({
-    type:
-      params.decision === "allowed" ? "dangerous-path-allowed" : "dangerous-path-denied",
+    type: params.decision === "allowed" ? "dangerous-path-allowed" : "dangerous-path-denied",
     timestamp: Date.now(),
     level: params.decision === "denied" ? "warning" : "info",
     toolName: params.toolName,
@@ -198,7 +196,4 @@ export function emitReviewedException(params: {
   });
 }
 
-export {
-  createNullSecurityEventEmitter,
-  generateCorrelationId,
-};
+export { createNullSecurityEventEmitter, generateCorrelationId };

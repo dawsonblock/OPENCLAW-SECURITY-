@@ -140,7 +140,9 @@ describe("core guarantees smoke test (fast validation)", () => {
       // Test representative sample
       const toTest = ["system.run", "browser.proxy", "sms.send"];
       for (const cmd of toTest) {
-        if (!DEFAULT_DANGEROUS_NODE_COMMANDS.includes(cmd)) continue;
+        if (!DEFAULT_DANGEROUS_NODE_COMMANDS.includes(cmd)) {
+          continue;
+        }
 
         const result = await invokeNodeCommandWithKernelGate({
           cfg,
@@ -380,8 +382,7 @@ describe("core guarantees smoke test (fast validation)", () => {
       expect(startupCheck.passed).toBe(false);
 
       // Step 2: Health reflects startup failure
-      const health = new HealthBuilder()
-        .setLiveness(true);
+      const health = new HealthBuilder().setLiveness(true);
 
       for (const issue of startupCheck.criticalIssues) {
         health.addReadinessBlocker(issue);
@@ -417,9 +418,7 @@ describe("core guarantees smoke test (fast validation)", () => {
 
       expect(health.degraded_subsystems).toContain("browser-subsystem");
 
-      health = new HealthBuilder()
-        .recordSubsystemRecovery("browser-subsystem")
-        .build();
+      health = new HealthBuilder().recordSubsystemRecovery("browser-subsystem").build();
 
       expect(health.degraded_subsystems).not.toContain("browser-subsystem");
       expect(health.subsystemHealth?.["browser-subsystem"]?.status).toBe("healthy");

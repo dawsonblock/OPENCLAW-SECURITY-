@@ -78,7 +78,7 @@ const runAllowedCommandMock = mockedRunAllowedCommand as unknown as vi.Mock;
 
 function setupMockSpawn() {
   spawnMock.mockImplementation(() => createMockChild());
-  runAllowedCommandMock.mockImplementation(async (params: any) => {
+  runAllowedCommandMock.mockImplementation(async (params: unknown) => {
     const child = spawnMock(params);
     const timeoutMs = params.timeoutMs ?? 10_000;
     return new Promise((resolve, reject) => {
@@ -99,13 +99,13 @@ function setupMockSpawn() {
         finish(() => reject(new Error(`Command timed out after ${timeoutMs}ms`)));
       }, timeoutMs);
 
-      child.stdout.on("data", (d: any) => {
-        stdout += d.toString();
+      child.stdout.on("data", (d: unknown) => {
+        stdout += String(d);
       });
-      child.stderr.on("data", (d: any) => {
-        stderr += d.toString();
+      child.stderr.on("data", (d: unknown) => {
+        stderr += String(d);
       });
-      child.on("error", (err: any) => {
+      child.on("error", () => {
         finish(() => resolve({ code: 1, signal: null, stdout, stderr }));
       });
       child.on("close", (code: number, signal: string) => {
@@ -205,7 +205,7 @@ describe("QmdMemoryManager", () => {
           paths: [{ path: workspaceDir, pattern: "**/*.md", name: "workspace" }],
         },
       },
-    } as any;
+    } as unknown as any;
 
     let releaseUpdate: (() => void) | null = null;
     spawnMock.mockImplementation(({ args }: any) => {
@@ -249,7 +249,7 @@ describe("QmdMemoryManager", () => {
           paths: [{ path: workspaceDir, pattern: "**/*.md", name: "workspace" }],
         },
       },
-    } as any;
+    } as unknown as any;
 
     let releaseUpdate: (() => void) | null = null;
     spawnMock.mockImplementation(({ args }: any) => {
@@ -293,7 +293,7 @@ describe("QmdMemoryManager", () => {
           paths: [{ path: workspaceDir, pattern: "**/*.md", name: "workspace" }],
         },
       },
-    } as any;
+    } as unknown as any;
 
     spawnMock.mockImplementation(({ args }: any) => {
       if (args[0] === "collection" && args[1] === "list") {
@@ -326,7 +326,7 @@ describe("QmdMemoryManager", () => {
           paths: [{ path: workspaceDir, pattern: "**/*.md", name: "workspace" }],
         },
       },
-    } as any;
+    } as unknown as any;
     spawnMock.mockImplementation(({ args }: any) => {
       if (args[0] === "update") {
         return createMockChild({ autoClose: false });
@@ -371,7 +371,7 @@ describe("QmdMemoryManager", () => {
           paths: [{ path: workspaceDir, pattern: "**/*.md", name: "workspace" }],
         },
       },
-    } as any;
+    } as unknown as any;
 
     let updateCalls = 0;
     let releaseFirstUpdate: (() => void) | null = null;

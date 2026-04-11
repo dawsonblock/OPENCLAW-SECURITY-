@@ -504,7 +504,7 @@ async function collectChannelSecurityFindings(params: {
       .map((value) => normalizeEntry(value))
       .map((value) => value.trim())
       .filter(Boolean);
-    const allowCount = Array.from(new Set([...normalizedCfg, ...normalizedStore])).length;
+    const allowCount = new Set([...normalizedCfg, ...normalizedStore]).size;
     const isMultiUserDm = hasWildcard || allowCount > 1;
 
     if (input.dmPolicy === "open") {

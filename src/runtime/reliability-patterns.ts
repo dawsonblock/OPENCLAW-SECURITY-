@@ -257,7 +257,9 @@ export class ResourceLifecycle extends EventEmitter {
     // Clean up in reverse order.
     for (let i = this.resources.length - 1; i >= 0; i--) {
       const resource = this.resources[i];
-      if (!resource) continue;
+      if (!resource) {
+        continue;
+      }
 
       try {
         await Promise.resolve(resource.cleanup());

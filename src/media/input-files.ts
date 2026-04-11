@@ -33,10 +33,10 @@ async function loadPdfJsModule(): Promise<PdfJsModule> {
   return pdfJsModulePromise;
 }
 
-async function loadJsZipModule(): Promise<any> {
+async function loadJsZipModule(): Promise<unknown> {
   if (!jsZipModulePromise) {
     jsZipModulePromise = import("jszip")
-      .then((mod) => (mod as any).default || mod)
+      .then((mod) => (mod as Record<string, unknown>).default || mod)
       .catch((err) => {
         jsZipModulePromise = null;
         throw new Error(

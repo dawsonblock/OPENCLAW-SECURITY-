@@ -96,7 +96,7 @@ export async function noteSecurityWarnings(cfg: OpenClawConfig) {
       .map((v) => (params.normalizeEntry ? params.normalizeEntry(v) : v))
       .map((v) => v.trim())
       .filter(Boolean);
-    const allowCount = Array.from(new Set([...normalizedCfg, ...normalizedStore])).length;
+    const allowCount = new Set([...normalizedCfg, ...normalizedStore]).size;
     const dmScope = cfg.session?.dmScope ?? "main";
     const isMultiUserDm = hasWildcard || allowCount > 1;
 

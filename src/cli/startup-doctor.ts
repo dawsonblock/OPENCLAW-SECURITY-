@@ -42,9 +42,7 @@ export interface DoctorReport {
 async function checkAuthorityBoundary(): Promise<DoctorCheckResult> {
   try {
     // Try to import the authority boundary config.
-    const { AUTHORITY_BOUNDARY_SCAN_ROOTS } = await import(
-      "../security/authority-boundaries.js"
-    );
+    const { AUTHORITY_BOUNDARY_SCAN_ROOTS } = await import("../security/authority-boundaries.js");
     const hasConfig = Array.isArray(AUTHORITY_BOUNDARY_SCAN_ROOTS);
     return {
       name: "Authority Boundary Config",
@@ -90,8 +88,12 @@ async function checkScanScopeRoots(roots: string[], cwd: string): Promise<Doctor
 
   const passed = missing.length === 0 && notReadable.length === 0;
   const issues: string[] = [];
-  if (missing.length > 0) issues.push(`Missing: ${missing.join(", ")}`);
-  if (notReadable.length > 0) issues.push(`Not readable: ${notReadable.join(", ")}`);
+  if (missing.length > 0) {
+    issues.push(`Missing: ${missing.join(", ")}`);
+  }
+  if (notReadable.length > 0) {
+    issues.push(`Not readable: ${notReadable.join(", ")}`);
+  }
 
   return {
     name: "Scan Scope Roots",
@@ -164,17 +166,13 @@ async function checkPolicyPostureHash(): Promise<DoctorCheckResult> {
     // Try to compute a policy posture hash
     // This validates that all config elements needed for hashing are available
     const crypto = await import("node:crypto");
-    
+
     // Create a simple test hash with known data
     const testData = JSON.stringify({
       gateway: { mode: "local" },
       rfsn: { mode: "allowlist" },
     });
-    const hash = crypto
-      .createHash("sha256")
-      .update(testData)
-      .digest("hex")
-      .slice(0, 16);
+    const hash = crypto.createHash("sha256").update(testData).digest("hex").slice(0, 16);
 
     return {
       name: "Policy Posture Hash",
@@ -254,9 +252,10 @@ export async function runDoctorReport(params: {
   // Critical checks.
   checks.push(await checkAuthorityBoundary());
 
-  const { AUTHORITY_BOUNDARY_SCAN_ROOTS } = await import(
-    "../security/authority-boundaries.js"
-  ).catch(() => ({ AUTHORITY_BOUNDARY_SCAN_ROOTS: ["src", "extensions"] as const }));
+  const { AUTHORITY_BOUNDARY_SCAN_ROOTS } =
+    await import("../security/authority-boundaries.js").catch(() => ({
+      AUTHORITY_BOUNDARY_SCAN_ROOTS: ["src", "extensions"] as const,
+    }));
   checks.push(await checkScanScopeRoots(Array.from(AUTHORITY_BOUNDARY_SCAN_ROOTS), cwd));
 
   checks.push(await checkWorkspacePaths(params.cfg));
