@@ -57,12 +57,17 @@ const EXTRA_TEXT_MIMES = [
   "application/javascript",
   "text/javascript",
   "text/tab-separated-values",
+  "application/json",
+  "text/html",
+  "application/rtf",
+  "application/x-rtf",
 ];
 const TEXT_EXT_MIME = new Map<string, string>([
   [".csv", "text/csv"],
   [".tsv", "text/tab-separated-values"],
   [".txt", "text/plain"],
   [".md", "text/markdown"],
+  [".markdown", "text/markdown"],
   [".log", "text/plain"],
   [".ini", "text/plain"],
   [".cfg", "text/plain"],
@@ -72,6 +77,26 @@ const TEXT_EXT_MIME = new Map<string, string>([
   [".yaml", "text/yaml"],
   [".yml", "text/yaml"],
   [".xml", "application/xml"],
+  [".html", "text/html"],
+  [".htm", "text/html"],
+  [".js", "text/javascript"],
+  [".ts", "text/plain"],
+  [".py", "text/plain"],
+  [".sh", "text/plain"],
+  [".bash", "text/plain"],
+  [".zsh", "text/plain"],
+  [".rtf", "application/rtf"],
+  // Office documents (treat as their proper MIME; extraction handles them)
+  [".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+  [".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+  [".pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"],
+  [".doc", "application/msword"],
+  [".xls", "application/vnd.ms-excel"],
+  [".ppt", "application/vnd.ms-powerpoint"],
+  // Archives
+  [".zip", "application/zip"],
+  [".tar", "application/x-tar"],
+  [".gz", "application/gzip"],
 ]);
 
 const XML_ESCAPE_MAP: Record<string, string> = {

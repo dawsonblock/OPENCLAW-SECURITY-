@@ -91,19 +91,46 @@ export type InputFetchResult = {
 
 export const DEFAULT_INPUT_IMAGE_MIMES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 export const DEFAULT_INPUT_FILE_MIMES = [
+  // Plain text
   "text/plain",
   "text/markdown",
   "text/html",
   "text/csv",
+  "text/tab-separated-values",
+  "text/xml",
+  "text/yaml",
+  "text/javascript",
+  // Documents
   "application/json",
   "application/pdf",
+  "application/xml",
+  "application/yaml",
+  "application/x-yaml",
+  "application/javascript",
+  // Microsoft Office (OOXML)
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",       // .xlsx
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation", // .pptx
+  // Microsoft Office (legacy)
+  "application/msword",                                                       // .doc
+  "application/vnd.ms-excel",                                                 // .xls
+  "application/vnd.ms-powerpoint",                                            // .ppt
+  // Archives — contents extracted as text where possible
+  "application/zip",
+  "application/x-zip-compressed",
+  "application/x-tar",
+  "application/gzip",
+  "application/x-gzip",
+  // Other common formats
+  "application/rtf",
+  "application/x-rtf",
 ];
-export const DEFAULT_INPUT_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
-export const DEFAULT_INPUT_FILE_MAX_BYTES = 5 * 1024 * 1024;
-export const DEFAULT_INPUT_FILE_MAX_CHARS = 200_000;
+export const DEFAULT_INPUT_IMAGE_MAX_BYTES = 10 * 1024 * 1024;    // 10 MB
+export const DEFAULT_INPUT_FILE_MAX_BYTES = 25 * 1024 * 1024;     // 25 MB
+export const DEFAULT_INPUT_FILE_MAX_CHARS = 500_000;              // 500k chars
 export const DEFAULT_INPUT_MAX_REDIRECTS = 3;
-export const DEFAULT_INPUT_TIMEOUT_MS = 10_000;
-export const DEFAULT_INPUT_PDF_MAX_PAGES = 4;
+export const DEFAULT_INPUT_TIMEOUT_MS = 30_000;                   // 30s for large files
+export const DEFAULT_INPUT_PDF_MAX_PAGES = 20;                    // more pages
 export const DEFAULT_INPUT_PDF_MAX_PIXELS = 4_000_000;
 export const DEFAULT_INPUT_PDF_MIN_TEXT_CHARS = 200;
 
