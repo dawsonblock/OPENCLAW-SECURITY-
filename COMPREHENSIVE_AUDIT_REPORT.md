@@ -1,8 +1,12 @@
 # Comprehensive Audit Report
 
+> [!WARNING]
+> **NON-AUTHORITATIVE DOCUMENT**
+> This file is a historical audit report and is NOT the authoritative source of truth for runtime behavior. Please see `OPERATIONAL_MATURITY_GUIDE.md` for the single, actual ground truth of the platform's security guarantees.
+
 ## Status
 
-This file replaces an older maturity narrative that overstated several live operator contracts. It now serves as a compact current-state summary for the hardened branch.
+This file replaces an older maturity narrative but has since been superseded.
 
 ## Current Branch Truth
 

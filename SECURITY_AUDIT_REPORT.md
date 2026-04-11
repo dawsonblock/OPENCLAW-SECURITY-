@@ -1,12 +1,16 @@
 # OpenClaw Security Hardening Analysis Report
 
+> [!WARNING]
+> **NON-AUTHORITATIVE DOCUMENT**
+> This file is a historical audit report and is NOT the authoritative source of truth for runtime behavior. Please see `OPERATIONAL_MATURITY_GUIDE.md` for the single, actual ground truth of the platform's security guarantees.
+
 **Date:** Feb 15, 2026 (updated Apr 3, 2026)
 **Target:** `OPENCLAW-SECURITY` Fork
 **Scope:** Comprehensive Source Code Audit & Security Architecture Review
 
 ## Executive Summary
 
-This is the active security hardening-status document for the repository. Older narrative reports are archived under `docs/archive/` and should not be treated as current status.
+This is a historical security architecture document. Older narrative reports are archived under `docs/archive/` and should not be treated as current status.
 
 The `OPENCLAW-SECURITY` codebase contains a substantial defense-in-depth security architecture centered on a kernel-like **RFSN (Request For Side-effect Negotiation)** arbitration layer. The RFSN spine is real, and the reviewed execution authorities are now described explicitly instead of being compressed into a single seam:
 
