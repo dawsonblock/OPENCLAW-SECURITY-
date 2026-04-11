@@ -8,8 +8,14 @@ function isOpenAiCompletionsModel(model: Model<Api>): model is Model<"openai-com
  * Native OpenAI endpoints that support the `developer` role in chat completions.
  * All other openai-completions-compatible endpoints (Ollama, GitHub Models,
  * Azure inference, Together, Groq, etc.) do NOT support it and must use `system`.
+ * GitHub Copilot uses openai-responses (not openai-completions), so it never
+ * reaches this guard — but we list it explicitly for safety.
  */
-const NATIVE_OPENAI_HOSTS = ["api.openai.com", "api.openai.azure.com"];
+const NATIVE_OPENAI_HOSTS = [
+  "api.openai.com",
+  "api.openai.azure.com",
+  "api.githubcopilot.com",
+];
 
 function isNativeOpenAiEndpoint(baseUrl: string): boolean {
   try {

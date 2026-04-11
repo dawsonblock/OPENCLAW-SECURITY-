@@ -3,9 +3,11 @@ import { logWarn } from "../logger.js";
 
 type CanvasModule = typeof import("@napi-rs/canvas");
 type PdfJsModule = typeof import("pdfjs-dist/legacy/build/pdf.mjs");
+type JSZipModule = typeof import("jszip");
 
 let canvasModulePromise: Promise<CanvasModule> | null = null;
 let pdfJsModulePromise: Promise<PdfJsModule> | null = null;
+let jsZipModulePromise: Promise<JSZipModule> | null = null;
 
 // Lazy-load optional PDF/image deps so non-PDF paths don't require native installs.
 async function loadCanvasModule(): Promise<CanvasModule> {
@@ -30,6 +32,84 @@ async function loadPdfJsModule(): Promise<PdfJsModule> {
     });
   }
   return pdfJsModulePromise;
+}
+
+async function loadJsZipModule(): Promise<JSZipModule> {
+  if (!jsZipModulePromise) {
+    jsZipModulePromise = import("jszip").catch((err) => {
+      jsZipModulePromise = null;
+      throw new Error(`Optional dependency jszip is required for ZIP/DOCX extraction: ${String(err)}`);
+    });
+  }
+  return jsZipModulePromise;
+}
+
+/** Strip XML/HTML tags, collapse whitespace, deduplicate blank lines. */
+function stripXmlTags(xml: string): string {
+  return xml
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/** Extract readable text from a DOCX buffer (ZIP containing word/document.xml). */
+async function extractDocxContent(buffer: Buffer, maxChars: number): Promise<string> {
+  const JSZip = await loadJsZipModule();
+  const zip = await JSZip.default.loadAsync(buffer);
+  // DOCX body text is in word/document.xml; headers/footers in word/header*.xml / word/footer*.xml
+  const targets = [
+    "word/document.xml",
+    "word/header1.xml",
+    "word/header2.xml",
+    "word/footer1.xml",
+    "word/footer2.xml",
+  ];
+  const parts: string[] = [];
+  for (const target of targets) {
+    const file = zip.file(target);
+    if (!file) continue;
+    const xml = await file.async("string");
+    const text = stripXmlTags(xml);
+    if (text) parts.push(text);
+  }
+  return clampText(parts.join("\n\n"), maxChars);
+}
+
+/** List contents of a ZIP archive and extract readable text files within it. */
+async function extractZipContent(buffer: Buffer, maxChars: number): Promise<string> {
+  const JSZip = await loadJsZipModule();
+  const zip = await JSZip.default.loadAsync(buffer);
+  const names = Object.keys(zip.files).sort();
+  const toc = names.map((n) => `  ${n}`).join("\n");
+  const header = `ZIP archive (${names.length} entries):\n${toc}`;
+  // Extract text from small text-like files inside the ZIP
+  const TEXT_EXTS = new Set([".txt", ".md", ".json", ".yaml", ".yml", ".xml", ".csv", ".ini", ".cfg", ".env", ".log", ".js", ".ts", ".py"]);
+  const MAX_FILE_BYTES = 100_000;
+  const textParts: string[] = [];
+  let totalExtracted = 0;
+  for (const name of names) {
+    const entry = zip.files[name];
+    if (!entry || entry.dir) continue;
+    const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
+    if (!TEXT_EXTS.has(ext)) continue;
+    try {
+      const content = await entry.async("string");
+      if (content.length > MAX_FILE_BYTES) continue;
+      textParts.push(`--- ${name} ---\n${content.trim()}`);
+      totalExtracted += content.length;
+      if (totalExtracted > maxChars * 0.8) break;
+    } catch {
+      // Skip unreadable entries
+    }
+  }
+  const body = textParts.length > 0 ? "\n\n" + textParts.join("\n\n") : "";
+  return clampText(header + body, maxChars);
 }
 
 export type InputImageContent = {
@@ -376,6 +456,33 @@ export async function extractFileContentFromSource(params: {
       text,
       images: extracted.images.length > 0 ? extracted.images : undefined,
     };
+  }
+
+  // DOCX: ZIP archive containing word/document.xml
+  const DOCX_MIMES = new Set([
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword",
+  ]);
+  if (DOCX_MIMES.has(mimeType)) {
+    try {
+      const text = await extractDocxContent(buffer, limits.maxChars);
+      return { filename, text };
+    } catch (err) {
+      logWarn(`DOCX extraction failed for ${filename}: ${String(err)}`);
+      // Fall through to plain-text attempt
+    }
+  }
+
+  // ZIP and other archives: list contents + extract embedded text files
+  const ZIP_MIMES = new Set(["application/zip", "application/x-zip-compressed"]);
+  if (ZIP_MIMES.has(mimeType)) {
+    try {
+      const text = await extractZipContent(buffer, limits.maxChars);
+      return { filename, text };
+    } catch (err) {
+      logWarn(`ZIP extraction failed for ${filename}: ${String(err)}`);
+      return { filename, text: "[ZIP archive: could not read contents]" };
+    }
   }
 
   const text = clampText(decodeTextContent(buffer, charset), limits.maxChars);
