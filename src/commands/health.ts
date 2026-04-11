@@ -768,9 +768,11 @@ export async function healthCommand(
     const runtimeLine = [
       `Gateway runtime: ${summary.status}`,
       summary.safeMode ? "safe mode active" : null,
-      summary.ready ? "ready" : `not ready (${summary.readinessBlockers.join(", ") || "blocked"})`,
-      summary.degradedSubsystems.length > 0
-        ? `degraded subsystems ${summary.degradedSubsystems.join(", ")}`
+      summary.ready
+        ? "ready"
+        : `not ready (${(summary.readinessBlockers ?? []).join(", ") || "blocked"})`,
+      (summary.degradedSubsystems ?? []).length > 0
+        ? `degraded subsystems ${(summary.degradedSubsystems ?? []).join(", ")}`
         : null,
     ]
       .filter(Boolean)
