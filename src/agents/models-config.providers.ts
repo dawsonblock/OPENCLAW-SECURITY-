@@ -118,7 +118,7 @@ async function discoverOllamaModels(): Promise<ModelDefinitionConfig[]> {
   }
   try {
     const response = await fetch(`${OLLAMA_API_BASE_URL}/api/tags`, {
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(30000),
     });
     if (!response.ok) {
       console.warn(`Failed to discover Ollama models: ${response.status}`);
