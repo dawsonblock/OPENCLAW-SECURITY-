@@ -1,12 +1,16 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
-import { initializePolicySnapshot, computePolicySnapshotHash, resetPolicySnapshotForTests } from "./lockdown/policy-snapshot.js";
 import { loadConfig } from "../config/config.js";
-import { assertDangerousCapabilityInvariants } from "./lockdown/runtime-assert.js";
 import { failInvariant, SecurityInvariantViolation } from "./lockdown/invariants.js";
+import {
+  initializePolicySnapshot,
+  computePolicySnapshotHash,
+  resetPolicySnapshotForTests,
+} from "./lockdown/policy-snapshot.js";
+import { assertDangerousCapabilityInvariants } from "./lockdown/runtime-assert.js";
 
 /**
  * Integration test: Dangerous-path enforcement works in live runtime flow
- * 
+ *
  * This test proves that the dangerous-path gate and lockdown checks
  * are wired into the runtime and properly enforce capability restrictions.
  */
@@ -72,7 +76,7 @@ describe("dangerous-path enforcement (runtime integration)", () => {
     }
   });
 
-  it("should detect policy drift when config changes", () => {
+  it("should detect policy drift when config changes", async () => {
     // Start with a baseline
     const testConfig = loadConfig();
     const hash1 = computePolicySnapshotHash({
@@ -153,9 +157,7 @@ describe("dangerous-path enforcement (runtime integration)", () => {
       expect(err).toBeInstanceOf(Error);
       const msg = (err as Error).message;
       // Should either be a raw secret leak error or other invariant
-      expect(msg).toMatch(
-        /(RAW_SECRET|Violation|secret)/i
-      );
+      expect(msg).toMatch(/(RAW_SECRET|Violation|secret)/i);
     }
   });
 
@@ -241,7 +243,7 @@ describe("dangerous-path enforcement (runtime integration)", () => {
   it("end-to-end: dangerous-path gate integrates with capability registry", async () => {
     // Full flow: capability registry → lockdown invariants → ledger
     const { resolveNodeCommandCapabilityPolicy } = await import("./capability-registry.js");
-    
+
     const policy = resolveNodeCommandCapabilityPolicy("browser.proxy");
     expect(policy).toBeDefined();
     expect(policy.dangerous).toBe(true);

@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("node:child_process", async () => {
-  const actual = await vi.importActual<typeof import("node:child_process")>("node:child_process");
+vi.mock("../process/exec.js", async (importActual) => {
+  const actual = (await importActual()) as any;
   return {
     ...actual,
-    execFileSync: vi.fn(),
+    execFileSyncAllowed: vi.fn(),
   };
 });
 
-import { execFileSync } from "node:child_process";
+import { execFileSyncAllowed } from "../process/exec.js";
 import {
   forceFreePort,
   forceFreePortAndWait,
@@ -39,7 +39,7 @@ describe("gateway --force helpers", () => {
   });
 
   it("returns empty list when lsof finds nothing", () => {
-    (execFileSync as unknown as vi.Mock).mockImplementation(() => {
+    (execFileSyncAllowed as unknown as vi.Mock).mockImplementation(() => {
       const err = new Error("no matches");
       // @ts-expect-error partial
       err.status = 1; // lsof uses exit 1 for no matches
@@ -49,7 +49,7 @@ describe("gateway --force helpers", () => {
   });
 
   it("throws when lsof missing", () => {
-    (execFileSync as unknown as vi.Mock).mockImplementation(() => {
+    (execFileSyncAllowed as unknown as vi.Mock).mockImplementation(() => {
       const err = new Error("not found");
       // @ts-expect-error partial
       err.code = "ENOENT";
@@ -59,7 +59,7 @@ describe("gateway --force helpers", () => {
   });
 
   it("kills each listener and returns metadata", () => {
-    (execFileSync as unknown as vi.Mock).mockReturnValue(
+    (execFileSyncAllowed as unknown as vi.Mock).mockReturnValue(
       ["p42", "cnode", "p99", "cssh", ""].join("\n"),
     );
     const killMock = vi.fn();
@@ -68,7 +68,7 @@ describe("gateway --force helpers", () => {
 
     const killed = forceFreePort(18789);
 
-    expect(execFileSync).toHaveBeenCalled();
+    expect(execFileSyncAllowed).toHaveBeenCalled();
     expect(killMock).toHaveBeenCalledTimes(2);
     expect(killMock).toHaveBeenCalledWith(42, "SIGTERM");
     expect(killMock).toHaveBeenCalledWith(99, "SIGTERM");
@@ -81,7 +81,7 @@ describe("gateway --force helpers", () => {
   it("retries until the port is free", async () => {
     vi.useFakeTimers();
     let call = 0;
-    (execFileSync as unknown as vi.Mock).mockImplementation(() => {
+    (execFileSyncAllowed as unknown as vi.Mock).mockImplementation(() => {
       call += 1;
       // 1st call: initial listeners to kill; 2nd call: still listed; 3rd call: gone.
       if (call === 1) {
@@ -117,7 +117,7 @@ describe("gateway --force helpers", () => {
   it("escalates to SIGKILL if SIGTERM doesn't free the port", async () => {
     vi.useFakeTimers();
     let call = 0;
-    (execFileSync as unknown as vi.Mock).mockImplementation(() => {
+    (execFileSyncAllowed as unknown as vi.Mock).mockImplementation(() => {
       call += 1;
       // 1st call: initial kill list; then keep showing until after SIGKILL.
       if (call <= 6) {
