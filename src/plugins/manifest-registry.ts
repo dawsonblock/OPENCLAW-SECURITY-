@@ -172,6 +172,15 @@ export function loadPluginManifestRegistry(params: {
       seenIds.add(manifest.id);
     }
 
+    if (!candidate.packageEngines?.openclaw && candidate.origin !== "bundled" && candidate.origin !== "config") {
+      diagnostics.push({
+        level: "warn",
+        pluginId: manifest.id,
+        source: candidate.source,
+        message: `plugin is missing engines.openclaw declaration; compatibility contracts are not verified`,
+      });
+    }
+
     const configSchema = manifest.configSchema;
     const manifestMtime = safeStatMtimeMs(manifestRes.manifestPath);
     const schemaCacheKey = manifestMtime

@@ -139,6 +139,7 @@ export type PackageManifest = {
   name?: string;
   version?: string;
   description?: string;
+  engines?: Record<string, string>;
 } & Partial<Record<ManifestKey, OpenClawPackageManifest>>;
 
 export function getPackageManifestMetadata(

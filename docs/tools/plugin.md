@@ -648,6 +648,23 @@ This repo includes a voice‑call plugin (Twilio or log fallback):
 
 See [Voice Call](/plugins/voice-call) and `extensions/voice-call/README.md` for setup and usage.
 
+## Compatibility contracts
+
+As of 2026.2.9, OpenClaw enforces a compatibility contract for external plugins. This prevents internal runtime changes from silently breaking extensions by requiring authors to specify which version of OpenClaw they target.
+
+Plugin authors should add the `engines` field to their `package.json`:
+
+```json
+{
+  "name": "my-plugin",
+  "engines": {
+    "openclaw": "2026.2.9"
+  }
+}
+```
+
+The runtime will emit a **warning** if this field is missing for external plugins. In future versions, mismatched major versions may block loading to preserve system stability.
+
 ## Safety notes
 
 Plugins run in-process with the Gateway. Treat them as trusted code:

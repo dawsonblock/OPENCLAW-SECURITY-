@@ -22,6 +22,7 @@ export type PluginCandidate = {
   packageDescription?: string;
   packageDir?: string;
   packageManifest?: OpenClawPackageManifest;
+  packageEngines?: Record<string, string>;
 };
 
 export type PluginDiscoveryResult = {
@@ -109,6 +110,7 @@ function addCandidate(params: {
     packageDescription: manifest?.description?.trim() || undefined,
     packageDir: params.packageDir,
     packageManifest: getPackageManifestMetadata(manifest ?? undefined),
+    packageEngines: manifest?.engines,
   });
 }
 

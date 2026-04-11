@@ -188,8 +188,8 @@ Notes:
 ## Compatibility and versioning
 
 - SDK: semver, published, documented changes.
-- Runtime: versioned per core release. Add `api.runtime.version`.
-- Plugins declare a required runtime range (e.g., `openclawRuntime: ">=2026.2.0"`).
+- Runtime: versioned per core release. Check `engines.openclaw` in the root `package.json`.
+- Plugins: declare a required runtime range via `engines.openclaw` in their `package.json`. The runtime warns on missing or mismatched contracts.
 
 ## Testing strategy
 
