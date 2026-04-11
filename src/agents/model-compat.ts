@@ -4,19 +4,37 @@ function isOpenAiCompletionsModel(model: Model<Api>): model is Model<"openai-com
   return model.api === "openai-completions";
 }
 
+/**
+ * Native OpenAI endpoints that support the `developer` role in chat completions.
+ * All other openai-completions-compatible endpoints (Ollama, GitHub Models,
+ * Azure inference, Together, Groq, etc.) do NOT support it and must use `system`.
+ */
+const NATIVE_OPENAI_HOSTS = ["api.openai.com", "api.openai.azure.com"];
+
+function isNativeOpenAiEndpoint(baseUrl: string): boolean {
+  try {
+    const { hostname } = new URL(baseUrl);
+    return NATIVE_OPENAI_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`));
+  } catch {
+    return false;
+  }
+}
+
 export function normalizeModelCompat(model: Model<Api>): Model<Api> {
-  const baseUrl = model.baseUrl ?? "";
-  const isZai = model.provider === "zai" || baseUrl.includes("api.z.ai");
-  if (!isZai || !isOpenAiCompletionsModel(model)) {
+  if (!isOpenAiCompletionsModel(model)) {
     return model;
   }
-
+  const baseUrl = model.baseUrl ?? "";
+  // Only native OpenAI endpoints support the 'developer' role.
+  // Force it off for all third-party openai-completions providers.
+  if (isNativeOpenAiEndpoint(baseUrl)) {
+    return model;
+  }
   const openaiModel = model;
   const compat = openaiModel.compat ?? undefined;
   if (compat?.supportsDeveloperRole === false) {
-    return model;
+    return model; // already set
   }
-
   openaiModel.compat = compat
     ? { ...compat, supportsDeveloperRole: false }
     : { supportsDeveloperRole: false };
