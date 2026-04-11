@@ -170,7 +170,7 @@ jobs:
           path: dist/
 
       - name: Check release contents
-        run: pnpm release:check
+        run: pnpm release:gate
 
   checks:
     needs: [docs-scope, changed-scope, code-analysis, check]

@@ -75,6 +75,7 @@
     "protocol:gen": "node --import tsx scripts/protocol-gen.ts",
     "protocol:gen:swift": "node --import tsx scripts/protocol-gen-swift.ts",
     "release:check": "node --import tsx scripts/release-check.ts",
+    "release:gate": "bash scripts/release-gate.sh",
     "security:check": "node --import tsx scripts/ci-security-check.ts",
     "start": "node scripts/run-node.mjs",
     "test": "node scripts/test-parallel.mjs",
@@ -186,7 +187,8 @@
     "node-llama-cpp": "3.15.1"
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.12.0",
+    "openclaw": "2026.2.9"
   },
   "packageManager": "pnpm@10.23.0",
   "pnpm": {
