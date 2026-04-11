@@ -133,7 +133,7 @@ enum SessionKind {
         case .direct: "Direct"
         case .group: "Group"
         case .global: "Global"
-        case .operatorLane: "Operator"
+        case let .operatorLane(id): id.capitalized
         case .unknown: "Unknown"
         }
     }
