@@ -110,7 +110,7 @@ async function checkScanScopeRoots(roots: string[], cwd: string): Promise<Doctor
  * Check that critical workspace paths exist with sane permissions.
  * E3.4: Add permission strictness warning for overly permissive workspace.
  */
-async function checkWorkspacePaths(cfg: OpenClawConfig): Promise<DoctorCheckResult> {
+async function checkWorkspacePaths(_cfg: OpenClawConfig): Promise<DoctorCheckResult> {
   // Workspace configuration moved to separate modules
   // This check is kept for compatibility but workspace is not directly in OpenClawConfig
   return {

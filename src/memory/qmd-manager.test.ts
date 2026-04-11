@@ -115,17 +115,6 @@ function setupMockSpawn() {
   });
 }
 
-async function waitForCondition(condition: () => boolean, timeoutMs: number): Promise<void> {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    if (condition()) {
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  throw new Error("Condition timed out");
-}
-
 describe("QmdMemoryManager", () => {
   let tmpRoot: string;
   let workspaceDir: string;

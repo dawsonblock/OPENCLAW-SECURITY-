@@ -3,12 +3,7 @@ import type { OpenClawConfig } from "../config/config.js";
 import type { NodeRegistry, NodeSession, NodeInvokeResult } from "../gateway/node-registry.js";
 import { invokeNodeCommandWithKernelGate } from "../gateway/node-command-kernel-gate.js";
 import { DEFAULT_DANGEROUS_NODE_COMMANDS } from "../gateway/node-command-policy.js";
-import {
-  createEmptyHealth,
-  computeHealthStatus,
-  HealthBuilder,
-  runStartupChecks,
-} from "../runtime/health-model.js";
+import { HealthBuilder, runStartupChecks } from "../runtime/health-model.js";
 
 /**
  * Fast Smoke Test: Core Security & Operational Guarantees
