@@ -228,6 +228,17 @@ export const icons = {
       />
     </svg>
   `,
+  play: html`
+    <svg viewBox="0 0 24 24">
+      <polygon points="5 3 19 12 5 21 5 3" />
+    </svg>
+  `,
+  code: html`
+    <svg viewBox="0 0 24 24">
+      <polyline points="16 18 22 12 16 6" />
+      <polyline points="8 6 2 12 8 18" />
+    </svg>
+  `,
 } as const;
 
 export type IconName = keyof typeof icons;

@@ -207,6 +207,46 @@
   color: var(--danger);
 }
 
+.pill--lane {
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--bg-elevated);
+  border-color: var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.pill--lane .pill__icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.pill--lane .pill__badge {
+  background: var(--secondary);
+  color: var(--text-strong);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  font-family: var(--mono);
+  font-size: 10px;
+  margin-left: 2px;
+}
+
+.pill--lane.pill--active {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+  color: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow);
+  animation: pulse-subtle 4s ease-in-out infinite;
+}
+
+.pill--lane.pill--active .pill__badge {
+  background: var(--accent);
+  color: var(--primary-foreground);
+}
+
 /* ===========================================
    Theme Toggle
    =========================================== */

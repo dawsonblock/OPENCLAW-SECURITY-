@@ -98,6 +98,28 @@ function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
   return identity?.avatarUrl;
 }
 
+function renderAgentLanes(state: AppViewState) {
+  const lanes = state.agentLanes?.lanes ?? [];
+  const operatorLanes = lanes.filter((l) => l.isOperatorLane);
+  if (operatorLanes.length === 0) {
+    return nothing;
+  }
+
+  return operatorLanes.map((lane) => {
+    const isActive = lane.activeSessions > 0;
+    return html`
+      <div
+        class="pill pill--lane ${isActive ? "pill--active" : ""}"
+        title="${lane.agentId}: ${lane.activeSessions} active sessions"
+      >
+        <span class="pill__icon">${lane.agentId === "coder" ? icons.code : lane.agentId === "triage" ? icons.search : icons.play}</span>
+        <span class="pill__text">${lane.agentId}</span>
+        <span class="pill__badge">${lane.activeSessions}</span>
+      </div>
+    `;
+  });
+}
+
 export function renderApp(state: AppViewState) {
   const presenceCount = state.presenceEntries.length;
   const sessionsCount = state.sessionsResult?.count ?? null;
@@ -149,6 +171,7 @@ export function renderApp(state: AppViewState) {
             <span>Health</span>
             <span class="mono">${state.connected ? "OK" : "Offline"}</span>
           </div>
+          ${renderAgentLanes(state)}
           ${renderThemeToggle(state)}
         </div>
       </header>

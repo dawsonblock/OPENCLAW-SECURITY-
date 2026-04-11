@@ -772,3 +772,15 @@ export type LogEntry = {
   message?: string | null;
   meta?: Record<string, unknown> | null;
 };
+
+export type AgentLaneEntry = {
+  agentId: string;
+  isOperatorLane: boolean;
+  activeSessions: number;
+  lastActivity: number | null;
+};
+
+export type AgentLanesResult = {
+  ts: number;
+  lanes: AgentLaneEntry[];
+};

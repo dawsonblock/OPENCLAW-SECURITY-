@@ -30,6 +30,7 @@ import type {
   SessionsListResult,
   SkillStatusReport,
   StatusSummary,
+  AgentLanesResult,
 } from "./types.ts";
 import type { ChatAttachment, ChatQueueItem, CronFormState } from "./ui-types.ts";
 import type { NostrProfileFormState } from "./views/channels.nostr-profile-form.ts";
@@ -142,6 +143,7 @@ export type AppViewState = {
   agentSkillsError: string | null;
   agentSkillsReport: SkillStatusReport | null;
   agentSkillsAgentId: string | null;
+  agentLanes: AgentLanesResult | null;
   sessionsLoading: boolean;
   sessionsResult: SessionsListResult | null;
   sessionsError: string | null;
@@ -259,6 +261,7 @@ export type AppViewState = {
   handleCronAdd: () => Promise<void>;
   handleCronRunsLoad: (jobId: string) => Promise<void>;
   handleCronFormUpdate: (path: string, value: unknown) => void;
+  handleLoadAgentLanes: () => Promise<void>;
   handleSessionsLoad: () => Promise<void>;
   handleSessionsPatch: (key: string, patch: unknown) => Promise<void>;
   handleLoadNodes: () => Promise<void>;

@@ -5,6 +5,7 @@ import { loadNodes } from "./controllers/nodes.ts";
 
 type PollingHost = {
   nodesPollInterval: number | null;
+  lanesPollInterval: number | null;
   logsPollInterval: number | null;
   debugPollInterval: number | null;
   tab: string;
@@ -26,6 +27,27 @@ export function stopNodesPolling(host: PollingHost) {
   }
   clearInterval(host.nodesPollInterval);
   host.nodesPollInterval = null;
+}
+
+export function startLanesPolling(host: PollingHost) {
+  if (host.lanesPollInterval != null) {
+    return;
+  }
+  host.lanesPollInterval = window.setInterval(
+    () =>
+      void (host as unknown as OpenClawApp).handleLoadAgentLanes().catch((err) => {
+        console.error("[polling] loadAgentLanes failed:", err);
+      }),
+    8000,
+  );
+}
+
+export function stopLanesPolling(host: PollingHost) {
+  if (host.lanesPollInterval == null) {
+    return;
+  }
+  clearInterval(host.lanesPollInterval);
+  host.lanesPollInterval = null;
 }
 
 export function startLogsPolling(host: PollingHost) {

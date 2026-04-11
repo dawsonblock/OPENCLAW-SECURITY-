@@ -1,5 +1,5 @@
 import type { GatewayBrowserClient } from "../gateway.ts";
-import type { SessionsListResult } from "../types.ts";
+import type { AgentLanesResult, SessionsListResult } from "../types.ts";
 import { toNumber } from "../format.ts";
 
 export type SessionsState = {
@@ -12,6 +12,7 @@ export type SessionsState = {
   sessionsFilterLimit: string;
   sessionsIncludeGlobal: boolean;
   sessionsIncludeUnknown: boolean;
+  agentLanes: AgentLanesResult | null;
 };
 
 export async function loadSessions(
@@ -113,5 +114,23 @@ export async function deleteSession(state: SessionsState, key: string) {
     state.sessionsError = String(err);
   } finally {
     state.sessionsLoading = false;
+  }
+}
+
+export async function loadAgentLanes(state: {
+  client: GatewayBrowserClient | null;
+  connected: boolean;
+  agentLanes: AgentLanesResult | null;
+}) {
+  if (!state.client || !state.connected) {
+    return;
+  }
+  try {
+    const res = await state.client.request<AgentLanesResult | undefined>("sessions.agentLanes");
+    if (res) {
+      state.agentLanes = res;
+    }
+  } catch (err) {
+    console.error("[sessions] loadAgentLanes failed:", err);
   }
 }
