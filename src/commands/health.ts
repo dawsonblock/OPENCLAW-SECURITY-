@@ -765,14 +765,15 @@ export async function healthCommand(
         : formatHealthChannelLines(summary, {
             accountMode: opts.verbose ? "all" : "default",
           });
+    const statusColor = summary.status === "healthy" ? theme.success : summary.status === "degraded" ? theme.warn : theme.error;
     const runtimeLine = [
-      `Gateway runtime: ${summary.status}`,
-      summary.safeMode ? "safe mode active" : null,
+      `Gateway runtime: ${statusColor(summary.status)}`,
+      summary.safeMode ? theme.warn("safe mode active") : null,
       summary.ready
-        ? "ready"
-        : `not ready (${(summary.readinessBlockers ?? []).join(", ") || "blocked"})`,
+        ? theme.success("ready")
+        : theme.error(`not ready (${(summary.readinessBlockers ?? []).join(", ") || "blocked"})`),
       (summary.degradedSubsystems ?? []).length > 0
-        ? `degraded subsystems ${(summary.degradedSubsystems ?? []).join(", ")}`
+        ? theme.warn(`degraded subsystems ${(summary.degradedSubsystems ?? []).join(", ")}`)
         : null,
     ]
       .filter(Boolean)

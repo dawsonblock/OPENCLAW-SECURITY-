@@ -1,12 +1,14 @@
-// cspell:ignore openclaw healthz readyz livez
 /**
- * DEPRECATED: Helper-only HTTP health endpoint builders.
+ * ⚠️ DEPRECATED/NON-CANONICAL
  *
- * THIS IS NON-CANONICAL REFERENCE CODE.
+ * This file contains helper-only HTTP health endpoint builders.
+ * IT IS NOT THE CANONICAL SOURCE OF TRUTH FOR OPERATIONAL HEALTH.
  *
- * The live health contract in this branch is the gateway RPC/method path in
- * `src/gateway/server-methods/health.ts`. These handlers are reference code
- * only until they are explicitly mounted by the runtime.
+ * The live health contract for this branch is the gateway RPC method path:
+ * - Method: `health`
+ * - Code: `src/gateway/server-methods/health.ts`
+ *
+ * Use this file ONLY for reference or legacy compatibility.
  */
 
 import type { RuntimeHealth } from "../runtime/health-model.js";

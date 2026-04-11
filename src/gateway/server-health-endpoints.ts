@@ -1,12 +1,12 @@
 /**
- * DEPRECATED: Example health endpoints (for reference only).
+ * ⚠️ DEPRECATED/NON-CANONICAL
  *
- * THIS IS NON-CANONICAL REFERENCE CODE.
+ * Example health endpoints (for reference only).
+ * IT IS NOT THE CANONICAL SOURCE OF TRUTH FOR OPERATIONAL HEALTH.
  *
- * Use `health-endpoints.ts` instead for the production health/readiness/liveness interface.
- *
- * This file is kept for documentation purposes only and should not be used
- * in actual gateway runtime wiring. The actual live health path is via RPC.
+ * Use `health-endpoints.ts` or the canonical RPC path instead:
+ * - Method: `health`
+ * - Code: `src/gateway/server-methods/health.ts`
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
