@@ -7,7 +7,7 @@ type JSZipModule = typeof import("jszip");
 
 let canvasModulePromise: Promise<CanvasModule> | null = null;
 let pdfJsModulePromise: Promise<PdfJsModule> | null = null;
-let jsZipModulePromise: Promise<JSZipModule> | null = null;
+let jsZipModulePromise: Promise<any> | null = null;
 
 // Lazy-load optional PDF/image deps so non-PDF paths don't require native installs.
 async function loadCanvasModule(): Promise<CanvasModule> {
@@ -34,12 +34,16 @@ async function loadPdfJsModule(): Promise<PdfJsModule> {
   return pdfJsModulePromise;
 }
 
-async function loadJsZipModule(): Promise<JSZipModule> {
+async function loadJsZipModule(): Promise<any> {
   if (!jsZipModulePromise) {
-    jsZipModulePromise = import("jszip").catch((err) => {
-      jsZipModulePromise = null;
-      throw new Error(`Optional dependency jszip is required for ZIP/DOCX extraction: ${String(err)}`);
-    });
+    jsZipModulePromise = import("jszip")
+      .then((mod) => (mod as any).default || mod)
+      .catch((err) => {
+        jsZipModulePromise = null;
+        throw new Error(
+          `Optional dependency jszip is required for ZIP/DOCX extraction: ${String(err)}`,
+        );
+      });
   }
   return jsZipModulePromise;
 }
@@ -58,10 +62,25 @@ function stripXmlTags(xml: string): string {
     .trim();
 }
 
+/** Specialized XML stripper for DOCX that preserves paragraph breaks. */
+function stripDocxXml(xml: string): string {
+  return xml
+    .replace(/<\/w:p>/g, "\n") // Newline for each paragraph
+    .replace(/<[^>]+>/g, "") // Strip remaining tags
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 /** Extract readable text from a DOCX buffer (ZIP containing word/document.xml). */
 async function extractDocxContent(buffer: Buffer, maxChars: number): Promise<string> {
   const JSZip = await loadJsZipModule();
-  const zip = await JSZip.default.loadAsync(buffer);
+  const zip = await JSZip.loadAsync(buffer);
   // DOCX body text is in word/document.xml; headers/footers in word/header*.xml / word/footer*.xml
   const targets = [
     "word/document.xml",
@@ -73,10 +92,14 @@ async function extractDocxContent(buffer: Buffer, maxChars: number): Promise<str
   const parts: string[] = [];
   for (const target of targets) {
     const file = zip.file(target);
-    if (!file) continue;
+    if (!file) {
+      continue;
+    }
     const xml = await file.async("string");
-    const text = stripXmlTags(xml);
-    if (text) parts.push(text);
+    const text = stripDocxXml(xml);
+    if (text) {
+      parts.push(text);
+    }
   }
   return clampText(parts.join("\n\n"), maxChars);
 }
@@ -84,26 +107,63 @@ async function extractDocxContent(buffer: Buffer, maxChars: number): Promise<str
 /** List contents of a ZIP archive and extract readable text files within it. */
 async function extractZipContent(buffer: Buffer, maxChars: number): Promise<string> {
   const JSZip = await loadJsZipModule();
-  const zip = await JSZip.default.loadAsync(buffer);
-  const names = Object.keys(zip.files).sort();
+  const zip = await JSZip.loadAsync(buffer);
+  const names = Object.keys(zip.files).toSorted();
   const toc = names.map((n) => `  ${n}`).join("\n");
   const header = `ZIP archive (${names.length} entries):\n${toc}`;
   // Extract text from small text-like files inside the ZIP
-  const TEXT_EXTS = new Set([".txt", ".md", ".json", ".yaml", ".yml", ".xml", ".csv", ".ini", ".cfg", ".env", ".log", ".js", ".ts", ".py"]);
+  const TEXT_EXTS = new Set([
+    ".txt",
+    ".md",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".xml",
+    ".csv",
+    ".ini",
+    ".cfg",
+    ".env",
+    ".log",
+    ".js",
+    ".ts",
+    ".py",
+    ".rb",
+    ".php",
+    ".go",
+    ".rs",
+    ".c",
+    ".cpp",
+    ".h",
+    ".hpp",
+    ".cs",
+    ".java",
+    ".sh",
+    ".bash",
+    ".zsh",
+    ".sql",
+  ]);
   const MAX_FILE_BYTES = 100_000;
   const textParts: string[] = [];
   let totalExtracted = 0;
   for (const name of names) {
     const entry = zip.files[name];
-    if (!entry || entry.dir) continue;
+    if (!entry || entry.dir) {
+      continue;
+    }
     const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
-    if (!TEXT_EXTS.has(ext)) continue;
+    if (!TEXT_EXTS.has(ext)) {
+      continue;
+    }
     try {
       const content = await entry.async("string");
-      if (content.length > MAX_FILE_BYTES) continue;
+      if (content.length > MAX_FILE_BYTES) {
+        continue;
+      }
       textParts.push(`--- ${name} ---\n${content.trim()}`);
       totalExtracted += content.length;
-      if (totalExtracted > maxChars * 0.8) break;
+      if (totalExtracted > maxChars * 0.8) {
+        break;
+      }
     } catch {
       // Skip unreadable entries
     }
@@ -189,12 +249,12 @@ export const DEFAULT_INPUT_FILE_MIMES = [
   "application/javascript",
   // Microsoft Office (OOXML)
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",       // .xlsx
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
   "application/vnd.openxmlformats-officedocument.presentationml.presentation", // .pptx
   // Microsoft Office (legacy)
-  "application/msword",                                                       // .doc
-  "application/vnd.ms-excel",                                                 // .xls
-  "application/vnd.ms-powerpoint",                                            // .ppt
+  "application/msword", // .doc
+  "application/vnd.ms-excel", // .xls
+  "application/vnd.ms-powerpoint", // .ppt
   // Archives — contents extracted as text where possible
   "application/zip",
   "application/x-zip-compressed",
@@ -205,12 +265,12 @@ export const DEFAULT_INPUT_FILE_MIMES = [
   "application/rtf",
   "application/x-rtf",
 ];
-export const DEFAULT_INPUT_IMAGE_MAX_BYTES = 10 * 1024 * 1024;    // 10 MB
-export const DEFAULT_INPUT_FILE_MAX_BYTES = 25 * 1024 * 1024;     // 25 MB
-export const DEFAULT_INPUT_FILE_MAX_CHARS = 500_000;              // 500k chars
+export const DEFAULT_INPUT_IMAGE_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+export const DEFAULT_INPUT_FILE_MAX_BYTES = 25 * 1024 * 1024; // 25 MB
+export const DEFAULT_INPUT_FILE_MAX_CHARS = 500_000; // 500k chars
 export const DEFAULT_INPUT_MAX_REDIRECTS = 3;
-export const DEFAULT_INPUT_TIMEOUT_MS = 30_000;                   // 30s for large files
-export const DEFAULT_INPUT_PDF_MAX_PAGES = 20;                    // more pages
+export const DEFAULT_INPUT_TIMEOUT_MS = 30_000; // 30s for large files
+export const DEFAULT_INPUT_PDF_MAX_PAGES = 20; // more pages
 export const DEFAULT_INPUT_PDF_MAX_PIXELS = 4_000_000;
 export const DEFAULT_INPUT_PDF_MIN_TEXT_CHARS = 200;
 
