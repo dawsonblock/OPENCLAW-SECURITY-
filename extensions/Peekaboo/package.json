@@ -1,0 +1,83 @@
+{
+  "name": "@steipete/peekaboo",
+  "version": "3.0.0-beta4",
+  "private": false,
+  "description": "macOS automation MCP server with screen capture, UI interaction, and AI analysis",
+  "keywords": [
+    "ai",
+    "automation",
+    "macos",
+    "mcp",
+    "model-context-protocol",
+    "screen-capture"
+  ],
+  "homepage": "https://github.com/steipete/peekaboo#readme",
+  "bugs": {
+    "url": "https://github.com/steipete/peekaboo/issues"
+  },
+  "license": "MIT",
+  "author": "Peter Steinberger <steipete@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/steipete/peekaboo.git"
+  },
+  "bin": {
+    "peekaboo": "peekaboo",
+    "peekaboo-mcp": "peekaboo-mcp.js"
+  },
+  "files": [
+    "peekaboo",
+    "peekaboo-mcp.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "type": "module",
+  "main": "peekaboo-mcp.js",
+  "scripts": {
+    "app:restart": "./scripts/restart-peekaboo.sh",
+    "build": "pnpm run build:cli",
+    "build:cli": "swift build --package-path Apps/CLI",
+    "build:cli:release": "swift build --configuration release --package-path Apps/CLI",
+    "build:polter": "pnpm run polter -- peekaboo -- --version",
+    "build:swift": "./scripts/build-swift-arm.sh",
+    "build:swift:all": "./scripts/build-swift-universal.sh",
+    "docs:list": "node scripts/docs-list.mjs",
+    "format": "pnpm run format:swift",
+    "format:swift": "swiftformat .",
+    "lint": "pnpm run lint:swift",
+    "lint:docs": "node scripts/docs-lint.mjs",
+    "lint:swift": "swiftlint lint --config .swiftlint.yml",
+    "oracle": "pnpm -C ../oracle oracle",
+    "peekaboo": "FORCE_COLOR=1 CLICOLOR_FORCE=1 NODE_PATH=../poltergeist/node_modules script -q /dev/null ./scripts/poltergeist-wrapper.sh peekaboo",
+    "peekaboo:dev": "pnpm run polter:dev -- peekaboo",
+    "polter": "FORCE_COLOR=1 CLICOLOR_FORCE=1 NODE_PATH=../poltergeist/node_modules script -q /dev/null node ../poltergeist/dist/polter.js",
+    "polter:dev": "cd /Users/steipete/Projects/Peekaboo && FORCE_COLOR=1 CLICOLOR_FORCE=1 NODE_PATH=../poltergeist/node_modules pnpm --dir ../poltergeist exec tsx ../poltergeist/src/polter.ts",
+    "poltergeist:haunt": "./scripts/poltergeist-wrapper.sh haunt",
+    "poltergeist:logs": "./scripts/poltergeist-wrapper.sh logs",
+    "poltergeist:rest": "./scripts/poltergeist-wrapper.sh rest",
+    "poltergeist:start": "./scripts/poltergeist-wrapper.sh start",
+    "poltergeist:status": "./scripts/poltergeist-wrapper.sh status",
+    "poltergeist:stop": "./scripts/poltergeist-wrapper.sh stop",
+    "postinstall": "chmod +x peekaboo peekaboo-mcp.js 2>/dev/null || true",
+    "prepare-release": "node scripts/prepare-release.js",
+    "tachikoma:test:integration": "bash -lc 'cd Tachikoma && source ~/.profile && INTEGRATION_TESTS=1 swift test --parallel -Xswiftc -DLIVE_PROVIDER_TESTS'",
+    "test": "pnpm run test:safe",
+    "test:all": "bash -lc 'set -euo pipefail; cd Apps/CLI && swift test -Xswiftc -DPEEKABOO_SKIP_AUTOMATION --no-parallel && PEEKABOO_INCLUDE_AUTOMATION_TESTS=true swift test --no-parallel'",
+    "test:automation": "PEEKABOO_INCLUDE_AUTOMATION_TESTS=true swift test --package-path Apps/CLI --no-parallel",
+    "test:automation:local": "bash -lc 'BIN_PATH=$(swift build --package-path Apps/CLI --show-bin-path) && RUN_LOCAL_TESTS=true PEEKABOO_INCLUDE_AUTOMATION_TESTS=true PEEKABOO_CLI_PATH=\"$BIN_PATH/peekaboo\" swift test --package-path Apps/CLI --no-parallel'",
+    "test:automation:read": "RUN_AUTOMATION_READ=true PEEKABOO_INCLUDE_AUTOMATION_TESTS=true swift test --package-path Apps/CLI --no-parallel",
+    "test:safe": "swift test --package-path Apps/CLI -Xswiftc -DPEEKABOO_SKIP_AUTOMATION --no-parallel"
+  },
+  "devDependencies": {
+    "chrome-devtools-mcp": "0.12.1"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
