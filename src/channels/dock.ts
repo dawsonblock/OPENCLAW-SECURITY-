@@ -1,15 +1,5 @@
-import type {
-  ChannelCapabilities,
-  ChannelCommandAdapter,
-  ChannelElevatedAdapter,
-  ChannelGroupAdapter,
-  ChannelId,
-  ChannelAgentPromptAdapter,
-  ChannelMentionAdapter,
-  ChannelPlugin,
-  ChannelThreadingAdapter,
-} from "./plugins/types.js";
-import type { ChannelDock, ChannelDockStreaming } from "./types.js";
+import type { ChannelId, ChannelPlugin } from "./plugins/types.js";
+import type { ChannelDock } from "./types.js";
 import { resolveDiscordAccount } from "../discord/accounts.js";
 import { resolveIMessageAccount } from "../imessage/accounts.js";
 import { requireActivePluginRegistry } from "../plugins/runtime.js";

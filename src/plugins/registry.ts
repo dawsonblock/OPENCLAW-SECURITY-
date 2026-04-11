@@ -486,7 +486,7 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
       registerHook: (events, handler, opts) =>
         registerHook(record, events, handler, opts, params.config),
       registerHttpHandler: (handler) => registerHttpHandler(record, handler),
-      registerHttpRoute: (params) => registerHttpRoute(record, params),
+      registerHttpRoute: (routeParams) => registerHttpRoute(record, routeParams),
       registerChannel: (registration) => registerChannel(record, registration),
       registerProvider: (provider) => registerProvider(record, provider),
       registerGatewayMethod: (method, handler) => registerGatewayMethod(record, method, handler),
