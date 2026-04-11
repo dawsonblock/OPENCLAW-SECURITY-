@@ -185,19 +185,27 @@ struct SessionMenuPreviewView: View {
 
     @ViewBuilder
     private func previewRow(_ item: SessionPreviewItem) -> some View {
-        HStack(alignment: .top, spacing: 4) {
-            Text(item.role.label)
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(self.roleColor(item.role))
-                .frame(width: 50, alignment: .leading)
+        // Render structured operator receipts as compact cards.
+        if let receiptView = OperatorReceiptView.parseIfReceipt(
+            text: item.text,
+            width: self.width - 27) // account for leading padding
+        {
+            receiptView
+        } else {
+            HStack(alignment: .top, spacing: 4) {
+                Text(item.role.label)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(self.roleColor(item.role))
+                    .frame(width: 50, alignment: .leading)
 
-            Text(item.text)
-                .font(.caption)
-                .foregroundStyle(self.primaryColor)
-                .multilineTextAlignment(.leading)
-                .lineLimit(self.maxLines)
-                .truncationMode(.tail)
-                .fixedSize(horizontal: false, vertical: true)
+                Text(item.text)
+                    .font(.caption)
+                    .foregroundStyle(self.primaryColor)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(self.maxLines)
+                    .truncationMode(.tail)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 

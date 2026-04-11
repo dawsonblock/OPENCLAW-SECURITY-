@@ -16,6 +16,7 @@ import { modelsHandlers } from "./server-methods/models.js";
 import { nodeHandlers } from "./server-methods/nodes.js";
 import { sendHandlers } from "./server-methods/send.js";
 import { sessionsHandlers } from "./server-methods/sessions.js";
+import { agentLanesHandlers } from "./server-methods/agent-lanes.js";
 import { skillsHandlers } from "./server-methods/skills.js";
 import { systemHandlers } from "./server-methods/system.js";
 import { talkHandlers } from "./server-methods/talk.js";
@@ -68,6 +69,7 @@ const READ_METHODS = new Set([
   "voicewake.get",
   "sessions.list",
   "sessions.preview",
+  "sessions.agentLanes",
   "cron.list",
   "cron.status",
   "cron.runs",
@@ -184,6 +186,7 @@ export const coreGatewayHandlers: GatewayRequestHandlers = {
   ...ttsHandlers,
   ...skillsHandlers,
   ...sessionsHandlers,
+  ...agentLanesHandlers,
   ...systemHandlers,
   ...updateHandlers,
   ...nodeHandlers,

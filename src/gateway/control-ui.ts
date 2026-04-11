@@ -2,11 +2,13 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
+import { listAgentIds } from "../agents/agent-scope.js";
 import { resolveControlUiRootSync } from "../infra/control-ui-assets.js";
 import { DEFAULT_ASSISTANT_IDENTITY, resolveAssistantIdentity } from "./assistant-identity.js";
 import {
   buildControlUiAvatarUrl,
   CONTROL_UI_AVATAR_PREFIX,
+  CONTROL_UI_OPERATOR_AGENTS_KEY,
   normalizeControlUiBasePath,
   resolveAssistantAvatarUrl,
 } from "./control-ui-shared.js";
@@ -164,10 +166,11 @@ interface ControlUiInjectionOpts {
   basePath: string;
   assistantName?: string;
   assistantAvatar?: string;
+  operatorAgentIds?: string[];
 }
 
 function injectControlUiConfig(html: string, opts: ControlUiInjectionOpts): string {
-  const { basePath, assistantName, assistantAvatar } = opts;
+  const { basePath, assistantName, assistantAvatar, operatorAgentIds } = opts;
   const script =
     `<script>` +
     `window.__OPENCLAW_CONTROL_UI_BASE_PATH__=${JSON.stringify(basePath)};` +
@@ -177,6 +180,7 @@ function injectControlUiConfig(html: string, opts: ControlUiInjectionOpts): stri
     `window.__OPENCLAW_ASSISTANT_AVATAR__=${JSON.stringify(
       assistantAvatar ?? DEFAULT_ASSISTANT_IDENTITY.avatar,
     )};` +
+    `window.${CONTROL_UI_OPERATOR_AGENTS_KEY}=${JSON.stringify(operatorAgentIds ?? [])};` +
     `</script>`;
   // Check if already injected
   if (html.includes("__OPENCLAW_ASSISTANT_NAME__")) {
@@ -193,10 +197,11 @@ interface ServeIndexHtmlOpts {
   basePath: string;
   config?: OpenClawConfig;
   agentId?: string;
+  operatorAgentIds?: string[];
 }
 
 function serveIndexHtml(res: ServerResponse, indexPath: string, opts: ServeIndexHtmlOpts) {
-  const { basePath, config, agentId } = opts;
+  const { basePath, config, agentId, operatorAgentIds } = opts;
   const identity = config
     ? resolveAssistantIdentity({ cfg: config, agentId })
     : DEFAULT_ASSISTANT_IDENTITY;
@@ -210,6 +215,7 @@ function serveIndexHtml(res: ServerResponse, indexPath: string, opts: ServeIndex
       agentId: resolvedAgentId,
       basePath,
     }) ?? identity.avatar;
+  const resolvedOperatorIds = operatorAgentIds ?? (config ? listAgentIds(config) : []);
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache");
   const raw = fs.readFileSync(indexPath, "utf8");
@@ -218,6 +224,7 @@ function serveIndexHtml(res: ServerResponse, indexPath: string, opts: ServeIndex
       basePath,
       assistantName: identity.name,
       assistantAvatar: avatarValue,
+      operatorAgentIds: resolvedOperatorIds,
     }),
   );
 }

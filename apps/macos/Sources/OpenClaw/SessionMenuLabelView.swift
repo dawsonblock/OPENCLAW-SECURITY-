@@ -11,6 +11,25 @@ extension EnvironmentValues {
     }
 }
 
+/// Small colored pill showing the operator lane name (triage / coder / admin).
+private struct OperatorLaneBadge: View {
+    let laneId: String
+    let tint: Color
+    let isHighlighted: Bool
+
+    var body: some View {
+        Text(self.laneId)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(self.isHighlighted ? .white : self.tint)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(
+                Capsule()
+                    .fill(self.isHighlighted ? self.tint.opacity(0.7) : self.tint.opacity(0.15))
+            )
+    }
+}
+
 struct SessionMenuLabelView: View {
     let row: SessionRow
     let width: CGFloat
@@ -42,6 +61,15 @@ struct SessionMenuLabelView: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .layoutPriority(1)
+
+                // Operator lane badge (triage / coder / admin)
+                if let laneId = self.row.operatorLaneId {
+                    OperatorLaneBadge(
+                        laneId: laneId,
+                        tint: self.row.kind.tint,
+                        isHighlighted: self.isHighlighted)
+                    .padding(.leading, 3)
+                }
 
                 Spacer(minLength: 4)
 

@@ -87,6 +87,12 @@ struct SessionRow: Identifiable {
     var ageText: String { relativeAge(from: self.updatedAt) }
     var label: String { self.displayName ?? self.key }
 
+    /// Non-nil when this session belongs to an operator lane (triage, coder, admin).
+    var operatorLaneId: String? {
+        if case let .operatorLane(id) = self.kind { return id }
+        return nil
+    }
+
     var flagLabels: [String] {
         var flags: [String] = []
         if let thinkingLevel { flags.append("think \(thinkingLevel)") }
@@ -98,13 +104,26 @@ struct SessionRow: Identifiable {
 }
 
 enum SessionKind {
-    case direct, group, global, unknown
+    case direct, group, global, operatorLane(id: String), unknown
+
+    /// Well-known operator agent IDs that receive first-class UI treatment.
+    static let operatorLaneIds: Set<String> = ["triage", "coder", "admin"]
 
     static func from(key: String) -> SessionKind {
         if key == "global" { return .global }
         if key.hasPrefix("group:") { return .group }
         if key.contains(":group:") { return .group }
         if key.contains(":channel:") { return .group }
+        // Operator subagent sessions: agent:<id>:subagent:<uuid>
+        if key.hasPrefix("agent:") {
+            let parts = key.split(separator: ":", maxSplits: 3)
+            if parts.count >= 3, String(parts[2]) == "subagent" {
+                let laneId = String(parts[1]).lowercased()
+                if Self.operatorLaneIds.contains(laneId) {
+                    return .operatorLane(id: laneId)
+                }
+            }
+        }
         if key == "unknown" { return .unknown }
         return .direct
     }
@@ -114,6 +133,7 @@ enum SessionKind {
         case .direct: "Direct"
         case .group: "Group"
         case .global: "Global"
+        case .operatorLane: "Operator"
         case .unknown: "Unknown"
         }
     }
@@ -123,6 +143,13 @@ enum SessionKind {
         case .direct: .accentColor
         case .group: .orange
         case .global: .purple
+        case let .operatorLane(id):
+            switch id {
+            case "triage": .indigo
+            case "coder": .teal
+            case "admin": .orange
+            default: .accentColor
+            }
         case .unknown: .gray
         }
     }

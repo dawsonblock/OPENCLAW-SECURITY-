@@ -1,4 +1,6 @@
 const CONTROL_UI_AVATAR_PREFIX = "/avatar";
+/** Window variable injected into index.html for operator lane awareness. */
+const CONTROL_UI_OPERATOR_AGENTS_KEY = "__OPENCLAW_OPERATOR_AGENTS__";
 
 export function normalizeControlUiBasePath(basePath?: string): string {
   if (!basePath) {
@@ -66,4 +68,4 @@ export function resolveAssistantAvatarUrl(params: {
   return avatar;
 }
 
-export { CONTROL_UI_AVATAR_PREFIX };
+export { CONTROL_UI_AVATAR_PREFIX, CONTROL_UI_OPERATOR_AGENTS_KEY };
