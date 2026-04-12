@@ -46,6 +46,8 @@ title: "Features"
 - WebChat and macOS menu bar app
 - iOS node with pairing and Canvas surface
 - Android node with pairing, Canvas, chat, and camera
+- **Operator Workflows**: Triage-to-Coder delegation with structured reporting
+- **Visual Convergence**: Real-time Operator Lanes and Structured Receipt cards
 
 <Note>
 Legacy Claude, Codex, Gemini, and Opencode paths have been removed. Pi is the only

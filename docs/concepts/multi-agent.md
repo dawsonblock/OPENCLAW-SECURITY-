@@ -382,4 +382,20 @@ Note: `tools.elevated` is **global** and sender-based; it is not configurable pe
 If you need per-agent boundaries, use `agents.list[].tools` to deny `exec`.
 For group targeting, use `agents.list[].groupChat.mentionPatterns` so @mentions map cleanly to the intended agent.
 
-See [Multi-Agent Sandbox & Tools](/tools/multi-agent-sandbox-tools) for detailed examples.
+## The Operator Pattern
+
+OpenClaw introduces the **Operator Pattern** for high-confidence task delegation in complex environments. This pattern utilizes a hierarchy of specialized agents to ensure requests are correctly triaged and executed.
+
+### Core Workflow
+
+1.  **Triage**: A dedicated triage agent analyzes inbound requests.
+2.  **Handoff**: Using `sessions_spawn`, the triage agent delegates tasks to a **Coder** or **Admin** agent.
+3.  **Visualization**: The **Operator Lanes** in the Web UI reflect the current activity of these specialized roles.
+
+See [Operator Workflows](/concepts/operator-workflows) for a deep dive into implementation and visual integration.
+
+**Benefits:**
+
+- **Separation of Concerns**: `main` handles chat, `triage` handles routing, `coder` handles files.
+- **Model Efficiency**: Use cheaper, faster models for triage and high-reasoning models for execution.
+- **Auditability**: Every handoff is recorded as a **Structured Receipt**.
